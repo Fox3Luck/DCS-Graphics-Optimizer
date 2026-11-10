@@ -33,8 +33,9 @@ You need:
   test if the graphics card is already busy, because the results would be wrong.
 
 Download `DCSGraphicsOptimizer.exe` and double-click it. There is nothing to install.
-Until the program is code-signed, Windows shows a blue "Windows protected your PC"
-box the first time: click **More info**, then **Run anyway**.
+The program is signed by **Fox3 Managed Solutions Inc.** If Windows still shows a blue
+"Windows protected your PC" box the first time, check that the publisher shown is
+Fox3 Managed Solutions Inc., then click **More info** and **Run anyway**.
 
 ## The scorecard
 

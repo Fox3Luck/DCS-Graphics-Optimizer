@@ -120,5 +120,6 @@ produces `dist\DCSGraphicsOptimizer.exe`, a single file that needs no Python and
 Status 2026-11-10: scorecard, quick and thorough tests (including the no-restart
 measuring session), apply and undo all verified in real DCS 2.9.31 on one PC
 (RTX 4080 / 9800X3D). Not yet verified: AMD/Intel GPUs, a second PC, the packaged exe's
-full click-through, code signing (waiting on Azure identity validation). VR is planned
+full click-through. The exe is signed with Azure Artifact Signing (publisher Fox3 Managed
+Solutions Inc.); whether SmartScreen still warns on a fresh PC is not yet checked. VR is planned
 for v2.
