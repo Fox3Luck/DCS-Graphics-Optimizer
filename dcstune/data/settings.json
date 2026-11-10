@@ -1,0 +1,661 @@
+{
+ "_comment": "Levels are the exact values DCS 2.9.31 accepts (read from MissionEditor/modules/Options/optionsDb.lua). quality = visual-impact points (judgement table, tune from feedback). gpu/cpu = PRIOR share of frame time added relative to the first level, used only until a measurement replaces it. vram_mb = prior VRAM added.",
+ "settings": [
+  {
+   "key": "graphics.textures",
+   "label": "Textures",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Low",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "Medium",
+     "quality": 8,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 1500
+    },
+    {
+     "v": 2,
+     "name": "High",
+     "quality": 14,
+     "gpu": 0.01,
+     "cpu": 0,
+     "vram_mb": 4000
+    }
+   ]
+  },
+  {
+   "key": "graphics.terrainTextures",
+   "label": "Terrain textures",
+   "levels": [
+    {
+     "v": "min",
+     "name": "Low",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": "max",
+     "name": "High",
+     "quality": 8,
+     "gpu": 0.01,
+     "cpu": 0,
+     "vram_mb": 2000
+    }
+   ]
+  },
+  {
+   "key": "graphics.shadows",
+   "label": "Shadows",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0.0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "Flat only",
+     "quality": 3,
+     "gpu": 0.02,
+     "cpu": 0.01,
+     "vram_mb": 50
+    },
+    {
+     "v": 2,
+     "name": "Low",
+     "quality": 7,
+     "gpu": 0.06,
+     "cpu": 0.03,
+     "vram_mb": 150
+    },
+    {
+     "v": 3,
+     "name": "Medium",
+     "quality": 9,
+     "gpu": 0.09,
+     "cpu": 0.04,
+     "vram_mb": 250
+    },
+    {
+     "v": 4,
+     "name": "High",
+     "quality": 11,
+     "gpu": 0.14,
+     "cpu": 0.05,
+     "vram_mb": 400
+    }
+   ]
+  },
+  {
+   "key": "graphics.flatTerrainShadows",
+   "label": "Terrain object shadows",
+   "levels": [
+    {
+     "v": 2,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0.0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "Flat",
+     "quality": 3,
+     "gpu": 0.02,
+     "cpu": 0.01,
+     "vram_mb": 0
+    },
+    {
+     "v": 0,
+     "name": "Default",
+     "quality": 6,
+     "gpu": 0.1,
+     "cpu": 0.04,
+     "vram_mb": 100
+    }
+   ]
+  },
+  {
+   "key": "graphics.clouds",
+   "label": "Clouds",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Low",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "Standard",
+     "quality": 5,
+     "gpu": 0.04,
+     "cpu": 0,
+     "vram_mb": 100
+    },
+    {
+     "v": 2,
+     "name": "High",
+     "quality": 8,
+     "gpu": 0.08,
+     "cpu": 0,
+     "vram_mb": 200
+    },
+    {
+     "v": 3,
+     "name": "Ultra",
+     "quality": 10,
+     "gpu": 0.14,
+     "cpu": 0,
+     "vram_mb": 300
+    }
+   ]
+  },
+  {
+   "key": "graphics.visibRange",
+   "label": "Visibility range",
+   "levels": [
+    {
+     "v": "Low",
+     "name": "Low",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0.0,
+     "vram_mb": 0
+    },
+    {
+     "v": "Medium",
+     "name": "Medium",
+     "quality": 4,
+     "gpu": 0.03,
+     "cpu": 0.04,
+     "vram_mb": 200
+    },
+    {
+     "v": "High",
+     "name": "High",
+     "quality": 8,
+     "gpu": 0.06,
+     "cpu": 0.08,
+     "vram_mb": 400
+    },
+    {
+     "v": "Ultra",
+     "name": "Ultra",
+     "quality": 10,
+     "gpu": 0.09,
+     "cpu": 0.13,
+     "vram_mb": 600
+    },
+    {
+     "v": "Extreme",
+     "name": "Extreme",
+     "quality": 11,
+     "gpu": 0.12,
+     "cpu": 0.18,
+     "vram_mb": 800
+    }
+   ]
+  },
+  {
+   "key": "graphics.water",
+   "label": "Water",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Low",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "Medium",
+     "quality": 3,
+     "gpu": 0.02,
+     "cpu": 0,
+     "vram_mb": 50
+    },
+    {
+     "v": 2,
+     "name": "High",
+     "quality": 6,
+     "gpu": 0.05,
+     "cpu": 0,
+     "vram_mb": 100
+    }
+   ]
+  },
+  {
+   "key": "graphics.SSAO",
+   "label": "Ambient occlusion (SSAO)",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "Low",
+     "quality": 2,
+     "gpu": 0.03,
+     "cpu": 0,
+     "vram_mb": 50
+    },
+    {
+     "v": 2,
+     "name": "High",
+     "quality": 3,
+     "gpu": 0.06,
+     "cpu": 0,
+     "vram_mb": 50
+    }
+   ]
+  },
+  {
+   "key": "graphics.SSLR",
+   "label": "Screen-space reflections (SSLR)",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "On",
+     "quality": 2,
+     "gpu": 0.05,
+     "cpu": 0,
+     "vram_mb": 50
+    }
+   ]
+  },
+  {
+   "key": "graphics.SSS",
+   "label": "Screen-space shadows (SSS)",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "On",
+     "quality": 2,
+     "gpu": 0.04,
+     "cpu": 0,
+     "vram_mb": 50
+    }
+   ]
+  },
+  {
+   "key": "graphics.cockpitGI",
+   "label": "Cockpit global illumination",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "On",
+     "quality": 3,
+     "gpu": 0.02,
+     "cpu": 0,
+     "vram_mb": 50
+    }
+   ]
+  },
+  {
+   "key": "graphics.anisotropy",
+   "label": "Anisotropic filtering",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "2x",
+     "quality": 2,
+     "gpu": 0.002,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 2,
+     "name": "4x",
+     "quality": 4,
+     "gpu": 0.005,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 3,
+     "name": "8x",
+     "quality": 5,
+     "gpu": 0.008,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 4,
+     "name": "16x",
+     "quality": 6,
+     "gpu": 0.012,
+     "cpu": 0,
+     "vram_mb": 0
+    }
+   ]
+  },
+  {
+   "key": "graphics.volumetricLights",
+   "label": "Volumetric lights",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "On",
+     "quality": 2,
+     "gpu": 0.02,
+     "cpu": 0,
+     "vram_mb": 0
+    }
+   ]
+  },
+  {
+   "key": "graphics.forestDistanceFactor",
+   "label": "Forest distance",
+   "levels": [
+    {
+     "v": 0.3,
+     "name": "30%",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0.0,
+     "vram_mb": 0
+    },
+    {
+     "v": 0.5,
+     "name": "50%",
+     "quality": 2,
+     "gpu": 0.02,
+     "cpu": 0.01,
+     "vram_mb": 0
+    },
+    {
+     "v": 0.7,
+     "name": "70%",
+     "quality": 3,
+     "gpu": 0.04,
+     "cpu": 0.02,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "100%",
+     "quality": 4,
+     "gpu": 0.07,
+     "cpu": 0.03,
+     "vram_mb": 0
+    }
+   ],
+   "fmt": "{:.0f}%",
+   "mul": 100
+  },
+  {
+   "key": "graphics.clutterMaxDistance",
+   "label": "Grass / clutter distance",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 500,
+     "name": "500 m",
+     "quality": 2,
+     "gpu": 0.02,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1000,
+     "name": "1000 m",
+     "quality": 3,
+     "gpu": 0.04,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1500,
+     "name": "1500 m",
+     "quality": 3.5,
+     "gpu": 0.06,
+     "cpu": 0,
+     "vram_mb": 0
+    }
+   ],
+   "fmt": "{:g} m"
+  },
+  {
+   "key": "graphics.civTraffic",
+   "label": "Civilian traffic",
+   "levels": [
+    {
+     "v": "",
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0.0,
+     "vram_mb": 0
+    },
+    {
+     "v": "low",
+     "name": "Low",
+     "quality": 1,
+     "gpu": 0.0,
+     "cpu": 0.01,
+     "vram_mb": 0
+    },
+    {
+     "v": "medium",
+     "name": "Medium",
+     "quality": 1.5,
+     "gpu": 0.01,
+     "cpu": 0.02,
+     "vram_mb": 0
+    },
+    {
+     "v": "high",
+     "name": "High",
+     "quality": 2,
+     "gpu": 0.01,
+     "cpu": 0.04,
+     "vram_mb": 0
+    }
+   ]
+  },
+  {
+   "key": "graphics.heatBlr",
+   "label": "Heat blur",
+   "levels": [
+    {
+     "v": 0,
+     "name": "Off",
+     "quality": 0,
+     "gpu": 0.0,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 1,
+     "name": "Low",
+     "quality": 1,
+     "gpu": 0.01,
+     "cpu": 0,
+     "vram_mb": 0
+    },
+    {
+     "v": 2,
+     "name": "High",
+     "quality": 1.5,
+     "gpu": 0.03,
+     "cpu": 0,
+     "vram_mb": 0
+    }
+   ]
+  }
+ ],
+ "never_touch": [
+  "graphics.width",
+  "graphics.height",
+  "graphics.aspect",
+  "graphics.fullScreen",
+  "graphics.multiMonitorSetup",
+  "graphics.outputGamma",
+  "graphics.defaultFOV",
+  "graphics.scaleGui",
+  "graphics.messagesFontScale",
+  "graphics.ColorGradingLUT",
+  "graphics.LensEffects",
+  "graphics.motionBlur",
+  "graphics.DOF",
+  "graphics.rainDroplets",
+  "graphics.ScreenshotExt",
+  "graphics.box_mouse_cursor"
+ ],
+ "upscale_ladder": {
+  "_comment": "Best looking first. render_scale = fraction of output pixels per axis. Sharpness matters more in DCS than most games (spotting, cockpit text), hence the heavy quality weights.",
+  "nvidia": [
+   {
+    "name": "DLAA (native)",
+    "set": {
+     "graphics.Upscaling": "OFF",
+     "graphics.AA": "DLAA"
+    },
+    "render_scale": 1.0,
+    "quality": 40
+   },
+   {
+    "name": "DLSS Quality",
+    "set": {
+     "graphics.Upscaling": "DLSS",
+     "graphics.AA": "DLAA",
+     "graphics.DLSS_PerfQuality": 1
+    },
+    "render_scale": 0.667,
+    "quality": 32
+   },
+   {
+    "name": "DLSS Balanced",
+    "set": {
+     "graphics.Upscaling": "DLSS",
+     "graphics.AA": "DLAA",
+     "graphics.DLSS_PerfQuality": 2
+    },
+    "render_scale": 0.58,
+    "quality": 26
+   },
+   {
+    "name": "DLSS Performance",
+    "set": {
+     "graphics.Upscaling": "DLSS",
+     "graphics.AA": "DLAA",
+     "graphics.DLSS_PerfQuality": 3
+    },
+    "render_scale": 0.5,
+    "quality": 18
+   }
+  ],
+  "other": [
+   {
+    "name": "MSAA 4x (native)",
+    "set": {
+     "graphics.Upscaling": "OFF",
+     "graphics.AA": "MSAA",
+     "graphics.MSAA": 2
+    },
+    "render_scale": 1.15,
+    "quality": 40
+   },
+   {
+    "name": "TAA (native)",
+    "set": {
+     "graphics.Upscaling": "OFF",
+     "graphics.AA": "TAA"
+    },
+    "render_scale": 1.0,
+    "quality": 34
+   },
+   {
+    "name": "FSR 80%",
+    "set": {
+     "graphics.Upscaling": "FSR",
+     "graphics.AA": "TAA",
+     "graphics.Scaling": 0.8
+    },
+    "render_scale": 0.8,
+    "quality": 26
+   },
+   {
+    "name": "FSR 66%",
+    "set": {
+     "graphics.Upscaling": "FSR",
+     "graphics.AA": "TAA",
+     "graphics.Scaling": 0.66
+    },
+    "render_scale": 0.66,
+    "quality": 20
+   }
+  ]
+ }
+}

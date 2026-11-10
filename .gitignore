@@ -1,0 +1,8 @@
+.venv/
+.buildenv/
+__pycache__/
+*.pyc
+.pytest_cache/
+ref/
+dist/
+build/work/

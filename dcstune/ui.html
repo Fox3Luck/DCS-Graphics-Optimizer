@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DCS Tune</title>
+<style>
+  :root { --bg:#10151c; --panel:#18202b; --line:#273342; --text:#e6edf5; --dim:#8fa1b5;
+          --accent:#4cc2ff; --good:#4fd18b; --warn:#f2b94b; --bad:#ff6b6b; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f3f5f8; --panel:#fff; --line:#d9e0e8; --text:#17212c; --dim:#5b6b7c;
+            --accent:#0b78c2; --good:#1c8f55; --warn:#a86a00; --bad:#c43030; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  main { max-width:900px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:22px; margin:0 0 2px; } h2 { font-size:15px; margin:0 0 10px; color:var(--dim); font-weight:600; }
+  .sub { color:var(--dim); margin:0 0 18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .grade { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
+  .letter { width:56px; height:56px; border-radius:12px; display:grid; place-items:center;
+            font-size:30px; font-weight:700; color:#0c1117; }
+  .A,.B { background:var(--good); } .C { background:var(--warn); } .D,.F { background:var(--bad); }
+  .score { font-size:13px; color:var(--dim); }
+  ul { margin:0; padding:0; list-style:none; } li { padding:5px 0 5px 16px; position:relative; }
+  li::before { content:""; position:absolute; left:0; top:13px; width:7px; height:7px; border-radius:50%; background:var(--dim); }
+  li.good::before { background:var(--good); } li.warn::before { background:var(--warn); } li.bad::before { background:var(--bad); }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }
+  button { font:inherit; padding:10px 18px; border-radius:8px; border:1px solid var(--line);
+           background:var(--panel); color:var(--text); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#06121c; font-weight:600; }
+  button:disabled { opacity:.45; cursor:default; }
+  .note { border-left:3px solid var(--accent); padding:8px 12px; background:var(--panel); border-radius:0 8px 8px 0; margin:12px 0; }
+  .note.err { border-color:var(--bad); }
+  #log { font:13px/1.5 Consolas,monospace; color:var(--dim); max-height:170px; overflow:auto; white-space:pre-wrap; }
+  table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--dim); font-weight:600; font-size:13px; } .up { color:var(--good); } .down { color:var(--warn); }
+  .big { font-size:22px; font-weight:700; } .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>DCS Tune</h1>
+  <p class="sub" id="profile">Reading your PC and DCS settings...</p>
+  <div id="msg"></div>
+
+  <div class="grid">
+    <div class="card"><h2>Your PC for DCS</h2><div id="machine"></div></div>
+    <div class="card"><h2 id="fit-title">Your current settings</h2><div id="fit"></div></div>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="quick">Test and optimize (about 10 min)</button>
+    <button id="full">Thorough test (about an hour)</button>
+    <button id="undo" class="hidden">Undo last change</button>
+  </div>
+  <p class="sub">The test starts DCS several times by itself and closes it again. Leave the PC alone while it runs.
+     Your settings are put back after every test; nothing is changed until you press Apply.</p>
+
+  <div class="card hidden" id="progress"><h2>Testing</h2><div id="log"></div></div>
+
+  <div class="hidden" id="result">
+    <div class="card">
+      <h2>Test result</h2>
+      <div id="summary"></div>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="card"><h2>Before (measured)</h2><div id="before"></div></div>
+      <div class="card" id="after-card"><h2>Recommended (measured)</h2><div id="after"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px" id="changes-card">
+      <h2>What would change</h2>
+      <table id="changes"></table>
+      <div class="actions"><button class="primary" id="apply">Apply these settings</button></div>
+    </div>
+  </div>
+</main>
+<script>
+const TOKEN = "__TOKEN__";
+const $ = id => document.getElementById(id);
+async function api(path, body) {
+  const r = await fetch(path, { method: body ? "POST" : "GET",
+    headers: { "X-DCSTune-Token": TOKEN, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || "Something went wrong");
+  return j;
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function note(text, err) { const n = el("div", "note" + (err ? " err" : ""), text); $("msg").replaceChildren(n); }
+function card(target, c, items) {
+  const g = el("div", "grade"); g.append(el("div", "letter " + c.grade, c.grade));
+  g.append(el("div", "score", c.score + " / 100"));
+  const ul = el("ul"); items.forEach(i => ul.append(el("li", i.severity || "", i.text || i)));
+  target.replaceChildren(g, ul);
+}
+function fpsLine(label, r) {
+  return r ? `${label}: ${Math.round(r.p1_low_fps)} FPS in the worst moments, ${Math.round(r.avg_fps)} FPS average` +
+             (r.vram_peak_mb ? `, ${(r.vram_peak_mb / 1024).toFixed(1)} GB video memory` : "") : null;
+}
+function showReport(rep) {
+  if (!rep || !rep.before) { $("result").classList.add("hidden"); return; }
+  $("result").classList.remove("hidden");
+  const s = $("summary"); s.replaceChildren();
+  card($("before"), rep.before, [fpsLine("Measured", rep.before_result)].filter(Boolean).concat(rep.before.findings));
+  const has = !!(rep.changes && rep.after);
+  $("after-card").classList.toggle("hidden", !has);
+  $("changes-card").classList.toggle("hidden", !has);
+  if (!has) { s.append(el("p", "big", "Your settings are already the best match.")); return; }
+  card($("after"), rep.after, [fpsLine("Measured", rep.after_result)].filter(Boolean).concat(rep.after.findings));
+  s.append(el("p", "big", `Grade ${rep.before.grade} \u2192 ${rep.after.grade}`));
+  s.append(el("p", null, `Goal: hold ${rep.target_fps} FPS in the worst moments. ` +
+    `Image quality ${Math.round(rep.before.quality_share * 100)}% \u2192 ${Math.round(rep.after.quality_share * 100)}% of maximum.`));
+  if (!rep.target_reached) s.append(el("p", null, `This PC cannot hold ${rep.target_fps} FPS in the heaviest scene; this is the smoothest result measured.`));
+  const t = $("changes"); t.replaceChildren();
+  const head = el("tr"); ["Setting", "Now", "Recommended"].forEach(h => head.append(el("th", null, h))); t.append(head);
+  (rep.change_list || []).forEach(c => { const r = el("tr");
+    r.append(el("td", null, c.label), el("td", null, String(c.from)), el("td", c.direction, String(c.to))); t.append(r); });
+}
+async function refresh() {
+  const sc = await api("/api/scorecard");
+  $("profile").textContent = "DCS profile: " + sc.profile;
+  card($("machine"), sc.machine, sc.machine.reasons);
+  $("fit-title").textContent = "Your current settings (" + sc.settings.basis + ")";
+  card($("fit"), sc.settings, sc.settings.findings);
+  $("undo").classList.toggle("hidden", !sc.can_undo);
+  if (sc.recovered) note("An earlier test was interrupted. Your original settings have been restored.");
+  showReport(sc.report);
+}
+function busy(on) { ["quick", "full", "apply", "undo"].forEach(i => $(i).disabled = on); }
+async function poll() {
+  const j = await api("/api/job");
+  $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
+  if (j.state === "running") return setTimeout(poll, 1500);
+  busy(false);
+  if (j.state === "failed") note(j.error, true);
+  if (j.state === "done") { $("progress").classList.add("hidden"); await refresh(); }
+}
+async function start(full) {
+  try { await api("/api/optimize", { full }); busy(true); $("msg").replaceChildren();
+        $("result").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
+  catch (e) { note(e.message, true); }
+}
+$("quick").onclick = () => start(false);
+$("full").onclick = () => start(true);
+$("apply").onclick = async () => { try { note((await api("/api/apply", {})).message); $("result").classList.add("hidden"); await refresh(); } catch (e) { note(e.message, true); } };
+$("undo").onclick = async () => { try { note((await api("/api/undo", {})).message); await refresh(); } catch (e) { note(e.message, true); } };
+refresh().then(async () => { const j = await api("/api/job"); if (j.state === "running") { busy(true); $("progress").classList.remove("hidden"); poll(); } })
+  .catch(e => note(e.message, true));
+</script>
+</body>
+</html>
