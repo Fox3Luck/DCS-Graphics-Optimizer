@@ -151,7 +151,8 @@ def test_report_reads_like_plain_language(tmp_path):
         assert want in html, want
     assert "DLSS_PerfQuality" not in html and html.count("Holds about") == 0
     assert 'src="/x/a_city.png"' in R.fragment(rep, lambda n: "/x/" + n)
-    assert "already the best match" in R.fragment({"before": rep["before"], "before_result": rep["before_result"]})
+    kept = R.fragment({"before": rep["after"], "before_result": rep["after_result"]})
+    assert "already the best match" in kept and "<th>Your settings</th>" in kept and "This tool does not change this" in kept
 
 
 def test_report_folder_apply_keeps_report_and_files_are_guarded(served):

@@ -102,7 +102,7 @@ def fragment(rep: dict, img=lambda name: name) -> str:
         h.append(f'<p class="note">This PC cannot hold {rep["target_fps"]} FPS in the heaviest scene; '
                  'this is the smoothest result measured.</p>')
 
-    cols = [("Before", before, br, ob)] + ([("Recommended", after, ar, oa)] if has else [])
+    cols = [("Before" if has else "Your settings", before, br, ob)] + ([("Recommended", after, ar, oa)] if has else [])
     rows = [
         ("Settings grade", lambda c, r, o: _grade(c)),
         ("Overall score", lambda c, r, o: _grade(o)),
@@ -131,7 +131,7 @@ def fragment(rep: dict, img=lambda name: name) -> str:
                      + (f'<td>{e(c.get("why") or "")}</td><td class="dim">{e(cost_text(c))}</td>' if extra else "") + "</tr>")
         h.append("</table></div>")
 
-    left = [f for f in (after or before).get("findings", []) if f.get("severity") != "good"] if has else []
+    left = [f for f in (after if has else before).get("findings", []) if f.get("severity") != "good"]
     if left:
         h.append("<h3>Still worth knowing</h3><ul>")
         for f in left:
@@ -156,7 +156,7 @@ def fragment(rep: dict, img=lambda name: name) -> str:
             name = SCENE_LABELS.get(s.get("scene"), str(s.get("scene")))
             figs = [f'<figure><a href="{e(img(s[k]))}" target="_blank"><img loading="lazy" src="{e(img(s[k]))}" '
                     f'alt="{e(name)} {cap.lower()}"></a><figcaption>{e(name)} &ndash; {cap}</figcaption></figure>'
-                    for k, cap in (("before", "Before"), ("after", "Recommended")) if s.get(k)]
+                    for k, cap in (("before", "Before" if has else "Your settings"), ("after", "Recommended")) if s.get(k)]
             h.append(f'<div class="shots">{"".join(figs)}</div>')
     h.append("</div>")
     return "".join(h)
