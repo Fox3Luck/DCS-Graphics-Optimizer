@@ -506,3 +506,25 @@ def test_marginal_candidate_does_not_replace_settings_that_already_hold_the_goal
         return {**r, "p1_low_fps": 118.0 if changes else 138.0}
     out = optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 120, 16376, measure, log=lambda *_: None)
     assert out["keep_current"] and out["recommended"] is None and out["target_reached"]
+
+
+def test_scorecard_shows_measured_numbers_for_settings_that_were_tested(tmp_path):
+    (tmp_path / "Config").mkdir()
+    profile = {"path": str(tmp_path)}
+    cur = _current()
+    machine = rate.rate_machine(INFO)
+    rec = cur | {"graphics.shadows": 4, "graphics.forestDistanceFactor": 1}
+    learned = {"calibration": 1.0, "vram_offset": 0, "low_ratio": 0.7, "measured": {}}
+    rate.save_calibration(profile, INFO, cur, learned, [
+        (cur, {"p1_low_fps": 166, "avg_fps": 260, "vram_peak_mb": 6334}),
+        (rec, {"p1_low_fps": 123, "avg_fps": 171, "vram_peak_mb": 7901})])
+    # 1 and 1.0 are the same setting once DCS or the tool has rewritten the file
+    applied = rec | {"graphics.forestDistanceFactor": 1.0}
+    fit = rate.rate_settings(INFO, applied, machine, calibration=rate.load_calibration(profile, INFO, applied))
+    assert fit["basis"] == "measured in your last test" and fit["fps"] == 123 and fit["vram_mb"] == 7901
+    other = rec | {"graphics.shadows": 2}
+    assert rate.rate_settings(INFO, other, machine, calibration=rate.load_calibration(profile, INFO, other))["basis"] \
+        == "estimated from your last test"
+    # a later test keeps earlier results
+    rate.save_calibration(profile, INFO, cur, learned, [(other, {"p1_low_fps": 140, "avg_fps": 190})])
+    assert len(rate.load_calibration(profile, INFO, cur)["results"]) == 3

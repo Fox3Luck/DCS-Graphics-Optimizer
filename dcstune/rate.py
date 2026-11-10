@@ -16,11 +16,35 @@ def _fingerprint(info: dict, options: dict) -> dict:
             "width": options.get("graphics.width"), "height": options.get("graphics.height")}
 
 
-def save_calibration(profile: dict, info: dict, options: dict, learned: dict) -> None:
+RESULT_KEYS = ("graphics.Upscaling", "graphics.AA", "graphics.DLSS_PerfQuality", "graphics.MSAA",
+               "graphics.Scaling", "graphics.width", "graphics.height")
+MAX_RESULTS = 24
+
+
+def config_key(options: dict) -> str:
+    """Identifies one combination of the settings that decide frame rate, so a later
+    scorecard can recognise settings that were actually measured."""
+    import hashlib
+    def norm(v):
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v
+    keys = [s["key"] for s in M.SETTINGS] + list(RESULT_KEYS)
+    return hashlib.sha1(json.dumps([[k, norm(options.get(k))] for k in sorted(keys)]).encode()).hexdigest()[:16]
+
+
+def save_calibration(profile: dict, info: dict, options: dict, learned: dict,
+                     results: list[tuple[dict, dict]] = ()) -> None:
     """Keep what a benchmark learned about this PC so later no-benchmark scorecards
-    are estimated from real measurements instead of the generic hardware table."""
+    are estimated from real measurements instead of the generic hardware table.
+    results: (flat options, measured summary) pairs from this test; they are kept so
+    that settings which were really measured are shown with their measured numbers."""
     from .optionslua import atomic_write
-    data = dict(learned, fingerprint=_fingerprint(info, options))
+    old = load_calibration(profile, info, options) or {}
+    kept = dict(old.get("results") or {})
+    for opts, res in results:
+        kept.pop(config_key(opts), None)       # re-insert so the newest are last
+        kept[config_key(opts)] = {k: res.get(k) for k in ("p1_low_fps", "avg_fps", "vram_peak_mb")}
+    data = dict(learned, fingerprint=_fingerprint(info, options),
+                results=dict(list(kept.items())[-MAX_RESULTS:]))
     atomic_write(Path(profile["path"]) / "Config" / CALIBRATION_NAME, json.dumps(data).encode())
 
 
@@ -125,8 +149,14 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
     target = target or target_fps(gpu.get("refresh"))
     vram_total = gpu.get("vram_mb") or 0
 
+    if not measured and calibration:
+        # These exact settings were benchmarked in an earlier test: show that, not a guess.
+        seen = (calibration.get("results") or {}).get(config_key(options))
+        if seen and seen.get("p1_low_fps"):
+            measured, est_basis = seen, "measured in your last test"
     if measured:
-        fps, vram_used, basis = measured["p1_low_fps"], measured.get("vram_peak_mb"), "measured"
+        fps, vram_used = measured["p1_low_fps"], measured.get("vram_peak_mb")
+        basis = est_basis if est_basis.startswith("measured") else "measured"
     else:
         fps, vram_used, basis = mdl.fps(options, rung) * low_ratio, mdl.vram_mb(options, rung), est_basis
     ratio = fps / target

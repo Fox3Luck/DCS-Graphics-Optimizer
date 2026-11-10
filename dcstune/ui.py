@@ -138,7 +138,8 @@ class Engine:
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
         target = out["target_fps"]
-        rate.save_calibration(self.profile, self.info, flat, out["learned"])
+        rate.save_calibration(self.profile, self.info, flat, out["learned"],
+                              [(flat, out["before"])] + [(dict(flat, **h["changes"]), h["result"]) for h in out["history"]])
         base_ms = 1000.0 / out["before"]["avg_fps"]
         report = {"created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],
                   "kind": "Thorough test" if full else "Test and optimize",
