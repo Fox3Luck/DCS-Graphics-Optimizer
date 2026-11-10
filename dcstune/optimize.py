@@ -10,6 +10,7 @@ from . import model as M
 VRAM_BUDGET = 0.90          # of the card
 HIT_MARGIN = 0.95           # measured 1% low must reach this share of target (run-to-run noise is ~3-6%)
 MAX_CONFIRM_RUNS = 4
+MIN_GAIN = 0.03             # share of maximum image quality a change must add to be worth recommending
 
 
 def config_changes(config: dict, rung: dict) -> dict:
@@ -131,7 +132,13 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
             break
     cur_quality = mdl.quality(current, cur_rung)
     cur_hits = before["p1_low_fps"] >= target_fps * HIT_MARGIN
-    keep_current = cur_hits and (best is None or cur_quality >= best["quality"])
+    # When the player's settings already hold the goal, only replace them with something
+    # that is clearly better looking AND holds the goal outright (no noise allowance):
+    # otherwise the "recommendation" would be a sideways or downward step.
+    clearly_better = (best is not None
+                      and best["quality"] >= cur_quality + MIN_GAIN * M.max_quality(vendor)
+                      and best["result"]["p1_low_fps"] >= target_fps)
+    keep_current = cur_hits and not clearly_better
     if best is None and not cur_hits and history:
         # Nothing holds the goal: offer the smoothest thing measured, but only if it is
         # really smoother than what the player already has.

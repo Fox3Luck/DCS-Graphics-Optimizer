@@ -271,8 +271,9 @@ def test_instant_scorecard_uses_last_benchmark(tmp_path):
     rate.save_calibration(profile, INFO, cur, out["learned"])
     calib = rate.load_calibration(profile, INFO, cur)
 
-    applied = cur | out["recommended"]["changes"]
-    measured = out["recommended"]["result"]["p1_low_fps"]
+    rec = out["recommended"]
+    applied = cur | rec["changes"] if rec else cur
+    measured = (rec["result"] if rec else out["before"])["p1_low_fps"]
     generic = rate.rate_settings(INFO, applied, machine)
     learned = rate.rate_settings(INFO, applied, machine, calibration=calib)
     assert learned["basis"] == "estimated from your last test"
@@ -488,3 +489,16 @@ def test_bench_batch_builds_self_resetting_trials(tmp_path, monkeypatch):
     assert sets == [{"shadows": 3, "textures": 1}, {"shadows": 0, "textures": 1},
                     {"shadows": 3, "textures": 0}, {"shadows": 3, "textures": 1}]
     assert [t["settle_sec"] for t in seen["trials"]] == [20, 10, 20, 10]
+
+
+def test_marginal_candidate_does_not_replace_settings_that_already_hold_the_goal():
+    """Clean thorough run 2026-11-10: current 138 FPS lows (goal 120); the candidate looked
+    slightly better on paper but measured 118. That is not a recommendation."""
+    cur = _current()
+    pc = FakePC(cur, 78, 100)
+
+    def measure(changes):
+        r = pc.measure(changes)
+        return {**r, "p1_low_fps": 118.0 if changes else 138.0}
+    out = optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 120, 16376, measure, log=lambda *_: None)
+    assert out["keep_current"] and out["recommended"] is None and out["target_reached"]
