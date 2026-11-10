@@ -96,11 +96,17 @@ def cmd_optimize(args):
     machine = engine.scorecard()["machine"]
     _print_card("Your PC for DCS", machine, machine["reasons"])
     _print_card("Current settings (measured)", report["before"], [f["text"] for f in report["before"]["findings"]])
+    from .report import cost_text
+    where = (f"\nReport and screenshots: {engine.reports_dir() / report['dir']}" if report.get("dir") else "")
     if "changes" not in report:
-        print("\nYour current settings are already the best match we found. Nothing to change.")
+        print("\nYour current settings are already the best match we found. Nothing to change." + where)
         return 0
     _print_card("Recommended settings (measured)", report["after"], [
-        f"{c['label']}: {c['from']} -> {c['to']}" for c in report["change_list"]])
+        f"{c['label']}: {c['from']} -> {c['to']}" + (f"   [{cost_text(c)}]" if cost_text(c) else "")
+        for c in report["change_list"]])
+    for c in report.get("costs") or []:
+        print(f"  cost of {c['label']} {c['level']} instead of {c['lowest']}: {c['cost_pct']:.1f}% of frame rate")
+    print(where)
     if not report["target_reached"]:
         print(f"\nNote: this PC cannot hold {report['target_fps']} FPS in the heaviest scene even at the "
               "lowest settings; the recommendation is the smoothest result we measured.")

@@ -112,3 +112,77 @@ def test_apply_refused_while_dcs_runs(served, monkeypatch):
     status, raw = call("/api/apply", {})
     assert status == 400 and "Close DCS first" in json.loads(raw)["error"]
     assert Options.load(options).get("graphics", "shadows") == 3
+
+
+# -- the report a customer sees ----------------------------------------------------
+def _sample_report(tmp_path):
+    from dcstune import model as M, rate, report as R
+    eng = TmpEngine(tmp_path)
+    flat = eng._flat()
+    machine = rate.rate_machine(eng.info)
+    mdl = M.Model(machine["gpu_score"], machine["cpu_score"], 3840, 2160)
+    mdl.record_cost("graphics.shadows", 4, 0.4)
+    changes = {"graphics.DLSS_PerfQuality": 1, "graphics.shadows": 4, "graphics.textures": 2}
+    after = dict(flat) | changes
+    B = {"avg_fps": 260, "p1_low_fps": 166, "vram_peak_mb": 6334}
+    A = {"avg_fps": 171, "p1_low_fps": 123, "vram_peak_mb": 7901}
+    rep = {"created": "2026-11-10 03:08", "kind": "Thorough test", "duration_min": 37, "runs": 10,
+           "target_fps": 120, "target_reached": True, "machine": machine,
+           "hardware": rate.hardware_summary(eng.info),
+           "before": rate.rate_settings(eng.info, flat, machine, B, 120), "before_result": B,
+           "after": rate.rate_settings(eng.info, after, machine, A, 120), "after_result": A,
+           "changes": changes, "change_list": optimize.describe_changes(flat, changes, "nvidia", mdl, 1000 / 260),
+           "costs": optimize.measured_costs(mdl, 1000 / 260),
+           "shots": [{"scene": "city", "before": "a_city.png", "after": "b_city.png"}]}
+    rep["overall_before"], rep["overall_after"] = rate.overall(machine, rep["before"]), rate.overall(machine, rep["after"])
+    return eng, rep, R
+
+
+def test_report_reads_like_plain_language(tmp_path):
+    eng, rep, R = _sample_report(tmp_path)
+    first = rep["change_list"][0]
+    assert first["label"] == "Upscaling and anti-aliasing" and (first["from"], first["to"]) == ("DLSS Balanced", "DLSS Quality")
+    assert not any("DLSS_PerfQuality" in str(c["label"]) for c in rep["change_list"])
+    shadows = next(c for c in rep["change_list"] if c["key"] == "graphics.shadows")
+    assert shadows["cost_basis"] == "measured" and shadows["why"] and "measured" in R.cost_text(shadows)
+    html = R.page(rep)
+    for want in ("Thorough test", "37 minutes", "DCS started 10 times", "DLSS Balanced", "6.2 GB", "7.7 GB",
+                 "This tool does not change this", 'src="a_city.png"', "City pass", "What each setting costs"):
+        assert want in html, want
+    assert "DLSS_PerfQuality" not in html and html.count("Holds about") == 0
+    assert 'src="/x/a_city.png"' in R.fragment(rep, lambda n: "/x/" + n)
+    assert "already the best match" in R.fragment({"before": rep["before"], "before_result": rep["before_result"]})
+
+
+def test_report_folder_apply_keeps_report_and_files_are_guarded(served):
+    app, call, options = served
+    call("/api/scorecard")
+    eng = app.engine
+    shots = Path(eng.profile["path"]) / "ScreenShots"
+    shots.mkdir()
+    (shots / "dcstune_1r01_city.png").write_bytes(b"png-before")
+    (shots / "dcstune_1r02_city.jpg").write_bytes(b"jpg-after")
+    (Path(eng.profile["path"]) / "x").mkdir()
+    _, rep, _ = _sample_report(Path(eng.profile["path"]) / "x")
+    rep.pop("shots")
+    out = {"before": {"scenes": [{"name": "city", "shot": "dcstune_1r01_city"}]},
+           "recommended": {"result": {"raw": {"scenes": [{"name": "city", "shot": "dcstune_1r02_city"}]}}}}
+    eng._save_report_folder(rep, out)
+    eng.report_path().write_text(json.dumps(rep))
+    folder = eng.reports_dir() / rep["dir"]
+    assert (folder / "report.html").is_file() and not list(shots.iterdir())
+    assert rep["shots"] == [{"scene": "city", "before": "dcstune_1r01_city.png", "after": "dcstune_1r02_city.jpg"}]
+
+    sc = json.loads(call("/api/scorecard")[1])
+    assert "/report-file/dcstune_1r01_city.png?t=" + app.token in sc["report_html"]
+    assert call("/report-file/dcstune_1r01_city.png?t=" + app.token) == (200, b"png-before")
+    assert call("/report-file/dcstune_1r01_city.png?t=nope")[0] == 404
+    assert call("/report-file/report.html?t=" + app.token)[0] == 404          # images only
+    assert call("/report-file/..%5C..%5CConfig%5Coptions.lua?t=" + app.token)[0] == 404
+
+    assert call("/api/apply", {})[0] == 200
+    sc = json.loads(call("/api/scorecard")[1])
+    assert sc["report"]["applied"] and "were applied on" in sc["report_html"]
+    assert "already applied" in json.loads(call("/api/apply", {})[1])["error"]
+    assert call("/api/undo", {})[0] == 200
+    assert "applied" not in json.loads(call("/api/scorecard")[1])["report"]

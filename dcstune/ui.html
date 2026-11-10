@@ -5,11 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DCS Graphics Optimizer</title>
 <style>
-  :root { --bg:#10151c; --panel:#18202b; --line:#273342; --text:#e6edf5; --dim:#8fa1b5;
-          --accent:#4cc2ff; --good:#4fd18b; --warn:#f2b94b; --bad:#ff6b6b; }
-  @media (prefers-color-scheme: light) {
-    :root { --bg:#f3f5f8; --panel:#fff; --line:#d9e0e8; --text:#17212c; --dim:#5b6b7c;
-            --accent:#0b78c2; --good:#1c8f55; --warn:#a86a00; --bad:#c43030; } }
+  /*__REPORT_CSS__*/
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
   main { max-width:900px; margin:0 auto; padding:20px 16px 40px; }
@@ -18,9 +14,6 @@
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
   .grade { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
-  .letter { width:56px; height:56px; border-radius:12px; display:grid; place-items:center;
-            font-size:30px; font-weight:700; color:#0c1117; }
-  .A,.B { background:var(--good); } .C { background:var(--warn); } .D,.F { background:var(--bad); }
   .score { font-size:13px; color:var(--dim); }
   ul { margin:0; padding:0; list-style:none; } li { padding:5px 0 5px 16px; position:relative; }
   li::before { content:""; position:absolute; left:0; top:13px; width:7px; height:7px; border-radius:50%; background:var(--dim); }
@@ -33,9 +26,8 @@
   .note { border-left:3px solid var(--accent); padding:8px 12px; background:var(--panel); border-radius:0 8px 8px 0; margin:12px 0; }
   .note.err { border-color:var(--bad); }
   #log { font:13px/1.5 Consolas,monospace; color:var(--dim); max-height:170px; overflow:auto; white-space:pre-wrap; }
-  table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
-  th { color:var(--dim); font-weight:600; font-size:13px; } .up { color:var(--good); } .down { color:var(--warn); }
-  .big { font-size:22px; font-weight:700; } .hidden { display:none; }
+  .hidden { display:none; }
+  .card .rep li { padding-left:0; } .card .rep li::before { display:none; } .card .rep ul { list-style:disc; padding-left:18px; }
   .overall { display:flex; flex-wrap:wrap; gap:20px; align-items:center; margin-bottom:14px; }
   .overall .letter { width:84px; height:84px; font-size:46px; border-radius:16px; }
   .hw { display:grid; grid-template-columns:auto 1fr; gap:2px 14px; font-size:14px; flex:1; min-width:260px; }
@@ -84,16 +76,12 @@
   <div class="hidden" id="result">
     <div class="card">
       <h2>Test result</h2>
-      <div id="summary"></div>
-    </div>
-    <div class="grid" style="margin-top:14px">
-      <div class="card"><h2>Before (measured)</h2><div id="before"></div></div>
-      <div class="card" id="after-card"><h2>Recommended (measured)</h2><div id="after"></div></div>
-    </div>
-    <div class="card" style="margin-top:14px" id="changes-card">
-      <h2>What would change</h2>
-      <table id="changes"></table>
-      <div class="actions"><button class="primary" id="apply">Apply these settings</button></div>
+      <div id="report-body"></div>
+      <div class="actions" style="margin-bottom:0">
+        <button class="primary" id="apply">Apply these settings</button>
+        <button id="open-report">Open the saved report</button>
+      </div>
+      <p class="sub" id="report-where" style="margin:10px 0 0"></p>
     </div>
   </div>
 </main>
@@ -116,31 +104,16 @@ function card(target, c, items) {
   const ul = el("ul"); items.forEach(i => ul.append(el("li", i.severity || "", i.text || i)));
   target.replaceChildren(g, ul);
 }
-function fpsLine(label, r) {
-  return r ? `${label}: ${Math.round(r.p1_low_fps)} FPS in the worst moments, ${Math.round(r.avg_fps)} FPS average` +
-             (r.vram_peak_mb ? `, ${(r.vram_peak_mb / 1024).toFixed(1)} GB video memory` : "") : null;
-}
-function showReport(rep) {
+function showReport(sc) {
+  const rep = sc.report;
   if (!rep || !rep.before) { $("result").classList.add("hidden"); return; }
   $("result").classList.remove("hidden");
-  const s = $("summary"); s.replaceChildren();
-  card($("before"), rep.before, [fpsLine("Measured", rep.before_result)].filter(Boolean).concat(rep.before.findings));
-  const has = !!(rep.changes && rep.after);
-  $("after-card").classList.toggle("hidden", !has);
-  $("changes-card").classList.toggle("hidden", !has);
-  if (rep.disturbed) s.append(el("p", "note err", "Another program was using the PC during part of this test, so some measurements were discarded. For the most accurate result, close other programs and run it again."));
-  if (!has) { s.append(el("p", "big", "Your settings are already the best match.")); return; }
-  card($("after"), rep.after, [fpsLine("Measured", rep.after_result)].filter(Boolean).concat(rep.after.findings));
-  s.append(el("p", "big", rep.overall_before && rep.overall_after
-    ? `Overall ${rep.overall_before.grade} (${rep.overall_before.score}) \u2192 ${rep.overall_after.grade} (${rep.overall_after.score})`
-    : `Grade ${rep.before.grade} \u2192 ${rep.after.grade}`));
-  s.append(el("p", null, `Goal: hold ${rep.target_fps} FPS in the worst moments. ` +
-    `Image quality ${Math.round(rep.before.quality_share * 100)}% \u2192 ${Math.round(rep.after.quality_share * 100)}% of maximum.`));
-  if (!rep.target_reached) s.append(el("p", null, `This PC cannot hold ${rep.target_fps} FPS in the heaviest scene; this is the smoothest result measured.`));
-  const t = $("changes"); t.replaceChildren();
-  const head = el("tr"); ["Setting", "Now", "Recommended"].forEach(h => head.append(el("th", null, h))); t.append(head);
-  (rep.change_list || []).forEach(c => { const r = el("tr");
-    r.append(el("td", null, c.label), el("td", null, String(c.from)), el("td", c.direction, String(c.to))); t.append(r); });
+  $("report-body").innerHTML = sc.report_html || "";   // built by the app itself, already escaped
+  $("apply").classList.toggle("hidden", !rep.changes || !!rep.applied);
+  $("open-report").classList.toggle("hidden", !rep.dir);
+  $("report-where").textContent = rep.dir
+    ? "This report and its screenshots are saved in Saved Games\\" + sc.profile_dir + "\\DCS Graphics Optimizer Reports\\" + rep.dir + ". You can keep or share that folder."
+    : "";
 }
 async function refresh() {
   const sc = await api("/api/scorecard");
@@ -154,9 +127,9 @@ async function refresh() {
   card($("fit"), sc.settings, sc.settings.findings);
   $("undo").classList.toggle("hidden", !sc.can_undo);
   if (sc.recovered) note("An earlier test was interrupted. Your original settings have been restored.");
-  showReport(sc.report);
+  showReport(sc);
 }
-function busy(on) { ["quick", "full", "apply", "undo"].forEach(i => $(i).disabled = on); }
+function busy(on) { ["quick", "full", "apply", "undo", "open-report"].forEach(i => $(i).disabled = on); }
 async function poll() {
   const j = await api("/api/job");
   $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
@@ -172,7 +145,8 @@ async function start(full) {
 }
 $("quick").onclick = () => start(false);
 $("full").onclick = () => start(true);
-$("apply").onclick = async () => { try { note((await api("/api/apply", {})).message); $("result").classList.add("hidden"); await refresh(); } catch (e) { note(e.message, true); } };
+$("apply").onclick = async () => { try { note((await api("/api/apply", {})).message); await refresh(); } catch (e) { note(e.message, true); } };
+$("open-report").onclick = async () => { try { await api("/api/open-report", {}); } catch (e) { note(e.message, true); } };
 $("undo").onclick = async () => { try { note((await api("/api/undo", {})).message); await refresh(); } catch (e) { note(e.message, true); } };
 refresh().then(async () => { const j = await api("/api/job"); if (j.state === "running") { busy(true); $("progress").classList.remove("hidden"); poll(); } })
   .catch(e => note(e.message, true));

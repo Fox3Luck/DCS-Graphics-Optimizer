@@ -153,15 +153,19 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
         findings.append(("bad", f"Video memory is nearly full ({vram_used / 1024:.1f} of {vram_total / 1024:.0f} GB, "
                                 f"{basis}); this causes stutter when new scenery loads."))
 
-    for sev, penalty, text in _rules(info, options, machine, gpu, ratio):
+    untouched = set()      # findings about things this tool never changes
+    for sev, penalty, text, *tag in _rules(info, options, machine, gpu, ratio):
         score -= penalty
         findings.append((sev, text))
+        if tag:
+            untouched.add(text)
 
     score = max(0, min(100, score))
     return {"score": round(score), "grade": grade(score), "basis": basis, "target_fps": target,
             "fps": round(fps, 1), "quality_share": round(share, 3),
             "vram_mb": round(vram_used) if vram_used else None,
-            "aa": rung["name"], "findings": [{"severity": s, "text": t} for s, t in findings]}
+            "aa": rung["name"], "findings": [{"severity": s, "text": t} | ({"untouched": True} if t in untouched else {})
+                                         for s, t in findings]}
 
 
 def _rules(info, o, machine, gpu, ratio):
@@ -169,11 +173,11 @@ def _rules(info, o, machine, gpu, ratio):
     vram_gb = (gpu.get("vram_mb") or 0) / 1024
     ram = info.get("ram_gb") or 0
     if o.get("VR.enable"):
-        yield "info", 0, "VR is switched on. This version tunes flat-screen settings only; VR tuning comes in the next version."
+        yield "info", 0, "VR is switched on. This version tunes flat-screen settings only; VR tuning comes in the next version.", "untouched"
     dw, dh = gpu.get("width"), gpu.get("height")
     if dw and dh and g("width") and (g("width") > dw or g("height") > dh):
         yield "warn", 6, (f"DCS is set to {g('width')}x{g('height')} but the desktop is {dw}x{dh}. "
-                          "The extra pixels are rendered and then thrown away or pushed off-screen.")
+                          "The extra pixels are rendered and then thrown away or pushed off-screen."), "untouched"
     if vram_gb >= 12 and g("textures") is not None and g("textures") < 2:
         yield "warn", 5, f"Textures are not on High although the card has {vram_gb:.0f} GB of video memory to hold them."
     if vram_gb >= 12 and g("terrainTextures") == "min":
@@ -181,9 +185,9 @@ def _rules(info, o, machine, gpu, ratio):
     if vram_gb and vram_gb < 8 and g("textures") == 2:
         yield "bad", 8, f"High textures on a {vram_gb:.0f} GB card overflow video memory in most modules."
     if ram and ram < 32 and (g("preloadRadius") or 0) > 60000:
-        yield "warn", 5, f"Preload radius is {g('preloadRadius')} with {ram} GB of memory; this can push Windows into swapping."
+        yield "warn", 5, f"Preload radius is {g('preloadRadius')} with {ram} GB of memory; this can push Windows into swapping.", "untouched"
     if ram >= 48 and (g("preloadRadius") or 0) < 60000:
-        yield "info", 2, "Preload radius is low for a PC with this much memory; raising it reduces pop-in stutter."
+        yield "info", 2, "Preload radius is low for a PC with this much memory; raising it reduces pop-in stutter.", "untouched"
     if g("Upscaling") == "DLSS" and (g("DLSS_PerfQuality") or 0) >= 3 and (g("height") or 0) <= 1440:
         yield "warn", 5, "DLSS Performance at this resolution makes cockpit text and distant aircraft blurry."
     if g("Upscaling") in ("DLSS", "FSR", "NIS") and ratio > 1.4:

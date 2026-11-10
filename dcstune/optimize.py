@@ -286,13 +286,40 @@ def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, m
     return disturbed
 
 
-def describe_changes(current: dict, changes: dict) -> list[dict]:
-    """Plain-language list of what would change."""
+RUNG_KEYS = ("graphics.Upscaling", "graphics.AA", "graphics.DLSS_PerfQuality", "graphics.MSAA", "graphics.Scaling")
+
+
+def describe_changes(current: dict, changes: dict, vendor: str = "nvidia", mdl=None,
+                     base_ms: float | None = None) -> list[dict]:
+    """Plain-language list of what would change. With a model (and the measured frame
+    time of the player's settings) each row also says what it costs on this PC:
+    cost_pct = share of frame time added (negative = saved), cost_basis measured|estimate."""
     labels = {s["key"]: s for s in M.SETTINGS}
+    rung0 = M.current_rung(current, vendor)
+    ms0 = mdl.frame_ms(current, rung0) if mdl else None
+
+    def cost(row, config, rung, measured):
+        if mdl and ms0:
+            row["cost_pct"] = round((mdl.frame_ms(config, rung) - ms0) / (base_ms or ms0) * 100, 1)
+            row["cost_basis"] = "measured" if measured else "estimate"
+        return row
+
     out = []
+    after = dict(current)
+    after.update(changes)
+    rung1 = M.current_rung(after, vendor)
+    rung_changed = any(current.get(k) != changes[k] for k in RUNG_KEYS if k in changes)
+    grouped = rung_changed and rung0["name"] != rung1["name"]
+    if grouped:      # the three or four DCS options behind this are one choice to a player
+        up = rung1["quality"] > rung0["quality"]
+        out.append(cost({"key": "upscaling", "label": "Upscaling and anti-aliasing", "from": rung0["name"],
+                         "to": rung1["name"], "direction": "up" if up else "down",
+                         "why": "Sharper picture: more of each frame is really drawn" if up
+                                else "Draws fewer pixels per frame to free up frame rate"},
+                        current, rung1, False))
     for key, new in sorted(changes.items()):
         old = current.get(key)
-        if old == new:
+        if old == new or (grouped and key in RUNG_KEYS):
             continue
         s = labels.get(key)
         if s:
@@ -303,8 +330,28 @@ def describe_changes(current: dict, changes: dict) -> list[dict]:
                 up = new > old
             else:
                 up = M.level_index(s, new) > M.level_index(s, old)
-            out.append({"key": key, "label": s["label"], "from": M.level_name(s, old),
-                        "to": M.level_name(s, new), "direction": "up" if up else "down"})
+            row = {"key": key, "label": s["label"], "from": M.level_name(s, old),
+                   "to": M.level_name(s, new), "direction": "up" if up else "down"}
+            if mdl:
+                row["why"] = s.get("why", "") if up else "Lowered to free up frame rate"
+                cost(row, dict(current, **{key: new}), rung0, key in mdl.measured)
+            out.append(row)
         else:
             out.append({"key": key, "label": key.split(".", 1)[1], "from": old, "to": new, "direction": ""})
+    if mdl:
+        out.sort(key=lambda r: (r["key"] != "upscaling", -(r.get("cost_pct") or 0), r["label"]))
     return out
+
+
+def measured_costs(mdl, base_ms: float) -> list[dict]:
+    """What each measured setting costs at its highest measured level compared with its
+    lowest, as a share of the player's frame time. Most expensive first."""
+    out = []
+    for s in M.SETTINGS:
+        m = mdl.measured.get(s["key"])
+        if not m or len(m) < 2:
+            continue
+        top = max(m)
+        out.append({"key": s["key"], "label": s["label"], "level": s["levels"][top]["name"],
+                    "lowest": s["levels"][0]["name"], "cost_pct": round(m[top] / base_ms * 100, 1)})
+    return sorted(out, key=lambda r: -r["cost_pct"])

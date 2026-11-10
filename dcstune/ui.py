@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PAGE = Path(__file__).parent / "ui.html"
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".bmp": "image/bmp"}
 
 
 class Engine:
@@ -35,27 +36,89 @@ class Engine:
     def report_path(self) -> Path:
         return Path(self.profile["path"]) / "Config" / "dcstune-report.json"
 
+    def reports_dir(self) -> Path:
+        """Where saved reports (a page plus its screenshots) are kept for the player."""
+        return Path(self.profile["path"]) / "DCS Graphics Optimizer Reports"
+
+    def _report(self) -> dict | None:
+        rp = self.report_path()
+        try:
+            return json.loads(rp.read_text()) if rp.exists() else None
+        except ValueError:
+            return None
+
+    def report_file(self, name: str) -> Path | None:
+        """A file of the current saved report (page or screenshot), or None. Names only:
+        the window must not be able to read anything else on the PC through this."""
+        rep = self._report() or {}
+        if not rep.get("dir") or name != Path(name).name or Path(name).suffix.lower() not in IMAGE_TYPES:
+            return None
+        f = self.reports_dir() / Path(rep["dir"]).name / name
+        return f if f.is_file() else None
+
+    def open_report(self) -> str:
+        rep = self._report() or {}
+        page = self.reports_dir() / Path(rep.get("dir") or "-").name / "report.html"
+        if not page.is_file():
+            raise RuntimeError("There is no saved report yet. Run a test first.")
+        if hasattr(os, "startfile"):
+            os.startfile(page)          # the player's own browser
+        else:
+            webbrowser.open(page.as_uri())
+        return f"Opened {page}"
+
+    def _save_report_folder(self, report: dict, out: dict) -> None:
+        """Move the before/recommended screenshots out of DCS's ScreenShots folder into a
+        dated report folder and write the report page beside them."""
+        from . import report as R
+        from .optionslua import atomic_write
+        folder = self.reports_dir() / ("report-" + time.strftime("%Y%m%d-%H%M%S"))
+        folder.mkdir(parents=True, exist_ok=True)
+        shots_dir = Path(self.profile["path"]) / "ScreenShots"
+
+        def take(stem):
+            for src in sorted(shots_dir.glob(stem + ".*")) if stem else []:
+                if src.suffix.lower() in IMAGE_TYPES:
+                    dst = folder / src.name
+                    try:
+                        src.replace(dst)
+                    except OSError:
+                        continue
+                    return dst.name
+            return None
+
+        def by_scene(res):
+            return {s.get("name"): s.get("shot") for s in ((res or {}).get("raw") or res or {}).get("scenes", [])}
+        before, after = by_scene(out["before"]), by_scene((out["recommended"] or {}).get("result"))
+        shots = []
+        for scene in before:
+            row = {"scene": scene, "before": take(before.get(scene)), "after": take(after.get(scene))}
+            if row["before"] or row["after"]:
+                shots.append(row)
+        report.update(dir=folder.name, shots=shots)
+        atomic_write(folder / "report.html", R.page(report).encode("utf-8"))
+
     def scorecard(self) -> dict:
         from . import rate
         from .optionslua import list_backups
         machine = rate.rate_machine(self.info)
         flat = self._flat()
-        rp = self.report_path()
         fit = rate.rate_settings(self.info, flat, machine,
                                  calibration=rate.load_calibration(self.profile, self.info, flat))
-        return {"profile": self.profile["name"],
+        return {"profile": self.profile["name"], "profile_dir": Path(self.profile["path"]).name,
                 "hardware": rate.hardware_summary(self.info), "overall": rate.overall(machine, fit),
                 "profiles": [p["name"] for p in self.info["profiles"]],
                 "machine": machine,
                 "settings": fit,
                 "vr": bool(flat.get("VR.enable")), "recovered": self.recovered,
                 "can_undo": bool(list_backups(self.profile["options"])),
-                "report": json.loads(rp.read_text()) if rp.exists() else None}
+                "report": self._report()}
 
     def optimize(self, full: bool, log) -> dict:
         from . import model as M, optimize, rate, sysinfo
         from .bench import Bench
         from .optionslua import atomic_write
+        started = time.time()
         flat, gpu = self._flat(), self.info["gpu"]
         machine = rate.rate_machine(self.info)
         vendor = sysinfo.gpu_vendor(self.info)
@@ -71,7 +134,12 @@ class Engine:
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
         target = out["target_fps"]
         rate.save_calibration(self.profile, self.info, flat, out["learned"])
+        base_ms = 1000.0 / out["before"]["avg_fps"]
         report = {"created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],
+                  "kind": "Thorough test" if full else "Test and optimize",
+                  "duration_min": max(1, round((time.time() - started) / 60)),
+                  "hardware": rate.hardware_summary(self.info),
+                  "costs": optimize.measured_costs(mdl, base_ms),
                   "target_fps": target, "target_reached": out["target_reached"],
                   "keep_current": out["keep_current"], "runs": launches,
                   "disturbed": out["disturbed"],
@@ -85,27 +153,34 @@ class Engine:
             report.update(after=rate.rate_settings(self.info, after, machine, rec["result"], target),
                           overall_after=None,
                           after_result=_slim(rec["result"]), changes=rec["changes"],
-                          change_list=optimize.describe_changes(flat, rec["changes"]))
+                          change_list=optimize.describe_changes(flat, rec["changes"], vendor, mdl, base_ms))
         report["overall_before"] = rate.overall(machine, report["before"])
         if "after" in report:
             report["overall_after"] = rate.overall(machine, report["after"])
+        try:
+            self._save_report_folder(report, out)
+        except OSError as e:
+            log(f"The report page could not be saved ({e}); the result is still shown here.")
         atomic_write(self.report_path(), json.dumps(report, indent=1).encode())
         return report
 
     def apply(self) -> str:
         from .bench import dcs_running
-        from .optionslua import Options, backup
+        from .optionslua import Options, atomic_write, backup
         if dcs_running():
             raise RuntimeError("Close DCS first. It overwrites its settings file when it exits.")
-        rp = self.report_path()
-        changes = json.loads(rp.read_text()).get("changes") if rp.exists() else None
+        rp, rep = self.report_path(), self._report() or {}
+        changes = rep.get("changes")
         if not changes:
             raise RuntimeError("There is no recommendation to apply yet.")
+        if rep.get("applied"):
+            raise RuntimeError("These settings are already applied.")
         saved = backup(self.profile["options"])
         opts = Options.load(self.profile["options"])
         opts.update(changes)
         opts.save(self.profile["options"])
-        rp.unlink()     # the recommendation is now the current settings
+        rep["applied"] = time.strftime("%Y-%m-%d %H:%M")   # keep the report; the player may want to read it again
+        atomic_write(rp, json.dumps(rep, indent=1).encode())
         return f"Applied. Your previous settings are kept as {saved.name}."
 
     def undo(self) -> str:
@@ -118,6 +193,9 @@ class Engine:
             raise RuntimeError("No earlier settings saved by DCS Graphics Optimizer were found.")
         atomic_write(Path(self.profile["options"]), backups[-1].read_bytes())
         backups[-1].unlink()
+        rep = self._report()
+        if rep and rep.pop("applied", None):
+            atomic_write(self.report_path(), json.dumps(rep, indent=1).encode())
         return "Your previous settings are back."
 
 
@@ -159,7 +237,11 @@ class App:
 
     def handle(self, method: str, path: str, body: dict) -> dict:
         if method == "GET" and path == "/api/scorecard":
-            return self.engine.scorecard()
+            from . import report as R
+            sc = self.engine.scorecard()
+            if sc.get("report") and sc["report"].get("before"):
+                sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}")
+            return sc
         if method == "GET" and path == "/api/job":
             return self.job
         if method == "POST" and path == "/api/optimize":
@@ -169,6 +251,8 @@ class App:
             return {"message": self.engine.apply()}
         if method == "POST" and path == "/api/undo":
             return {"message": self.engine.undo()}
+        if method == "POST" and path == "/api/open-report":
+            return {"message": self.engine.open_report()}
         raise KeyError(path)
 
 
@@ -191,8 +275,16 @@ def make_server(app: App, port: int = 0) -> ThreadingHTTPServer:
             if method == "GET" and path == "/":
                 if query != "t=" + app.token:
                     return self._send(403, {"error": "forbidden"})
-                return self._send(200, PAGE.read_bytes().replace(b"__TOKEN__", app.token.encode()),
+                from . import report as R
+                html = PAGE.read_bytes().replace(b"__TOKEN__", app.token.encode())
+                return self._send(200, html.replace(b"/*__REPORT_CSS__*/", R.CSS.encode()),
                                   "text/html; charset=utf-8")
+            if method == "GET" and path.startswith("/report-file/"):
+                # <img> cannot send the header, so screenshots take the token in the URL.
+                f = app.engine.report_file(path.rsplit("/", 1)[1]) if query == "t=" + app.token else None
+                if f is None:
+                    return self._send(404, {"error": "not found"})
+                return self._send(200, f.read_bytes(), IMAGE_TYPES[f.suffix.lower()])
             # The token stops any other web page open on this PC from driving the tool.
             if not secrets.compare_digest(self.headers.get("X-DCSGO-Token", ""), app.token):
                 return self._send(403, {"error": "forbidden"})

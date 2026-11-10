@@ -4,6 +4,7 @@
   {
    "key": "graphics.textures",
    "label": "Textures",
+   "why": "Sharper aircraft, cockpits and vehicles",
    "levels": [
     {
      "v": 0,
@@ -35,6 +36,7 @@
   {
    "key": "graphics.terrainTextures",
    "label": "Terrain textures",
+   "why": "Sharper ground, runways and fields",
    "levels": [
     {
      "v": "min",
@@ -58,6 +60,7 @@
   {
    "key": "graphics.shadows",
    "label": "Shadows",
+   "why": "Crisper, more detailed shadows in the cockpit and on aircraft",
    "levels": [
     {
      "v": 0,
@@ -104,6 +107,7 @@
   {
    "key": "graphics.flatTerrainShadows",
    "label": "Terrain object shadows",
+   "why": "Buildings and trees cast proper shadows on the ground",
    "levels": [
     {
      "v": 2,
@@ -134,6 +138,7 @@
   {
    "key": "graphics.clouds",
    "label": "Clouds",
+   "why": "Smoother, more detailed clouds",
    "levels": [
     {
      "v": 0,
@@ -172,6 +177,7 @@
   {
    "key": "graphics.visibRange",
    "label": "Visibility range",
+   "why": "Buildings, trees and objects stay visible further away",
    "levels": [
     {
      "v": "Low",
@@ -218,6 +224,7 @@
   {
    "key": "graphics.water",
    "label": "Water",
+   "why": "More realistic waves and reflections on the sea",
    "levels": [
     {
      "v": 0,
@@ -248,6 +255,7 @@
   {
    "key": "graphics.SSAO",
    "label": "Ambient occlusion (SSAO)",
+   "why": "Soft contact shadows in corners and under objects",
    "levels": [
     {
      "v": 0,
@@ -278,6 +286,7 @@
   {
    "key": "graphics.SSLR",
    "label": "Screen-space reflections (SSLR)",
+   "why": "Reflections on wet runways, water and glass",
    "levels": [
     {
      "v": 0,
@@ -300,6 +309,7 @@
   {
    "key": "graphics.SSS",
    "label": "Screen-space shadows (SSS)",
+   "why": "Fine extra shadows on small details",
    "levels": [
     {
      "v": 0,
@@ -322,6 +332,7 @@
   {
    "key": "graphics.cockpitGI",
    "label": "Cockpit global illumination",
+   "why": "More natural light bouncing around the cockpit",
    "levels": [
     {
      "v": 0,
@@ -345,6 +356,7 @@
   {
    "key": "graphics.anisotropy",
    "label": "Anisotropic filtering",
+   "why": "Sharper runways and ground at shallow angles",
    "levels": [
     {
      "v": 0,
@@ -392,6 +404,7 @@
   {
    "key": "graphics.volumetricLights",
    "label": "Volumetric lights",
+   "why": "Visible light beams from lamps and landing lights",
    "levels": [
     {
      "v": 0,
@@ -415,6 +428,7 @@
   {
    "key": "graphics.forestDistanceFactor",
    "label": "Forest distance",
+   "why": "Forests stay visible further away",
    "levels": [
     {
      "v": 0.3,
@@ -455,6 +469,7 @@
   {
    "key": "graphics.clutterMaxDistance",
    "label": "Grass / clutter distance",
+   "why": "Grass and small ground detail reach further out",
    "levels": [
     {
      "v": 0,
@@ -494,6 +509,7 @@
   {
    "key": "graphics.civTraffic",
    "label": "Civilian traffic",
+   "why": "More cars and trains on roads and railways",
    "levels": [
     {
      "v": "",
@@ -533,6 +549,7 @@
   {
    "key": "graphics.heatBlr",
    "label": "Heat blur",
+   "why": "Heat shimmer behind jet engines",
    "levels": [
     {
      "v": 0,

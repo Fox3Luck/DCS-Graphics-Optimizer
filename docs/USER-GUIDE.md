@@ -147,10 +147,29 @@ tells you so.
 
 After a test the window shows:
 
-- the grade change, for example **B → A**,
-- two measured scorecards side by side: **Before** and **Recommended**, each with its
-  frame rates and video memory,
-- a table of every setting that would change, with its current and recommended value.
+- the change in overall score, for example **Overall B (80) → A (93)**, with the test
+  date, how long it took and how many times DCS was started,
+- one table comparing **Before** and **Recommended** as measured in DCS: grade, frame
+  rate in the worst moments, average frame rate, video memory and image quality,
+- every setting that would change, in plain words, with what you get for it and what
+  it costs on your PC. A cost marked *measured* was timed on your PC; one marked
+  *estimate* comes from the tool's model,
+- after a thorough test, a table of what each expensive setting costs on your PC,
+- before and recommended screenshots of the same moment in each scene,
+- anything still worth knowing that the tool does not change, such as a DCS
+  resolution larger than your monitor.
+
+### The saved report
+
+Every test also saves this result as a page you can keep or share. Press **Open the
+saved report** to see it in your browser. It is in
+`Saved Games\<your DCS profile>\DCS Graphics Optimizer Reports\report-<date>-<time>\`
+as `report.html` with the screenshots beside it; send the whole folder if you want to
+show someone. The result stays in the window after you press Apply, marked as applied.
+
+A saved report looks like this:
+
+![A saved test report](img/sample-report.png)
 
 If your settings are already the best match, it says so and offers nothing to apply.
 If your PC cannot reach even the lowest goal, it recommends the smoothest result it
@@ -182,7 +201,7 @@ that measured 16 setting changes without restarting DCS (17 minutes).
 | Image quality (share of maximum) | 53% | 89% |
 | Average frame rate | 260 FPS | 171 FPS |
 | 1% low (worst moments) | 166 FPS | 123 FPS |
-| Video memory at peak | 6.3 GB | 7.9 GB |
+| Video memory at peak | 6.2 GB | 7.7 GB |
 
 The "before" settings were leaving performance unused: they ran far above what the
 monitor can show while textures, shadows and view distance were turned down. The
@@ -286,14 +305,15 @@ Only while a test is running, removed afterwards:
 
 Kept:
 
-- `Config\dcstune-report.json` — the last recommendation, until you apply it
+- `Config\dcstune-report.json` — the last test result
+- `DCS Graphics Optimizer Reports\report-<date>-<time>\` — one folder per test: the report page
+  and its before and recommended screenshots
 - `Config\dcstune-calibration.json` — what the last test learned about your PC
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
-- `ScreenShots\dcstune_…` — the before and recommended screenshots from the last test
 - `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed
 
 To remove every trace, delete the files starting with `dcstune` and
-`options.lua.dcstune` from those folders.
+`options.lua.dcstune` from those folders, and the `DCS Graphics Optimizer Reports` folder.
 
 ## If something goes wrong
 
