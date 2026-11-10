@@ -91,7 +91,7 @@ def summarise(result: dict) -> dict:
 
 
 def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_mb: float,
-        measure, full: bool = False, log=print) -> dict:
+        measure, full: bool = False, log=print, measure_fast=None) -> dict:
     """current: the player's flat options. measure(changes|None) -> summarise()d result
     (None = benchmark the player's settings untouched)."""
     cur_rung = M.current_rung(current, vendor)
@@ -101,7 +101,7 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     mdl.calibrate(current, cur_rung, before["avg_fps"], before.get("vram_peak_mb"))
 
     if full:
-        _measure_costs(mdl, current, cur_rung, before, measure, log)
+        _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log)
     display_target = target_fps
     target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio)
     if target_fps < display_target:
@@ -142,18 +142,32 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
             "target_reached": bool(best and best["hit"]) or keep_current}
 
 
-def _measure_costs(mdl, current, cur_rung, before, measure, log):
+def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log):
     """Full mode: measure what each setting's lowest and highest level really cost on
-    this PC, one at a time against the player's own settings."""
+    this PC, one at a time against the player's own settings. Settings marked
+    "measure": false cost too little to be worth a DCS launch and keep their estimate.
+    With measure_fast (shorter scenes) the baseline is re-measured the same way, because
+    a shorter window sees different scenery and must not be compared with the long run."""
     base_ms = 1000.0 / before["avg_fps"]
+    if measure_fast is not None:
+        log("Measuring your current settings (short run)...")
+        measure, base_ms = measure_fast, 1000.0 / measure_fast(None)["avg_fps"]
     for s in M.SETTINGS:
+        if s.get("measure") is False:
+            continue
         key = s["key"]
         cur_i = M.level_index(s, current.get(key, s["levels"][0]["v"]))
         ms_at = {cur_i: base_ms}
         for i in {0, len(s["levels"]) - 1} - {cur_i}:
             log(f"Measuring {s['label']} = {s['levels'][i]['name']}...")
-            r = measure({key: s["levels"][i]["v"]})
+            try:
+                r = measure({key: s["levels"][i]["v"]})
+            except Exception as e:      # one failed launch must not waste the whole hour
+                log(f"  skipped ({e}); using the built-in estimate for this level")
+                continue
             ms_at[i] = 1000.0 / r["avg_fps"]
+        if 0 not in ms_at:
+            continue                    # no measured anchor for the lowest level: keep the estimate
         for i, ms in ms_at.items():
             mdl.record_cost(key, i, ms - ms_at[0])
     # measured costs replace priors, so re-anchor the model on the baseline

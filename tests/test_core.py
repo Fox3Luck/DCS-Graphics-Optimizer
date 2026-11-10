@@ -220,7 +220,7 @@ def test_full_mode_measures_each_setting_and_uses_costs():
     pc = FakePC(cur, 60, 80)
     mdl = M.Model(78, 100, 2560, 1440)
     out = optimize.run(mdl, cur, "nvidia", 120, 16376, pc.measure, full=True, log=lambda *_: None)
-    assert set(mdl.measured) == {s["key"] for s in M.SETTINGS}
+    assert set(mdl.measured) == {s["key"] for s in M.SETTINGS if s.get("measure") is not False}
     assert out["history"]
 
 
@@ -281,3 +281,54 @@ def test_instant_scorecard_uses_last_benchmark(tmp_path):
     # a different GPU or resolution must not reuse it
     assert rate.load_calibration(profile, {**INFO, "gpu": {"name": "Other"}}, cur) is None
     assert rate.load_calibration(profile, INFO, cur | {"graphics.width": 1920}) is None
+
+
+def test_full_mode_survives_a_failed_launch():
+    cur = _current()
+    pc = FakePC(cur, 60, 80)
+    calls = {"n": 0}
+
+    def flaky(changes):
+        calls["n"] += 1
+        if calls["n"] in (3, 4):
+            raise RuntimeError("DCS did not finish")
+        return pc.measure(changes)
+    mdl = M.Model(78, 100, 2560, 1440)
+    out = optimize.run(mdl, cur, "nvidia", 120, 16376, flaky, full=True, log=lambda *_: None)
+    assert out["recommended"] or out["keep_current"]
+    assert 0 < len(mdl.measured) < len(M.SETTINGS) + 1
+
+
+def test_fast_cost_runs_use_their_own_baseline_and_skip_cheap_settings():
+    cur = _current()
+    pc = FakePC(cur, 60, 80)
+    fast_calls = []
+
+    def fast(changes):
+        fast_calls.append(changes)
+        r = pc.measure(changes)
+        return {**r, "avg_fps": r["avg_fps"] * 1.1}      # a shorter window reads differently
+    mdl = M.Model(78, 100, 2560, 1440)
+    optimize.run(mdl, cur, "nvidia", 120, 16376, pc.measure, full=True, log=lambda *_: None, measure_fast=fast)
+    assert fast_calls[0] is None                          # short baseline first
+    touched = {k for c in fast_calls[1:] for k in c}
+    assert "graphics.anisotropy" not in touched and "graphics.shadows" in touched
+    assert "graphics.anisotropy" not in mdl.measured
+
+
+def test_session_screenshots_are_cleaned_up(tmp_path, monkeypatch):
+    from dcstune import bench
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    cfg = tmp_path / "Config"; cfg.mkdir()
+    shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
+    shots = tmp_path / "ScreenShots"; shots.mkdir()
+    (shots / "my_own_screenshot.jpg").write_text("x")
+    (shots / "dcstune_r01_city.jpg").write_text("older session")
+    b = bench.Bench({"path": str(tmp_path), "name": "DCS", "options": str(cfg / "options.lua")}, tmp_path / "DCS.exe")
+    with b:
+        for n in ("r01_city", "r02_city", "r03_city"):
+            (shots / f"dcstune_{b.session_id}{n}.jpg").write_text("x")
+        b.keep_shots.add(f"dcstune_{b.session_id}r01_city")
+    left = sorted(p.name for p in shots.iterdir())
+    assert left == sorted(["my_own_screenshot.jpg", "dcstune_r01_city.jpg", f"dcstune_{b.session_id}r01_city.jpg"])
+    assert not (tmp_path / "Scripts" / "Hooks" / "dcstune_bench.lua").exists()

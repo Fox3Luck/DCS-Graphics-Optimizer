@@ -21,6 +21,7 @@ SCENES = [
     {"name": "airfield", "unit": "TUNE-RAMP-1", "back": 28, "up": 5, "side": 10},
     {"name": "clouds", "unit": "TUNE-HIGH-1", "back": 40, "up": 10},
 ]
+SHORT_SCENE_SEC, SHORT_LEAD_SEC = 10, 2   # cost-only runs: averages repeat within 0.2% at 10 s
 STUTTER_FACTOR = 2.5     # a frame this many times the median counts as a stutter
 
 
@@ -121,6 +122,8 @@ class Bench:
         self.result = self.profile_dir / "Config" / "dcstune_result.json"
         self.session = TrialSession(self.options)
         self.runs = 0
+        self.session_id = time.strftime("%m%d%H%M")   # makes this session's screenshots identifiable
+        self.keep_shots: set[str] = set()             # screenshot names to leave for the player
         self.keep_raw_dir = None      # developer aid: keep every frame time
 
     # -- session lifecycle ---------------------------------------------------
@@ -144,13 +147,25 @@ class Bench:
                 p.unlink()
             except FileNotFoundError:
                 pass
+        # A test makes three screenshots per DCS launch; leave only the ones asked for
+        # (before / recommended) in the player's ScreenShots folder.
+        for shot in (self.profile_dir / "ScreenShots").glob(f"dcstune_{self.session_id}r*"):
+            if shot.stem not in self.keep_shots:
+                try:
+                    shot.unlink()
+                except OSError:
+                    pass
         self.session.end()
 
     # -- one run ---------------------------------------------------------------
-    def measure(self, changes: dict | None) -> dict:
+    def measure_fast(self, changes: dict | None) -> dict:
+        """Shorter scenes, for runs where only the average frame rate is needed."""
+        return self.measure(changes, short=True)
+
+    def measure(self, changes: dict | None, short: bool = False) -> dict:
         from .optimize import summarise
         self.runs += 1
-        tag = f"r{self.runs:02d}"
+        tag = f"{self.session_id}r{self.runs:02d}"
         # Trials never change resolution, monitor layout or VR; vsync and the frame
         # cap are lifted for every run (including the baseline) so numbers compare.
         trial = {"graphics.sync": False, "graphics.maxFPS": 300}
@@ -159,7 +174,8 @@ class Bench:
         self.result.unlink(missing_ok=True)
         self.directive.write_text(json.dumps({
             "mission": str(self.mission_dst), "scenes": SCENES, "tag": tag,
-            "scene_sec": self.scene_sec, "settle_sec": self.settle_sec,
+            "scene_sec": SHORT_SCENE_SEC if short else self.scene_sec,
+            "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
             "total_timeout": self.timeout - 30}))
         args = [str(self.exe), "--no-launcher", "--force_disable_VR", "-w", self.profile_name]
         started = time.time()

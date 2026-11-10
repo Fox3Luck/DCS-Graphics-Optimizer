@@ -124,6 +124,8 @@ def main(argv=None):
     sub.add_parser("apply").set_defaults(fn=cmd_apply)
     sub.add_parser("undo").set_defaults(fn=cmd_undo)
     args = p.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)   # progress shows live even when redirected
     try:
         return args.fn(args)
     except Exception as e:  # player-facing: one clear line, not a traceback

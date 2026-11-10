@@ -62,7 +62,10 @@ class Engine:
         exe = sysinfo.dcs_exe(sysinfo.pick_install(self.info))
         with Bench(self.profile, exe, log=log) as b:
             out = optimize.run(mdl, flat, vendor, rate.target_fps(gpu.get("refresh")),
-                               gpu.get("vram_mb") or 0, b.measure, full=full, log=log)
+                               gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
+                               measure_fast=b.measure_fast)
+            for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
+                b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
         target = out["target_fps"]
         rate.save_calibration(self.profile, self.info, flat, out["learned"])
         report = {"created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],

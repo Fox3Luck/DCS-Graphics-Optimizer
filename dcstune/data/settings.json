@@ -337,7 +337,8 @@
      "cpu": 0,
      "vram_mb": 50
     }
-   ]
+   ],
+   "measure": false
   },
   {
    "key": "graphics.anisotropy",
@@ -383,7 +384,8 @@
      "cpu": 0,
      "vram_mb": 0
     }
-   ]
+   ],
+   "measure": false
   },
   {
    "key": "graphics.volumetricLights",
@@ -405,7 +407,8 @@
      "cpu": 0,
      "vram_mb": 0
     }
-   ]
+   ],
+   "measure": false
   },
   {
    "key": "graphics.forestDistanceFactor",
@@ -522,7 +525,8 @@
      "cpu": 0.04,
      "vram_mb": 0
     }
-   ]
+   ],
+   "measure": false
   },
   {
    "key": "graphics.heatBlr",
@@ -552,7 +556,8 @@
      "cpu": 0,
      "vram_mb": 0
     }
-   ]
+   ],
+   "measure": false
   }
  ],
  "never_touch": [
