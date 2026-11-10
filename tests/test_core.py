@@ -435,7 +435,8 @@ def test_batches_measure_everything_except_restart_settings():
     assert out["disturbed"] is False
     in_batches = {k for b in batches for c in b if c for k in c}
     in_singles = {k for c in singles if c for k in c}
-    assert in_singles == {"graphics.visibRange", "graphics.terrainTextures"}
+    assert in_singles == {s["key"] for s in M.SETTINGS if s.get("restart")}
+    assert in_singles == {"graphics.terrainTextures", "graphics.textures"} and "graphics.visibRange" in in_batches
     assert not in_batches & in_singles and "graphics.shadows" in in_batches
     for b in batches:
         assert b[0] is None and b[-1] is None and len(b) <= optimize.BATCH_SIZE + 2
@@ -448,7 +449,8 @@ def test_batches_measure_everything_except_restart_settings():
     assert mdl.measured["graphics.shadows"][len(shadows["levels"]) - 1] == pytest.approx(true, rel=0.02)
 
 
-def test_disturbed_or_failed_batch_is_discarded_but_others_kept():
+def test_disturbed_or_failed_batch_is_discarded_but_others_kept(monkeypatch):
+    monkeypatch.setattr(optimize, "BATCH_SIZE", 4)
     cur = _current()
     pc, batches, logs = FakePC(cur, 60, 80), [], []
     slow_tail = lambda n, i: 0.8 if (n == 0 and i >= 4) else 1.0     # PC slows mid-way through batch 0
@@ -460,7 +462,7 @@ def test_disturbed_or_failed_batch_is_discarded_but_others_kept():
     assert len(batches) >= 2 and mdl.measured                      # later batch still counted
     kept = set(mdl.measured)
     later_only = {k for b in batches[1:] for c in b if c for k in c} - first_batch_keys
-    assert later_only <= kept and not (first_batch_keys - later_only) & kept - {"graphics.visibRange", "graphics.terrainTextures"}
+    assert later_only <= kept and not (first_batch_keys - later_only) & kept
 
     mdl2, batches2 = M.Model(78, 100, 2560, 1440), []
     out2 = optimize.run(mdl2, cur, "nvidia", 120, 16376, pc.measure, full=True, log=lambda *_: None,
@@ -482,13 +484,14 @@ def test_bench_batch_builds_self_resetting_trials(tmp_path, monkeypatch):
         return [{"avg_fps": 100.0 + n} for n, _ in enumerate(trials)]
     with b:
         monkeypatch.setattr(b, "run_trials", fake_run_trials)
-        out = b.measure_batch([None, {"graphics.shadows": 0}, {"graphics.textures": 0}, None])
-    assert [r["avg_fps"] for r in out] == [100.0, 101.0, 102.0, 103.0] and seen["screenshots"] is False
+        out = b.measure_batch([None, {"graphics.shadows": 0}, {"graphics.clouds": 0}, None])
+    # the warm-up trial's result is dropped
+    assert [r["avg_fps"] for r in out] == [101.0, 102.0, 103.0, 104.0] and seen["screenshots"] is False
     sets = [t["set"] for t in seen["trials"]]
-    # fixture values: shadows 3, textures 1. Every trial names both, so each undoes the one before.
-    assert sets == [{"shadows": 3, "textures": 1}, {"shadows": 0, "textures": 1},
-                    {"shadows": 3, "textures": 0}, {"shadows": 3, "textures": 1}]
-    assert [t["settle_sec"] for t in seen["trials"]] == [20, 10, 20, 10]
+    # fixture values: shadows 3, clouds 3. Every trial names both, so each undoes the one before.
+    assert sets == [{"shadows": 3, "clouds": 3}, {"shadows": 3, "clouds": 3}, {"shadows": 0, "clouds": 3},
+                    {"shadows": 3, "clouds": 0}, {"shadows": 3, "clouds": 3}]
+    assert [t["settle_sec"] for t in seen["trials"]] == [20, 10, 10, 10, 10]   # equal waits for all measured trials
 
 
 def test_marginal_candidate_does_not_replace_settings_that_already_hold_the_goal():

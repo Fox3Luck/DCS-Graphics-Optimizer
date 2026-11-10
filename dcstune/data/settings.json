@@ -1,5 +1,5 @@
 {
- "_comment": "Levels are the exact values DCS 2.9.31 accepts (read from MissionEditor/modules/Options/optionsDb.lua). quality = visual-impact points (judgement table, tune from feedback). gpu/cpu = PRIOR share of frame time added relative to the first level, used only until a measurement replaces it. vram_mb = prior VRAM added. restart=true: DCS only applies the setting after a full restart (per its options screen), so it cannot be measured in a no-restart batch.",
+ "_comment": "Levels are the exact values DCS 2.9.31 accepts (read from MissionEditor/modules/Options/optionsDb.lua). quality = visual-impact points (judgement table, tune from feedback). gpu/cpu = PRIOR share of frame time added relative to the first level, used only until a measurement replaces it. vram_mb = prior VRAM added. restart=true: measured with one DCS launch per level, not in a no-restart batch (terrain textures need a restart; textures need a long reload). Visibility range was verified on 2026-11-10 to apply at mission start without a restart.",
  "settings": [
   {
    "key": "graphics.textures",
@@ -29,7 +29,8 @@
      "cpu": 0,
      "vram_mb": 4000
     }
-   ]
+   ],
+   "restart": true
   },
   {
    "key": "graphics.terrainTextures",
@@ -212,8 +213,7 @@
      "cpu": 0.18,
      "vram_mb": 800
     }
-   ],
-   "restart": true
+   ]
   },
   {
    "key": "graphics.water",

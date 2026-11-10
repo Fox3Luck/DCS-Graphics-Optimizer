@@ -22,6 +22,8 @@ SCENES = [
     {"name": "airfield", "unit": "TUNE-RAMP-1", "back": 28, "up": 5, "side": 10},
     {"name": "clouds", "unit": "TUNE-HIGH-1", "back": 40, "up": 10},
 ]
+BATCH_SETTLE_SEC = 10     # wait before timing in every measured no-restart trial
+QUICK_EXIT_SEC = 45       # DCS gone this fast without a result = it never really started
 SHORT_SCENE_SEC, SHORT_LEAD_SEC = 10, 2   # cost-only runs: averages repeat within 0.2% at 10 s
 STUTTER_FACTOR = 2.5     # a frame this many times the median counts as a stutter
 
@@ -216,15 +218,15 @@ class Bench:
         cur = Options.load(self.session.saved).section("graphics")
         bare = lambda c: {k.split(".", 1)[1]: v for k, v in (c or {}).items()}
         keys = {k for c in changes_list for k in bare(c)}
-        trials = []
+        base = {k: cur[k] for k in keys if k in cur}
+        # First a warm-up trial that is thrown away: it absorbs texture loading, and it lets
+        # every measured trial use the same short wait. (The wait decides where the
+        # aircraft is when timing starts, so trials with different waits do not compare.)
+        trials = [{"tag": "warm", "set": dict(base), "settle_sec": self.settle_sec}]
         for n, c in enumerate(changes_list):
             # every trial states every involved option, so the previous trial's change is undone
-            st = {k: cur[k] for k in keys if k in cur}
-            st.update(bare(c))
-            trials.append({"tag": f"t{n:02d}", "set": st,
-                           # texture changes reload from disk; everything else is quick
-                           "settle_sec": self.settle_sec if "textures" in bare(c) or n == 0 else 10})
-        return [{"avg_fps": r["avg_fps"]} for r in self.run_trials(trials, screenshots=False)]
+            trials.append({"tag": f"t{n:02d}", "set": dict(base, **bare(c)), "settle_sec": BATCH_SETTLE_SEC})
+        return [{"avg_fps": r["avg_fps"]} for r in self.run_trials(trials, screenshots=False)[1:]]
 
     def run_trials(self, trials: list[dict], short: bool = True, screenshots: bool = True) -> list[dict]:
         """Several settings trials in ONE DCS launch (only the mission restarts).
@@ -244,6 +246,13 @@ class Bench:
         self.log(f"  {len(out)} trials in {seconds}s, VRAM peak {round(gpu.peak_mb)} MB")
         return out
 
+    def _keep_failure_log(self):
+        try:
+            shutil.copyfile(self.profile_dir / "Logs" / "dcs.log",
+                            self.profile_dir / "Config" / "dcstune-last-failure.log")
+        except OSError:
+            pass
+
     def _launch(self, changes, directive_extra: dict, short: bool, timeout: int):
         # Trials never change resolution, monitor layout or VR; vsync and the frame
         # cap are lifted for every run (including the baseline) so numbers compare.
@@ -257,20 +266,33 @@ class Bench:
             "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
             "total_timeout": timeout - 30}, **directive_extra)))
         args = [str(self.exe), "--no-launcher", "--force_disable_VR", "-w", self.profile_name]
+        directive_text = self.directive.read_text()
         started = time.time()
-        with GpuSampler() as gpu:
-            proc = subprocess.Popen(args, cwd=str(self.exe.parent))
-            try:
-                proc.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=30)
-                self.directive.unlink(missing_ok=True)
-                raise BenchError("DCS did not finish the benchmark in time and was closed. "
-                                 "Check that DCS starts normally and is logged in.")
+        for attempt in (1, 2):
+            if attempt == 2:
+                self.log("  DCS closed straight away; waiting a moment and starting it again...")
+                time.sleep(15)
+                self.directive.write_text(directive_text)
+            launched = time.time()
+            with GpuSampler() as gpu:
+                proc = subprocess.Popen(args, cwd=str(self.exe.parent))
+                try:
+                    proc.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=30)
+                    self.directive.unlink(missing_ok=True)
+                    self._keep_failure_log()
+                    raise BenchError("DCS did not finish the benchmark in time and was closed. "
+                                     "Check that DCS starts normally and is logged in.")
+            if self.result.exists() or time.time() - launched > QUICK_EXIT_SEC:
+                break
+        time.sleep(3)      # let DCS finish releasing its files before anything else starts
         if not self.result.exists():
             self.directive.unlink(missing_ok=True)
-            raise BenchError("DCS closed without writing a benchmark result (see Logs\\dcs.log, DCSTUNE lines).")
+            self._keep_failure_log()
+            raise BenchError("DCS closed without writing a benchmark result "
+                             "(a copy of its log is in Config\\dcstune-last-failure.log).")
         raw_text = self.result.read_text()
         if self.keep_raw_dir:
             (Path(self.keep_raw_dir) / f"dcstune-raw-{time.strftime('%H%M%S')}-{directive_extra['tag']}.json").write_text(raw_text)

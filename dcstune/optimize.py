@@ -10,6 +10,7 @@ from . import model as M
 VRAM_BUDGET = 0.90          # of the card
 HIT_MARGIN = 0.95           # measured 1% low must reach this share of target (run-to-run noise is ~3-6%)
 MAX_CONFIRM_RUNS = 4
+AIM_ABOVE = 1.04            # plan for a little more than the goal; real runs land a few percent either side
 MIN_GAIN = 0.03             # share of maximum image quality a change must add to be worth recommending
 
 
@@ -109,9 +110,11 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     if target_fps < display_target:
         log(f"Holding {display_target} FPS would cost too much image quality on this PC; aiming for {target_fps}.")
 
+    cur_hits = before["p1_low_fps"] >= target_fps * HIT_MARGIN
+    need = target_fps if cur_hits else target_fps * HIT_MARGIN     # what a candidate must measure
     history, best = [], None
     for attempt in range(1, MAX_CONFIRM_RUNS + 1):
-        config, rung, feasible = choose(mdl, target_fps, vram_total_mb, low_ratio)
+        config, rung, feasible = choose(mdl, target_fps * AIM_ABOVE, vram_total_mb, low_ratio)
         changes = config_changes(config, rung)
         if history and changes == history[-1]["changes"]:
             break
@@ -119,7 +122,7 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
         after = measure(changes)
         entry = {"changes": changes, "rung": rung["name"], "result": after,
                  "quality": mdl.quality(config, rung), "feasible": feasible,
-                 "hit": after["p1_low_fps"] >= target_fps * HIT_MARGIN}
+                 "hit": after["p1_low_fps"] >= need}
         history.append(entry)
         if entry["hit"] and (best is None or entry["quality"] > best["quality"]):
             best = entry
@@ -131,13 +134,12 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
         if not feasible and attempt >= 2:
             break
     cur_quality = mdl.quality(current, cur_rung)
-    cur_hits = before["p1_low_fps"] >= target_fps * HIT_MARGIN
     # When the player's settings already hold the goal, only replace them with something
     # that is clearly better looking AND holds the goal outright (no noise allowance):
     # otherwise the "recommendation" would be a sideways or downward step.
     clearly_better = (best is not None
                       and best["quality"] >= cur_quality + MIN_GAIN * M.max_quality(vendor)
-                      and best["result"]["p1_low_fps"] >= target_fps)
+                      and best["result"]["p1_low_fps"] >= need)
     keep_current = cur_hits and not clearly_better
     if best is None and not cur_hits and history:
         # Nothing holds the goal: offer the smoothest thing measured, but only if it is
@@ -160,7 +162,7 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
 
 
 RECHECK_EVERY = 5        # cost runs between baseline re-checks (restart-per-run path)
-BATCH_SIZE = 8           # settings changes per DCS launch (no-restart path)
+BATCH_SIZE = 16          # settings changes per DCS launch (no-restart path)
 DRIFT_LIMIT = 0.05       # baseline moved more than this -> something else was using the PC
 
 
