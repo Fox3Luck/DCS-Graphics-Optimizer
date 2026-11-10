@@ -332,7 +332,8 @@ def test_session_screenshots_are_cleaned_up(tmp_path, monkeypatch):
             (shots / f"dcstune_{b.session_id}{n}.jpg").write_text("x")
         b.keep_shots.add(f"dcstune_{b.session_id}r01_city")
     left = sorted(p.name for p in shots.iterdir())
-    assert left == sorted(["my_own_screenshot.jpg", "dcstune_r01_city.jpg", f"dcstune_{b.session_id}r01_city.jpg"])
+    # a new before/recommended set replaces older sessions' leftovers; the player's own files stay
+    assert left == sorted(["my_own_screenshot.jpg", f"dcstune_{b.session_id}r01_city.jpg"])
     assert not (tmp_path / "Scripts" / "Hooks" / "dcstune_bench.lua").exists()
 
 

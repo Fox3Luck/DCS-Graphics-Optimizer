@@ -33,14 +33,15 @@ the window says it is finished.
 
 | | Quick test | Thorough test |
 |---|---|---|
-| Typical time | **10–20 minutes** | **45–90 minutes** |
-| DCS starts | 2 to 5 | about 20 to 30 |
+| Typical time | **10–20 minutes** | **35–60 minutes** |
+| DCS starts | 2 to 5 | about 10 |
 | How it decides | Measures your current settings, predicts the best combination, then tests and corrects that prediction | Also measures what each expensive setting really costs on your PC, one at a time, before deciding |
 | Best for | Most people | Unusual hardware, or when the quick result does not feel right |
 
-Each DCS start takes about 3 minutes on a fast PC with DCS on an SSD; most of that is
-DCS loading, so slower PCs and hard disks take longer. These times come from testing
-on one PC so far and will be refined.
+Measured on a fast PC with DCS on an SSD: 12 minutes for a quick test, 37 minutes for
+a thorough test. Slower PCs and hard disks take longer because much of the time is
+DCS loading. Close other programs that use the graphics card first; the tool refuses
+to test if the card is already busy.
 
 ### What happens on every DCS start
 
@@ -53,9 +54,32 @@ on one PC so far and will be refined.
    through a cloud layer (**clouds**). No combat, nothing random.
 5. DCS closes by itself and your original settings file is put back.
 
+In the thorough test, most settings are measured inside one long DCS session that
+restarts only the mission, about a minute per setting.
+
 The goal is chosen automatically: hold your monitor's refresh rate in the worst
 moments (the "1% low"), up to 120 FPS. If that would cost more than half of the
 possible image quality on your PC, it aims for 90, then 72, then 60 FPS instead.
+
+### Example result
+
+A real thorough test on a Ryzen 7 9800X3D with an RTX 4080 at 3840 x 2160 (goal:
+120 FPS in the worst moments). It took 37 minutes.
+
+| | Before | Recommended |
+|---|---|---|
+| Overall score | B (80) | A (93) |
+| Image quality (share of maximum) | 53% | 89% |
+| Average frame rate | 260 FPS | 171 FPS |
+| 1% low (worst moments) | 166 FPS | 123 FPS |
+
+The old settings ran far above what the monitor could show with textures, shadows and
+view distance turned down; the recommendation spends that spare performance on image
+quality and still holds the goal. The [User Guide](docs/USER-GUIDE.md#a-worked-example)
+has the full example: every setting changed, what each setting cost on that PC, and
+before/after screenshots.
+
+![City scene with the recommended settings](docs/img/sample-city-after.jpg)
 
 ### What it changes, and what it never touches
 
@@ -93,6 +117,8 @@ rebuild the mission with `mission/generate.py`).
 Build the Windows app (on Windows): `powershell -ExecutionPolicy Bypass -File build\build.ps1`
 produces `dist\DCSGraphicsOptimizer.exe`, a single file that needs no Python and no install.
 
-Status 2026-11-10: scorecard, benchmark, automatic optimize, apply and undo all verified in
-real DCS 2.9.31 on one PC (RTX 4080 / 9800X3D). Not yet verified: AMD/Intel GPUs, the
-Thorough mode in real DCS, a second PC, VR (planned for v2).
+Status 2026-11-10: scorecard, quick and thorough tests (including the no-restart
+measuring session), apply and undo all verified in real DCS 2.9.31 on one PC
+(RTX 4080 / 9800X3D). Not yet verified: AMD/Intel GPUs, a second PC, the packaged exe's
+full click-through, code signing (waiting on Azure identity validation). VR is planned
+for v2.

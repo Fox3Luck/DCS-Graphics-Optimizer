@@ -59,8 +59,8 @@
   </div>
 
   <div class="actions">
-    <button class="primary" id="quick">Test and optimize (about 10 min)</button>
-    <button id="full">Thorough test (about an hour)</button>
+    <button class="primary" id="quick">Test and optimize (10 to 20 min)</button>
+    <button id="full">Thorough test (35 to 60 min)</button>
     <button id="undo" class="hidden">Undo last change</button>
   </div>
   <p class="sub">The test starts DCS several times by itself and closes it again. Leave the PC alone while it runs.
@@ -69,10 +69,10 @@
   <details class="card" style="margin-bottom:14px">
     <summary style="cursor:pointer;font-weight:600">What do the tests do, and how long do they take?</summary>
     <ul style="margin-top:10px">
-      <li>Each test starts DCS by itself several times and closes it again. Every start takes about 3 minutes, most of it DCS loading.</li>
+      <li>Each test starts DCS by itself several times and closes it again. Close other programs that use the graphics card first (games, video renders, AI tools); the test refuses to start if the card is busy.</li>
       <li>Each time, the computer flies three short scenes on the Caucasus map (a city pass, an airfield ramp, a cloud layer) while every frame is timed.</li>
       <li><b>Test and optimize</b>: 2 to 5 starts, usually 10 to 20 minutes. Measures your settings, then tests and corrects a recommendation.</li>
-      <li><b>Thorough test</b>: about 20 to 30 starts, usually 45 to 90 minutes. Also measures what each expensive setting costs on your PC.</li>
+      <li><b>Thorough test</b>: about 10 starts, usually 35 to 60 minutes. Also measures what each expensive setting costs on your PC; most of them are measured inside one long DCS session that restarts only the mission.</li>
       <li>The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60.</li>
       <li>Resolution, vertical sync, VR, controls and sound are never changed. Your settings file is restored after every start.</li>
       <li>Nothing is sent over the internet. The full guide is in the project's User Guide.</li>

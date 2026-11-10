@@ -11,6 +11,7 @@ settings back.
 - [What happens during a test](#what-happens-during-a-test)
 - [What is measured](#what-is-measured)
 - [The result](#the-result)
+- [A worked example](#a-worked-example)
 - [What the tool changes, and what it never touches](#what-the-tool-changes-and-what-it-never-touches)
 - [Safety](#safety)
 - [Files it creates](#files-it-creates)
@@ -27,6 +28,9 @@ You need:
 - DCS set to log in automatically (the default once you have logged in and ticked
   "remember me"). If DCS stops at a login box, the test cannot continue.
 - **DCS closed.** The tool refuses to start a test while DCS is running.
+- **Nothing else using the graphics card.** Close other games, video renders, AI image
+  or speech tools and browser videos. The tool checks before it starts and refuses to
+  test if the graphics card is already busy, because the results would be wrong.
 
 Download `DCSGraphicsOptimizer.exe` and double-click it. There is nothing to install.
 Until the program is code-signed, Windows shows a blue "Windows protected your PC"
@@ -65,17 +69,17 @@ running other heavy programs changes the results.
 | | Quick test | Thorough test |
 |---|---|---|
 | Button | Test and optimize | Thorough test |
-| Typical time | **10–20 minutes** | **45–90 minutes** |
-| DCS starts | 2 to 5 times | about 20 to 30 times |
+| Typical time | **10–20 minutes** | **35–60 minutes** |
+| DCS starts | 2 to 5 | about 10 |
 | How it decides | Measures your current settings, predicts the best combination from built-in knowledge of what each setting costs, then tests that prediction and corrects it | Also measures what the expensive settings really cost **on your PC**, one at a time, before deciding |
 | Best for | Most people | Unusual hardware, or when the quick result does not feel right |
 
-Each DCS start takes about **3 minutes** on a fast PC with DCS on an SSD (measured on
-a Ryzen 7 9800X3D with an RTX 4080: 12 minutes for a quick test of four starts).
-Slower PCs, and DCS installed on a hard disk, take longer per start because most of
-that time is DCS loading.
+Measured on a fast PC with DCS on an SSD (Ryzen 7 9800X3D, RTX 4080): a quick test of
+four DCS starts took 12 minutes, and a thorough test took 37 minutes. A single DCS
+start-to-finish measurement takes about 2.5 minutes there. Slower PCs, and DCS
+installed on a hard disk, take longer because much of that time is DCS loading.
 
-The times above come from testing on one PC so far and will be refined.
+These times come from testing on one PC so far and will be refined.
 
 ## What happens during a test
 
@@ -101,12 +105,26 @@ For every DCS start, the same thing happens:
 The quick test does this for your current settings, then for its recommendation, and
 repeats with a corrected recommendation if the first one missed the goal.
 
-The thorough test first does this once for each expensive setting at its lowest and
-highest level (shadows, clouds, visibility range, textures, water, and so on), then
-searches and confirms as the quick test does. A few settings that cost almost nothing
-(anisotropic filtering, civilian traffic, heat blur, volumetric lights, cockpit
-lighting) are not measured one by one. If one DCS start fails, the thorough test
-skips that measurement and carries on.
+The thorough test adds a measuring phase before that. It measures each expensive
+setting at its lowest and highest level (shadows, clouds, visibility range, water,
+ambient occlusion and so on), one change at a time:
+
+- **Most settings are measured inside one long DCS session.** DCS stays open; the tool
+  changes one setting, restarts only the mission (about a minute per setting) and
+  flies the three scenes again in a shorter form. You will see the mission reload
+  again and again; that is normal. The session begins with a warm-up that is thrown
+  away, and it begins and ends with your own settings: if those two readings
+  disagree, something else was using the PC and the whole session's numbers are
+  discarded.
+- **Textures and terrain textures get a DCS start each**, because DCS only applies
+  them properly after a restart or a long reload.
+- A few settings that cost almost nothing (anisotropic filtering, civilian traffic,
+  heat blur, volumetric lights, cockpit lighting) are not measured one by one.
+
+Then it searches and confirms as the quick test does. If one DCS start fails, the
+test retries or skips that measurement and carries on. If measurements had to be
+discarded, the result says so and suggests running the test again with other
+programs closed.
 
 ## What is measured
 
@@ -114,7 +132,8 @@ skips that measurement and carries on.
 - **1% low** — the frame rate your PC holds 99% of the time. This is the number that
   decides whether DCS *feels* smooth, and it is the one the goal is set on.
 - **Stutters** — single frames that took much longer than normal.
-- **Video memory** used at the peak.
+- **Video memory** in use on the graphics card at the peak (this includes whatever
+  other programs are using).
 
 During a test, vertical sync and the frame-rate cap are switched off so the numbers
 show what the PC can really do. Your own choices for both come back afterwards.
@@ -139,6 +158,95 @@ measured and says the goal was not reached.
 
 Press **Apply these settings** to use the recommendation (DCS must be closed). Press
 **Undo last change** at any later time to go back.
+
+A change is only recommended when it is clearly better looking and still holds the
+goal. The tool never recommends something that measured worse than what you have.
+
+## A worked example
+
+A real thorough test, run on 10 November 2026 with nothing else using the PC.
+
+**The PC:** Ryzen 7 9800X3D, GeForce RTX 4080 (16 GB), 62 GB memory, DCS 2.9.31,
+rendering at 3840 x 2160 with DLSS on a 143 Hz monitor. The goal was therefore
+120 FPS in the worst moments.
+
+**The test:** 37 minutes, 10 DCS starts. One of those starts was the long session
+that measured 16 setting changes without restarting DCS (17 minutes).
+
+**The result:**
+
+| | Before | Recommended |
+|---|---|---|
+| Overall score | B (80) | A (93) |
+| Settings grade | B (72) | A (94) |
+| Image quality (share of maximum) | 53% | 89% |
+| Average frame rate | 260 FPS | 171 FPS |
+| 1% low (worst moments) | 166 FPS | 123 FPS |
+| Video memory at peak | 6.3 GB | 7.9 GB |
+
+The "before" settings were leaving performance unused: they ran far above what the
+monitor can show while textures, shadows and view distance were turned down. The
+recommendation spends that spare performance on image quality and still holds the
+goal.
+
+Per scene (average / 1% low, in FPS):
+
+| Scene | Before | Recommended |
+|---|---|---|
+| City | 274 / 204 | 181 / 144 |
+| Airfield | 280 / 216 | 178 / 144 |
+| Clouds | 225 / 166 | 155 / 123 |
+
+**What it changed:**
+
+| Setting | Before | Recommended |
+|---|---|---|
+| Upscaling | DLSS Balanced | DLSS Quality |
+| Textures | Medium | High |
+| Terrain textures | Low | High |
+| Shadows | Medium | High |
+| Terrain object shadows | Flat | Default |
+| Visibility range | Medium | Extreme |
+| Forest distance | 50% | 100% |
+| Grass / clutter distance | 750 m | 1500 m |
+| Anisotropic filtering | 2x | 16x |
+| Screen-space reflections | Off | On |
+| Screen-space shadows | Off | On |
+| Cockpit global illumination | Off | On |
+| Civilian traffic | Low | High |
+| Heat blur | Off | Low |
+
+It left clouds on Ultra, and deliberately left ambient occlusion off and water on
+Medium, because the measurements below showed those are the most expensive settings
+on this PC for what they add.
+
+**What each setting cost on this PC** (extra frame time at its highest level compared
+with its lowest):
+
+| Setting at its highest level | Cost |
+|---|---|
+| Ambient occlusion (High) | 14.7% |
+| Clouds (Ultra) | 9.9% |
+| Water (High) | 8.2% |
+| Visibility range (Extreme) | 6.6% |
+| Terrain object shadows (Default) | 5.4% |
+| Shadows (High) | 4.2% |
+| Screen-space shadows (On) | 3.9% |
+| Grass / clutter distance (1500 m) | 2.4% |
+| Screen-space reflections (On) | 2.3% |
+| Terrain textures (High) | 1.8% |
+| Forest distance (100%) | 1.8% |
+| Textures (High) | 0.4% |
+
+Repeated measurements of the same settings differ by about 1–2%, so the bottom of this
+table is within measuring noise. These costs belong to this PC, this resolution and
+these scenes; yours will differ, which is the reason to measure.
+
+The same moment of the city scene, before and after:
+
+![City scene before](img/sample-city-before.jpg)
+
+![City scene with the recommended settings](img/sample-city-after.jpg)
 
 ## What the tool changes, and what it never touches
 
@@ -182,6 +290,7 @@ Kept:
 - `Config\dcstune-calibration.json` — what the last test learned about your PC
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
 - `ScreenShots\dcstune_…` — the before and recommended screenshots from the last test
+- `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed
 
 To remove every trace, delete the files starting with `dcstune` and
 `options.lua.dcstune` from those folders.
@@ -192,6 +301,9 @@ To remove every trace, delete the files starting with `dcstune` and
 |---|---|
 | "DCS is running. Close it first" | Close DCS completely, then try again. |
 | DCS opens and sits at a login box | Log in once in DCS with auto-login on, close DCS, run the test again. |
+| "Another program is using your graphics card" | Close other games, video renders, AI tools and browser videos, then try again. |
+| "Another program was using the PC during part of this test" | The result is still safe to use, but some measurements were discarded. For the best result, close other programs and run the test again. |
+| "DCS closed without writing a benchmark result" | DCS crashed or was closed. A copy of its log is saved as `Config\dcstune-last-failure.log`. Start DCS normally once, then try again. |
 | "DCS did not finish the benchmark in time" | Start DCS normally once to check it reaches the main menu (an update or a first-time shader build may be pending), then try again. |
 | "An earlier test was interrupted. Your original settings have been restored." | Nothing to do; this is the safety net working. |
 | The window shows the wrong DCS profile | The tool uses the profile your DCS install uses. Other profiles are listed in `Saved Games`; profile choice in the window is not available yet. |

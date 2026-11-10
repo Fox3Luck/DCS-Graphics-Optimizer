@@ -180,7 +180,9 @@ class Bench:
                 pass
         # A test makes three screenshots per DCS launch; leave only the ones asked for
         # (before / recommended) in the player's ScreenShots folder.
-        for shot in (self.profile_dir / "ScreenShots").glob(f"dcstune_{self.session_id}r*"):
+        # When this session produced a new before/recommended pair, older sessions' pairs go too.
+        pattern = "dcstune_*" if self.keep_shots else f"dcstune_{self.session_id}r*"
+        for shot in (self.profile_dir / "ScreenShots").glob(pattern):
             if shot.stem not in self.keep_shots:
                 try:
                     shot.unlink()
