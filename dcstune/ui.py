@@ -1,4 +1,4 @@
-"""DCS Tune window. A tiny local web page (127.0.0.1 only, random port, secret token)
+"""DCS Graphics Optimizer window. A tiny local web page (127.0.0.1 only, random port, secret token)
 shown in a native window via pywebview when installed, otherwise the default browser.
 
   python -m dcstune.ui
@@ -103,7 +103,7 @@ class Engine:
             raise RuntimeError("Close DCS first. It overwrites its settings file when it exits.")
         backups = list_backups(self.profile["options"])
         if not backups:
-            raise RuntimeError("No earlier settings saved by DCS Tune were found.")
+            raise RuntimeError("No earlier settings saved by DCS Graphics Optimizer were found.")
         atomic_write(Path(self.profile["options"]), backups[-1].read_bytes())
         backups[-1].unlink()
         return "Your previous settings are back."
@@ -182,7 +182,7 @@ def make_server(app: App, port: int = 0) -> ThreadingHTTPServer:
                 return self._send(200, PAGE.read_bytes().replace(b"__TOKEN__", app.token.encode()),
                                   "text/html; charset=utf-8")
             # The token stops any other web page open on this PC from driving the tool.
-            if not secrets.compare_digest(self.headers.get("X-DCSTune-Token", ""), app.token):
+            if not secrets.compare_digest(self.headers.get("X-DCSGO-Token", ""), app.token):
                 return self._send(403, {"error": "forbidden"})
             body = {}
             if method == "POST":
@@ -211,12 +211,12 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         import webview  # pywebview
-        webview.create_window("DCS Tune", url, width=980, height=860,
+        webview.create_window("DCS Graphics Optimizer", url, width=980, height=860,
                               maximized=bool(os.environ.get("DCSTUNE_MAXIMIZED")))
         webview.start()
     except ImportError:
         webbrowser.open(url)
-        print("DCS Tune is open in your browser. Close this window to quit.")
+        print("DCS Graphics Optimizer is open in your browser. Close this window to quit.")
         try:
             while True:
                 time.sleep(3600)

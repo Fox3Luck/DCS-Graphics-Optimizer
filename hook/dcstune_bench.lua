@@ -1,4 +1,4 @@
--- dcstune_bench.lua -- DCS Tune benchmark driver (Saved Games\<profile>\Scripts\Hooks)
+-- dcstune_bench.lua -- DCS Graphics Optimizer benchmark driver (Saved Games\<profile>\Scripts\Hooks)
 --
 -- Inert unless Config\dcstune_directive.json exists. The directive is deleted the
 -- moment it is read, so a crash or a manual DCS launch can never replay a benchmark.

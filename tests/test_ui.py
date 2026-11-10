@@ -52,7 +52,7 @@ def served(tmp_path, monkeypatch):
 
     def call(path, body=None, token=app.token):
         req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None,
-                                     headers={"X-DCSTune-Token": token})
+                                     headers={"X-DCSGO-Token": token})
         try:
             with urllib.request.urlopen(req) as r:
                 return r.status, r.read()

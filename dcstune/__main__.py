@@ -1,4 +1,4 @@
-"""DCS Tune command line.
+"""DCS Graphics Optimizer command line.
 
   python -m dcstune rate                 scorecard, no DCS launch
   python -m dcstune bench                benchmark current settings once
@@ -127,7 +127,7 @@ def main(argv=None):
     try:
         return args.fn(args)
     except Exception as e:  # player-facing: one clear line, not a traceback
-        print(f"DCS Tune stopped: {e}", file=sys.stderr)
+        print(f"DCS Graphics Optimizer stopped: {e}", file=sys.stderr)
         return 2
 
 

@@ -126,7 +126,7 @@ class Bench:
     # -- session lifecycle ---------------------------------------------------
     def __enter__(self):
         if dcs_running():
-            raise BenchError("DCS is running. Close it first; DCS Tune never touches a running game.")
+            raise BenchError("DCS is running. Close it first; DCS Graphics Optimizer never touches a running game.")
         self.session.begin()
         self.hook_dst.parent.mkdir(parents=True, exist_ok=True)
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)

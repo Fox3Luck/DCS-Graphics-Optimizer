@@ -16,7 +16,7 @@ from dcs.terrain import caucasus
 out = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).parent / "dcstune_bench.miz")
 
 m = dcs.Mission(terrain=caucasus.Caucasus())
-m.name = "DCS Tune benchmark"
+m.name = "DCS Graphics Optimizer benchmark"
 m.start_time = m.start_time.replace(month=6, day=15, hour=10, minute=0, second=0)
 m.weather.clouds_preset = cloud_presets.Clouds.Broken4.value
 m.weather.clouds_base = 3800

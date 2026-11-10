@@ -1,4 +1,4 @@
-# DCS Tune
+# DCS Graphics Optimizer
 
 Rates a PC and its DCS World graphics settings, benchmarks alternatives by running DCS
 itself, recommends the best-looking settings that hold a smooth frame rate, and applies
@@ -18,7 +18,7 @@ Tests: `.venv/bin/python -m pytest tests` (needs `pytest`, `lupa`; `pydcs` only 
 rebuild the mission with `mission/generate.py`).
 
 Build the Windows app (on Windows): `powershell -ExecutionPolicy Bypass -File build\build.ps1`
-produces `dist\DCSTune.exe`, a single file that needs no Python and no install.
+produces `dist\DCSGraphicsOptimizer.exe`, a single file that needs no Python and no install.
 
 Status 2026-11-10: scorecard, benchmark, automatic optimize, apply and undo all verified in
 real DCS 2.9.31 on one PC (RTX 4080 / 9800X3D). Not yet verified: AMD/Intel GPUs, the

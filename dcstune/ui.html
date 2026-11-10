@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DCS Tune</title>
+<title>DCS Graphics Optimizer</title>
 <style>
   :root { --bg:#10151c; --panel:#18202b; --line:#273342; --text:#e6edf5; --dim:#8fa1b5;
           --accent:#4cc2ff; --good:#4fd18b; --warn:#f2b94b; --bad:#ff6b6b; }
@@ -40,7 +40,7 @@
 </head>
 <body>
 <main>
-  <h1>DCS Tune</h1>
+  <h1>DCS Graphics Optimizer</h1>
   <p class="sub" id="profile">Reading your PC and DCS settings...</p>
   <div id="msg"></div>
 
@@ -80,7 +80,7 @@ const TOKEN = "__TOKEN__";
 const $ = id => document.getElementById(id);
 async function api(path, body) {
   const r = await fetch(path, { method: body ? "POST" : "GET",
-    headers: { "X-DCSTune-Token": TOKEN, "Content-Type": "application/json" },
+    headers: { "X-DCSGO-Token": TOKEN, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined });
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || "Something went wrong");
