@@ -6,3 +6,4 @@ __pycache__/
 ref/
 dist/
 build/work/
+build/signing.json
