@@ -332,3 +332,15 @@ def test_session_screenshots_are_cleaned_up(tmp_path, monkeypatch):
     left = sorted(p.name for p in shots.iterdir())
     assert left == sorted(["my_own_screenshot.jpg", "dcstune_r01_city.jpg", f"dcstune_{b.session_id}r01_city.jpg"])
     assert not (tmp_path / "Scripts" / "Hooks" / "dcstune_bench.lua").exists()
+
+
+def test_hardware_summary_and_overall():
+    info = dict(INFO, installs=[{"media": "SSD", "version": "2.9.31.29434"}])
+    rows = {r["label"]: r["value"] for r in rate.hardware_summary(info)}
+    assert rows["Graphics card"] == "NVIDIA GeForce RTX 4080" and rows["Video memory"] == "16 GB"
+    assert rows["Display"] == "2560 x 1440 at 143 Hz" and rows["DCS drive"] == "SSD"
+    assert rows["Processor"].endswith("(8 cores)") and rows["DCS version"] == "2.9.31.29434"
+    assert [r["label"] for r in rate.hardware_summary({})][:2] == ["Graphics card", "Video memory"]   # never crashes
+    total = rate.overall({"score": 90}, {"score": 50, "basis": "measured"})
+    assert total == {"score": 66, "grade": "C", "basis": "measured"}
+    assert rate.overall({"score": 30}, {"score": 100, "basis": "estimated"})["score"] == 72

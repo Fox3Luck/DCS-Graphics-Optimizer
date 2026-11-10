@@ -46,6 +46,33 @@ def target_fps(refresh: int | None) -> int:
     return max(60, min(int(refresh or 60), 120))
 
 
+def hardware_summary(info: dict) -> list[dict]:
+    """The PC at a glance, as label/value rows for the scorecard."""
+    gpu = info.get("gpu") or {}
+    inst = (info.get("installs") or [{}])[0]
+    rows = [("Graphics card", gpu.get("name") or "unknown"),
+            ("Video memory", f"{(gpu.get('vram_mb') or 0) / 1024:.0f} GB" if gpu.get("vram_mb") else "unknown"),
+            ("Processor", (info.get("cpu") or "unknown")
+             + (f" ({info['cores']} cores)" if info.get("cores") else "")),
+            ("Memory", f"{info.get('ram_gb')} GB" if info.get("ram_gb") else "unknown"),
+            ("Display", f"{gpu['width']} x {gpu['height']} at {gpu.get('refresh') or '?'} Hz" if gpu.get("width") else "unknown")]
+    media = (inst.get("media") or "").upper()
+    if media in ("SSD", "HDD"):
+        rows.append(("DCS drive", "SSD" if media == "SSD" else "Hard disk"))
+    if inst.get("version"):
+        rows.append(("DCS version", inst["version"]))
+    return [{"label": k, "value": v} for k, v in rows]
+
+
+OVERALL_PC_WEIGHT = 0.4      # the rest is how well the settings use the PC
+
+
+def overall(machine: dict, settings: dict) -> dict:
+    """One headline number: 40% what the PC can do, 60% how well the settings use it."""
+    score = OVERALL_PC_WEIGHT * machine["score"] + (1 - OVERALL_PC_WEIGHT) * settings["score"]
+    return {"score": round(score), "grade": grade(score), "basis": settings["basis"]}
+
+
 def flat_options(opts) -> dict:
     out = {}
     for section in ("graphics", "VR"):

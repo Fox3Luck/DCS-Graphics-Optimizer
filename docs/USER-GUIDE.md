@@ -34,7 +34,12 @@ box the first time: click **More info**, then **Run anyway**.
 
 ## The scorecard
 
-The window opens with two grades, each from A to F. DCS is **not** started for this.
+The window opens with a summary of your hardware (graphics card, video memory,
+processor, memory, display, DCS drive and DCS version) and three grades, each from
+A to F. DCS is **not** started for this.
+
+**Overall** is one headline score: 40% what your PC can do and 60% how well your
+settings use it. After a test, the result shows how the overall score would change.
 
 **Your PC for DCS** rates the hardware: graphics card, video memory, processor and
 memory. The processor is judged on single-thread speed, because that is what limits

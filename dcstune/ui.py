@@ -41,11 +41,13 @@ class Engine:
         machine = rate.rate_machine(self.info)
         flat = self._flat()
         rp = self.report_path()
+        fit = rate.rate_settings(self.info, flat, machine,
+                                 calibration=rate.load_calibration(self.profile, self.info, flat))
         return {"profile": self.profile["name"],
+                "hardware": rate.hardware_summary(self.info), "overall": rate.overall(machine, fit),
                 "profiles": [p["name"] for p in self.info["profiles"]],
                 "machine": machine,
-                "settings": rate.rate_settings(self.info, flat, machine,
-                                               calibration=rate.load_calibration(self.profile, self.info, flat)),
+                "settings": fit,
                 "vr": bool(flat.get("VR.enable")), "recovered": self.recovered,
                 "can_undo": bool(list_backups(self.profile["options"])),
                 "report": json.loads(rp.read_text()) if rp.exists() else None}
@@ -72,14 +74,19 @@ class Engine:
                   "target_fps": target, "target_reached": out["target_reached"],
                   "keep_current": out["keep_current"], "runs": len(out["history"]) + 1,
                   "before": rate.rate_settings(self.info, flat, machine, out["before"], target),
+                  "machine": machine,
                   "before_result": _slim(out["before"])}
         rec = out["recommended"]
         if rec:
             after = dict(flat)
             after.update(rec["changes"])
             report.update(after=rate.rate_settings(self.info, after, machine, rec["result"], target),
+                          overall_after=None,
                           after_result=_slim(rec["result"]), changes=rec["changes"],
                           change_list=optimize.describe_changes(flat, rec["changes"]))
+        report["overall_before"] = rate.overall(machine, report["before"])
+        if "after" in report:
+            report["overall_after"] = rate.overall(machine, report["after"])
         atomic_write(self.report_path(), json.dumps(report, indent=1).encode())
         return report
 

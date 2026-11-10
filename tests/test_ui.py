@@ -77,6 +77,7 @@ def test_scorecard_optimize_apply_undo(served):
     original = sha256(options)
     sc = json.loads(raw)
     assert status == 200 and sc["machine"]["grade"] == "A" and sc["can_undo"] is False and sc["report"] is None
+    assert sc["overall"]["grade"] in "AB" and sc["hardware"][0]["value"] == "NVIDIA GeForce RTX 4080"
     assert json.loads(call("/api/apply", {})[1])["error"].startswith("There is no recommendation")
 
     assert call("/api/optimize", {"full": False})[0] == 200

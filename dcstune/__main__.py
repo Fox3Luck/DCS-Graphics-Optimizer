@@ -43,9 +43,14 @@ def cmd_rate(args):
     machine = rate.rate_machine(info)
     fit = rate.rate_settings(info, flat, machine, calibration=rate.load_calibration(profile, info, flat))
     if args.json:
-        print(json.dumps({"profile": profile["name"], "machine": machine, "settings": fit}, indent=1))
+        print(json.dumps({"profile": profile["name"], "overall": rate.overall(machine, fit),
+                          "hardware": rate.hardware_summary(info), "machine": machine, "settings": fit}, indent=1))
         return 0
+    total = rate.overall(machine, fit)
     print(f"Profile: {profile['name']}")
+    print(f"\nOverall: {total['grade']}  ({total['score']}/100)   [40% PC, 60% settings; settings {total['basis']}]")
+    for row in rate.hardware_summary(info):
+        print(f"  {row['label'] + ':':15} {row['value']}")
     _print_card("Your PC for DCS", machine, machine["reasons"])
     _print_card(f"Your settings ({fit['basis']})", fit,
                 [f"[{f['severity']}] {f['text']}" for f in fit["findings"]])

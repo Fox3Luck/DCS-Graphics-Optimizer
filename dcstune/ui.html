@@ -36,6 +36,10 @@
   table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
   th { color:var(--dim); font-weight:600; font-size:13px; } .up { color:var(--good); } .down { color:var(--warn); }
   .big { font-size:22px; font-weight:700; } .hidden { display:none; }
+  .overall { display:flex; flex-wrap:wrap; gap:20px; align-items:center; margin-bottom:14px; }
+  .overall .letter { width:84px; height:84px; font-size:46px; border-radius:16px; }
+  .hw { display:grid; grid-template-columns:auto 1fr; gap:2px 14px; font-size:14px; flex:1; min-width:260px; }
+  .hw span:nth-child(odd) { color:var(--dim); }
 </style>
 </head>
 <body>
@@ -43,6 +47,11 @@
   <h1>DCS Graphics Optimizer</h1>
   <p class="sub" id="profile">Reading your PC and DCS settings...</p>
   <div id="msg"></div>
+
+  <div class="card overall">
+    <div><h2 style="margin-bottom:6px">Overall</h2><div class="grade" style="margin:0" id="overall"></div></div>
+    <div class="hw" id="hardware"></div>
+  </div>
 
   <div class="grid">
     <div class="card"><h2>Your PC for DCS</h2><div id="machine"></div></div>
@@ -121,7 +130,9 @@ function showReport(rep) {
   $("changes-card").classList.toggle("hidden", !has);
   if (!has) { s.append(el("p", "big", "Your settings are already the best match.")); return; }
   card($("after"), rep.after, [fpsLine("Measured", rep.after_result)].filter(Boolean).concat(rep.after.findings));
-  s.append(el("p", "big", `Grade ${rep.before.grade} \u2192 ${rep.after.grade}`));
+  s.append(el("p", "big", rep.overall_before && rep.overall_after
+    ? `Overall ${rep.overall_before.grade} (${rep.overall_before.score}) \u2192 ${rep.overall_after.grade} (${rep.overall_after.score})`
+    : `Grade ${rep.before.grade} \u2192 ${rep.after.grade}`));
   s.append(el("p", null, `Goal: hold ${rep.target_fps} FPS in the worst moments. ` +
     `Image quality ${Math.round(rep.before.quality_share * 100)}% \u2192 ${Math.round(rep.after.quality_share * 100)}% of maximum.`));
   if (!rep.target_reached) s.append(el("p", null, `This PC cannot hold ${rep.target_fps} FPS in the heaviest scene; this is the smoothest result measured.`));
@@ -133,6 +144,10 @@ function showReport(rep) {
 async function refresh() {
   const sc = await api("/api/scorecard");
   $("profile").textContent = "DCS profile: " + sc.profile;
+  const o = $("overall"); o.replaceChildren(el("div", "letter " + sc.overall.grade, sc.overall.grade),
+    el("div", "score", sc.overall.score + " / 100 \u2014 40% PC, 60% how well your settings use it"));
+  const hw = $("hardware"); hw.replaceChildren();
+  sc.hardware.forEach(r => hw.append(el("span", null, r.label), el("span", null, r.value)));
   card($("machine"), sc.machine, sc.machine.reasons);
   $("fit-title").textContent = "Your current settings (" + sc.settings.basis + ")";
   card($("fit"), sc.settings, sc.settings.findings);
