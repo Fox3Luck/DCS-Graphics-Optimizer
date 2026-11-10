@@ -73,6 +73,7 @@ class Engine:
         report = {"created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],
                   "target_fps": target, "target_reached": out["target_reached"],
                   "keep_current": out["keep_current"], "runs": len(out["history"]) + 1,
+                  "disturbed": out["disturbed"],
                   "before": rate.rate_settings(self.info, flat, machine, out["before"], target),
                   "machine": machine,
                   "before_result": _slim(out["before"])}

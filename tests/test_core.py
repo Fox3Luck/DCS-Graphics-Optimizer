@@ -311,7 +311,8 @@ def test_fast_cost_runs_use_their_own_baseline_and_skip_cheap_settings():
     mdl = M.Model(78, 100, 2560, 1440)
     optimize.run(mdl, cur, "nvidia", 120, 16376, pc.measure, full=True, log=lambda *_: None, measure_fast=fast)
     assert fast_calls[0] is None                          # short baseline first
-    touched = {k for c in fast_calls[1:] for k in c}
+    touched = {k for c in fast_calls[1:] if c for k in c}
+    assert fast_calls.count(None) >= 3                    # baseline re-checked along the way
     assert "graphics.anisotropy" not in touched and "graphics.shadows" in touched
     assert "graphics.anisotropy" not in mdl.measured
 
@@ -344,3 +345,66 @@ def test_hardware_summary_and_overall():
     total = rate.overall({"score": 90}, {"score": 50, "basis": "measured"})
     assert total == {"score": 66, "grade": "C", "basis": "measured"}
     assert rate.overall({"score": 30}, {"score": 100, "basis": "estimated"})["score"] == 72
+
+
+# -- lessons from the disturbed thorough run on 2026-11-10 ---------------------------
+def test_never_recommends_worse_than_current():
+    cur = _current()
+    pc = FakePC(cur, 78, 100)
+    n = {"i": 0}
+
+    def measure(changes):
+        n["i"] += 1
+        r = pc.measure(changes)
+        if changes:                     # every candidate measures badly (PC got busy)
+            r = {**r, "avg_fps": r["avg_fps"] * 0.6, "p1_low_fps": 100.0}
+        else:
+            r = {**r, "p1_low_fps": 131.0}
+        return r
+    out = optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 120, 16376, measure, log=lambda *_: None)
+    assert out["keep_current"] and out["recommended"] is None and out["target_reached"]
+
+
+def test_disturbed_cost_measurements_are_discarded():
+    cur = _current()
+    pc = FakePC(cur, 60, 80)
+    n = {"i": 0}
+    logs = []
+
+    def measure(changes):
+        n["i"] += 1
+        r = pc.measure(changes)
+        if 8 <= n["i"] <= 14:           # another program grabs the GPU for a while
+            r = {**r, "avg_fps": r["avg_fps"] * 0.75}
+        return r
+    mdl = M.Model(78, 100, 2560, 1440)
+    out = optimize.run(mdl, cur, "nvidia", 120, 16376, measure, full=True, log=logs.append)
+    assert out["disturbed"] is True
+    assert any("another program" in m for m in logs)
+    measurable = {s["key"] for s in M.SETTINGS if s.get("measure") is not False}
+    assert 0 < len(mdl.measured) < len(measurable)        # clean blocks kept, disturbed ones dropped
+    for costs in mdl.measured.values():                    # nothing absurd survived
+        assert all(costs[i] <= costs[j] + 0.3 for i in costs for j in costs if i < j)
+
+
+def test_clean_full_run_is_not_flagged():
+    cur = _current()
+    pc = FakePC(cur, 60, 80)
+    out = optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 120, 16376, pc.measure, full=True, log=lambda *_: None)
+    assert out["disturbed"] is False
+
+
+def test_busy_gpu_refuses_to_start(tmp_path, monkeypatch):
+    from dcstune import bench
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (42.0, 8089.0))
+    cfg = tmp_path / "Config"; cfg.mkdir()
+    shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
+    before = sha256(cfg / "options.lua")
+    b = bench.Bench({"path": str(tmp_path), "name": "DCS", "options": str(cfg / "options.lua")}, tmp_path / "DCS.exe")
+    with pytest.raises(bench.BenchError, match="Another program is using your graphics card"):
+        b.__enter__()
+    assert sha256(cfg / "options.lua") == before and sorted(p.name for p in cfg.iterdir()) == ["options.lua"]
+    b.allow_busy = True
+    with b:
+        assert b.other_vram_mb == 8089.0

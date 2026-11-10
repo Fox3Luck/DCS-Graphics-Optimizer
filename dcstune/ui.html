@@ -128,6 +128,7 @@ function showReport(rep) {
   const has = !!(rep.changes && rep.after);
   $("after-card").classList.toggle("hidden", !has);
   $("changes-card").classList.toggle("hidden", !has);
+  if (rep.disturbed) s.append(el("p", "note err", "Another program was using the PC during part of this test, so some measurements were discarded. For the most accurate result, close other programs and run it again."));
   if (!has) { s.append(el("p", "big", "Your settings are already the best match.")); return; }
   card($("after"), rep.after, [fpsLine("Measured", rep.after_result)].filter(Boolean).concat(rep.after.findings));
   s.append(el("p", "big", rep.overall_before && rep.overall_after

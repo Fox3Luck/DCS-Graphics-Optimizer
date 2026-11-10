@@ -3,6 +3,7 @@ collect frame times and GPU memory, and always put the player's files back."""
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import threading
@@ -108,6 +109,25 @@ class GpuSampler:
         self._thread.join(timeout=15)
 
 
+BUSY_GPU_PERCENT = 25     # refuse to test above this while DCS is not even running
+
+
+def gpu_idle_check(samples: int = 4) -> tuple[float, float]:
+    """(average GPU load %, video memory in use MB) right now, before DCS starts."""
+    sampler = GpuSampler()
+    loads, mem = [], 0.0
+    for _ in range(samples):
+        try:
+            m, util = sampler._sample()
+        except Exception:
+            return 0.0, 0.0
+        mem = max(mem, m)
+        if util is not None:
+            loads.append(util)
+        time.sleep(0.7)
+    return (sum(loads) / len(loads) if loads else 0.0), mem
+
+
 class Bench:
     def __init__(self, profile: dict, exe: Path, scene_sec: int = 25, settle_sec: int = 20,
                  timeout: int = 600, log=print):
@@ -124,12 +144,21 @@ class Bench:
         self.runs = 0
         self.session_id = time.strftime("%m%d%H%M")   # makes this session's screenshots identifiable
         self.keep_shots: set[str] = set()             # screenshot names to leave for the player
+        self.allow_busy = bool(os.environ.get("DCSTUNE_ALLOW_BUSY"))   # developer override
+        self.other_vram_mb = 0.0
         self.keep_raw_dir = None      # developer aid: keep every frame time
 
     # -- session lifecycle ---------------------------------------------------
     def __enter__(self):
         if dcs_running():
             raise BenchError("DCS is running. Close it first; DCS Graphics Optimizer never touches a running game.")
+        load, self.other_vram_mb = gpu_idle_check()
+        if load > BUSY_GPU_PERCENT and not self.allow_busy:
+            raise BenchError(f"Another program is using your graphics card ({load:.0f}% busy before DCS has even "
+                             "started). Close games, video renders, AI tools and browser videos, then try again; "
+                             "otherwise the results would be wrong.")
+        if load > BUSY_GPU_PERCENT:
+            self.log(f"WARNING: graphics card is {load:.0f}% busy before DCS starts; results will be unreliable.")
         self.session.begin()
         self.hook_dst.parent.mkdir(parents=True, exist_ok=True)
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)
@@ -169,6 +198,7 @@ class Bench:
         raw, gpu, seconds = self._launch(changes, {"tag": tag}, short, self.timeout)
         result = parse_result(raw)
         result["vram_peak_mb"] = round(gpu.peak_mb) or None
+        result["vram_other_mb"] = round(self.other_vram_mb)      # already in use before DCS started
         result["gpu_util_avg"] = round(sum(gpu.util) / len(gpu.util)) if gpu.util else None
         result["seconds"] = seconds
         result["changes"] = changes

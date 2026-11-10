@@ -100,8 +100,9 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     low_ratio = max(0.4, min(0.95, before["p1_low_fps"] / before["avg_fps"]))
     mdl.calibrate(current, cur_rung, before["avg_fps"], before.get("vram_peak_mb"))
 
+    disturbed = False
     if full:
-        _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log)
+        disturbed = _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log)
     display_target = target_fps
     target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio)
     if target_fps < display_target:
@@ -128,37 +129,85 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
             break
         if not feasible and attempt >= 2:
             break
-    if best is None and history:   # target unreachable: recommend the fastest thing we saw
-        best = max(history, key=lambda e: e["result"]["p1_low_fps"])
     cur_quality = mdl.quality(current, cur_rung)
-    keep_current = (before["p1_low_fps"] >= target_fps * HIT_MARGIN and best is not None
-                    and cur_quality >= best["quality"])
-    return {"before": before, "recommended": None if keep_current else best,
+    cur_hits = before["p1_low_fps"] >= target_fps * HIT_MARGIN
+    keep_current = cur_hits and (best is None or cur_quality >= best["quality"])
+    if best is None and not cur_hits and history:
+        # Nothing holds the goal: offer the smoothest thing measured, but only if it is
+        # really smoother than what the player already has.
+        fastest = max(history, key=lambda e: e["result"]["p1_low_fps"])
+        if fastest["result"]["p1_low_fps"] > before["p1_low_fps"] * 1.03:
+            best = fastest
+    if keep_current or best is None:
+        recommended, keep_current = None, True
+    else:
+        recommended = best
+    return {"before": before, "recommended": recommended,
             "keep_current": keep_current, "current_quality": cur_quality,
             "max_quality": M.max_quality(vendor), "target_fps": target_fps,
             "display_target": display_target, "history": history,
+            "disturbed": disturbed,
             "learned": {"calibration": mdl.calibration, "vram_offset": mdl.vram_offset, "low_ratio": low_ratio,
                         "measured": {k: {str(i): ms for i, ms in v.items()} for k, v in mdl.measured.items()}},
-            "target_reached": bool(best and best["hit"]) or keep_current}
+            "target_reached": cur_hits or bool(best and best["hit"])}
 
 
-def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log):
+RECHECK_EVERY = 5        # cost runs between baseline re-checks
+DRIFT_LIMIT = 0.05       # baseline moved more than this -> something else was using the PC
+
+
+def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log) -> bool:
     """Full mode: measure what each setting's lowest and highest level really cost on
     this PC, one at a time against the player's own settings. Settings marked
     "measure": false cost too little to be worth a DCS launch and keep their estimate.
     With measure_fast (shorter scenes) the baseline is re-measured the same way, because
-    a shorter window sees different scenery and must not be compared with the long run."""
+    a shorter window sees different scenery and must not be compared with the long run.
+
+    The baseline is re-measured every few runs. If it has moved, another program was
+    using the PC: every measurement since the last good check is thrown away and those
+    settings fall back to the built-in estimate. Returns True if that happened."""
     base_ms = 1000.0 / before["avg_fps"]
     if measure_fast is not None:
         log("Measuring your current settings (short run)...")
         measure, base_ms = measure_fast, 1000.0 / measure_fast(None)["avg_fps"]
+    disturbed, pending, runs_since_check = False, [], 0
+
+    def recheck():
+        nonlocal base_ms, disturbed, pending, runs_since_check
+        runs_since_check = 0
+        if not pending:
+            return
+        log("Re-checking your current settings...")
+        try:
+            now_ms = 1000.0 / measure(None)["avg_fps"]
+        except Exception as e:
+            log(f"  re-check failed ({e}); discarding the last measurements")
+            now_ms = None
+        if now_ms is None or abs(now_ms - base_ms) / base_ms > DRIFT_LIMIT:
+            disturbed = True
+            log("  The PC's speed changed during these measurements (another program was probably "
+                "using it). Discarding them and using built-in estimates for: "
+                + ", ".join(s["label"] for s, _ in pending))
+            if now_ms is not None:
+                base_ms = now_ms            # carry on from the new normal
+        else:
+            for s, ms_at in pending:
+                # sanity: turning a setting DOWN cannot make DCS clearly slower
+                if any(ms_at[i] > ms_at[j] * 1.03 for i in ms_at for j in ms_at if i < j):
+                    log(f"  {s['label']}: measurements do not make sense (lower was slower); using the estimate")
+                    disturbed = True
+                    continue
+                for i, ms in ms_at.items():
+                    mdl.record_cost(s["key"], i, ms - ms_at[0])
+        pending = []
+
     for s in M.SETTINGS:
         if s.get("measure") is False:
             continue
         key = s["key"]
         cur_i = M.level_index(s, current.get(key, s["levels"][0]["v"]))
         ms_at = {cur_i: base_ms}
-        for i in {0, len(s["levels"]) - 1} - {cur_i}:
+        for i in sorted({0, len(s["levels"]) - 1} - {cur_i}):
             log(f"Measuring {s['label']} = {s['levels'][i]['name']}...")
             try:
                 r = measure({key: s["levels"][i]["v"]})
@@ -166,12 +215,15 @@ def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log):
                 log(f"  skipped ({e}); using the built-in estimate for this level")
                 continue
             ms_at[i] = 1000.0 / r["avg_fps"]
-        if 0 not in ms_at:
-            continue                    # no measured anchor for the lowest level: keep the estimate
-        for i, ms in ms_at.items():
-            mdl.record_cost(key, i, ms - ms_at[0])
+            runs_since_check += 1
+        if 0 in ms_at and len(ms_at) > 1:
+            pending.append((s, ms_at))
+        if runs_since_check >= RECHECK_EVERY:
+            recheck()
+    recheck()
     # measured costs replace priors, so re-anchor the model on the baseline
     mdl.calibrate(current, cur_rung, before["avg_fps"])
+    return disturbed
 
 
 def describe_changes(current: dict, changes: dict) -> list[dict]:
