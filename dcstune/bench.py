@@ -208,14 +208,32 @@ class Bench:
         s["raw"] = result
         return s
 
-    def run_trials(self, trials: list[dict], short: bool = True) -> list[dict]:
+    def measure_batch(self, changes_list: list[dict | None]) -> list[dict]:
+        """Average frame rate for several settings changes in ONE DCS launch (only the
+        mission restarts between them). Each entry is a dict of dotted option keys, or
+        None for the player's own settings. Must not contain restart-only settings."""
+        from .optionslua import Options
+        cur = Options.load(self.session.saved).section("graphics")
+        bare = lambda c: {k.split(".", 1)[1]: v for k, v in (c or {}).items()}
+        keys = {k for c in changes_list for k in bare(c)}
+        trials = []
+        for n, c in enumerate(changes_list):
+            # every trial states every involved option, so the previous trial's change is undone
+            st = {k: cur[k] for k in keys if k in cur}
+            st.update(bare(c))
+            trials.append({"tag": f"t{n:02d}", "set": st,
+                           # texture changes reload from disk; everything else is quick
+                           "settle_sec": self.settle_sec if "textures" in bare(c) or n == 0 else 10})
+        return [{"avg_fps": r["avg_fps"]} for r in self.run_trials(trials, screenshots=False)]
+
+    def run_trials(self, trials: list[dict], short: bool = True, screenshots: bool = True) -> list[dict]:
         """Several settings trials in ONE DCS launch (only the mission restarts).
         trials: [{"tag": "a", "set": {"shadows": 0}}, ...] - bare graphics option names.
         Returns one {"tag", "applied", "scenes": [stats...]} per trial."""
         self.runs += 1
         named = [dict(t, tag=f"{self.session_id}r{self.runs:02d}{t['tag']}") for t in trials]
-        raw, gpu, seconds = self._launch(None, {"tag": named[0]["tag"], "trials": named}, short,
-                                         150 + 100 * len(trials))
+        raw, gpu, seconds = self._launch(None, {"tag": named[0]["tag"], "trials": named,
+                                                "screenshots": screenshots}, short, 150 + 100 * len(trials))
         if not raw.get("ok"):
             raise BenchError("benchmark did not finish: " + (raw.get("reason") or "unknown"))
         out = []

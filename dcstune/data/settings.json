@@ -1,5 +1,5 @@
 {
- "_comment": "Levels are the exact values DCS 2.9.31 accepts (read from MissionEditor/modules/Options/optionsDb.lua). quality = visual-impact points (judgement table, tune from feedback). gpu/cpu = PRIOR share of frame time added relative to the first level, used only until a measurement replaces it. vram_mb = prior VRAM added.",
+ "_comment": "Levels are the exact values DCS 2.9.31 accepts (read from MissionEditor/modules/Options/optionsDb.lua). quality = visual-impact points (judgement table, tune from feedback). gpu/cpu = PRIOR share of frame time added relative to the first level, used only until a measurement replaces it. vram_mb = prior VRAM added. restart=true: DCS only applies the setting after a full restart (per its options screen), so it cannot be measured in a no-restart batch.",
  "settings": [
   {
    "key": "graphics.textures",
@@ -51,7 +51,8 @@
      "cpu": 0,
      "vram_mb": 2000
     }
-   ]
+   ],
+   "restart": true
   },
   {
    "key": "graphics.shadows",
@@ -211,7 +212,8 @@
      "cpu": 0.18,
      "vram_mb": 800
     }
-   ]
+   ],
+   "restart": true
   },
   {
    "key": "graphics.water",

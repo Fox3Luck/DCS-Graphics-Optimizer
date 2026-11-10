@@ -65,7 +65,7 @@ class Engine:
         with Bench(self.profile, exe, log=log) as b:
             out = optimize.run(mdl, flat, vendor, rate.target_fps(gpu.get("refresh")),
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
-                               measure_fast=b.measure_fast)
+                               measure_fast=b.measure_fast, measure_batch=b.measure_batch)
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
         target = out["target_fps"]

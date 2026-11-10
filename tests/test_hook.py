@@ -32,6 +32,12 @@ net = {
 Export = { LoSetCommand = function(c) W.cmd(c) end,
            LoSetCameraPosition = function(p) W.cam(p.p.x, p.p.y, p.p.z, p.x.x, p.x.y, p.x.z) end }
 local cb
+local live = {}
+package.preload['optionsEditor'] = function()
+  if W.no_editor then return {} end
+  return { setOption = function(k, v) live[k] = v; W.setopt((k:gsub("^graphics%.", "")), v); W.saved() end,
+           getOption = function(k) return live[k] end }
+end
 package.preload['Options.Data'] = function()
   return { setGraphics = function(k, v) W.setopt(k, v) end, saveChanges = function() W.saved() end }
 end
@@ -52,6 +58,7 @@ class World:
         self.log, self.cams, self.shots, self.cmds = [], [], [], []
         self.exit, self.server = False, None
         self.starts, self.stop_requested, self.opts, self.saves, self.netstops = 0, False, [], 0, 0
+        self.no_editor = False
 
     def logs(self, m): self.log.append(str(m))
     def started(self, public, pw, miz):
@@ -174,7 +181,7 @@ def test_several_trials_in_one_launch(tmp_path, monkeypatch):
     assert raw["trials"][0]["applied"] == "unchanged" and raw["trials"][1]["applied"] == "clouds=0 shadows=0"
     # options are set BEFORE the mission of that trial starts, never during the first one
     assert sorted(w.opts) == [(1, "clouds", 0), (1, "shadows", 0), (2, "clouds", 3), (2, "shadows", 4)]
-    assert w.saves == 2
+    assert w.saves == 4      # optionsEditor path: one accepted change per option
     for t in raw["trials"]:
         assert [s["name"] for s in t["scenes"]] == ["city", "airfield", "clouds"]
         assert all(len(s["frame_ms"]) > 400 for s in t["scenes"])

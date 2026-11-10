@@ -91,7 +91,7 @@ def summarise(result: dict) -> dict:
 
 
 def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_mb: float,
-        measure, full: bool = False, log=print, measure_fast=None) -> dict:
+        measure, full: bool = False, log=print, measure_fast=None, measure_batch=None) -> dict:
     """current: the player's flat options. measure(changes|None) -> summarise()d result
     (None = benchmark the player's settings untouched)."""
     cur_rung = M.current_rung(current, vendor)
@@ -102,7 +102,7 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
 
     disturbed = False
     if full:
-        disturbed = _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log)
+        disturbed = _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch)
     display_target = target_fps
     target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio)
     if target_fps < display_target:
@@ -152,75 +152,126 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
             "target_reached": cur_hits or bool(best and best["hit"])}
 
 
-RECHECK_EVERY = 5        # cost runs between baseline re-checks
+RECHECK_EVERY = 5        # cost runs between baseline re-checks (restart-per-run path)
+BATCH_SIZE = 8           # settings changes per DCS launch (no-restart path)
 DRIFT_LIMIT = 0.05       # baseline moved more than this -> something else was using the PC
 
 
-def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log) -> bool:
+def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch=None) -> bool:
     """Full mode: measure what each setting's lowest and highest level really cost on
     this PC, one at a time against the player's own settings. Settings marked
-    "measure": false cost too little to be worth a DCS launch and keep their estimate.
-    With measure_fast (shorter scenes) the baseline is re-measured the same way, because
-    a shorter window sees different scenery and must not be compared with the long run.
+    "measure": false cost too little to be worth measuring and keep their estimate.
 
-    The baseline is re-measured every few runs. If it has moved, another program was
-    using the PC: every measurement since the last good check is thrown away and those
-    settings fall back to the built-in estimate. Returns True if that happened."""
+    Two ways of measuring:
+    - measure_batch (preferred): several changes in ONE DCS launch, restarting only the
+      mission. Each batch starts and ends with the player's own settings, so a shift in
+      the PC's speed during the batch is caught and the batch is thrown away.
+    - one DCS launch per change, for settings DCS only applies after a restart
+      ("restart": true) or when no batch function is given. The baseline is re-measured
+      every few runs for the same reason.
+    Discarded settings fall back to the built-in estimate. Returns True if any were."""
     base_ms = 1000.0 / before["avg_fps"]
-    if measure_fast is not None:
-        log("Measuring your current settings (short run)...")
-        measure, base_ms = measure_fast, 1000.0 / measure_fast(None)["avg_fps"]
-    disturbed, pending, runs_since_check = False, [], 0
+    disturbed = False
 
-    def recheck():
-        nonlocal base_ms, disturbed, pending, runs_since_check
-        runs_since_check = 0
-        if not pending:
-            return
-        log("Re-checking your current settings...")
-        try:
-            now_ms = 1000.0 / measure(None)["avg_fps"]
-        except Exception as e:
-            log(f"  re-check failed ({e}); discarding the last measurements")
-            now_ms = None
-        if now_ms is None or abs(now_ms - base_ms) / base_ms > DRIFT_LIMIT:
+    def commit(s, ms_at):
+        nonlocal disturbed
+        # sanity: turning a setting DOWN cannot make DCS clearly slower
+        if any(ms_at[i] > ms_at[j] * 1.03 for i in ms_at for j in ms_at if i < j):
+            log(f"  {s['label']}: measurements do not make sense (lower was slower); using the estimate")
             disturbed = True
-            log("  The PC's speed changed during these measurements (another program was probably "
-                "using it). Discarding them and using built-in estimates for: "
-                + ", ".join(s["label"] for s, _ in pending))
-            if now_ms is not None:
-                base_ms = now_ms            # carry on from the new normal
-        else:
-            for s, ms_at in pending:
-                # sanity: turning a setting DOWN cannot make DCS clearly slower
-                if any(ms_at[i] > ms_at[j] * 1.03 for i in ms_at for j in ms_at if i < j):
-                    log(f"  {s['label']}: measurements do not make sense (lower was slower); using the estimate")
-                    disturbed = True
-                    continue
-                for i, ms in ms_at.items():
-                    mdl.record_cost(s["key"], i, ms - ms_at[0])
-        pending = []
+            return
+        if 0 in ms_at and len(ms_at) > 1:
+            for i, ms in ms_at.items():
+                mdl.record_cost(s["key"], i, ms - ms_at[0])
 
+    jobs = []                                   # (setting, level index, current index)
     for s in M.SETTINGS:
         if s.get("measure") is False:
             continue
-        key = s["key"]
-        cur_i = M.level_index(s, current.get(key, s["levels"][0]["v"]))
-        ms_at = {cur_i: base_ms}
+        cur_i = M.level_index(s, current.get(s["key"], s["levels"][0]["v"]))
         for i in sorted({0, len(s["levels"]) - 1} - {cur_i}):
-            log(f"Measuring {s['label']} = {s['levels'][i]['name']}...")
+            jobs.append((s, i, cur_i))
+    batched = [j for j in jobs if measure_batch is not None and not j[0].get("restart")]
+    single = [j for j in jobs if j not in batched]
+
+    # ---- no-restart batches ------------------------------------------------------
+    deltas: dict[str, dict[int, float]] = {}    # key -> level -> ms relative to the player's settings
+    for n in range(0, len(batched), BATCH_SIZE):
+        chunk = batched[n:n + BATCH_SIZE]
+        log(f"Measuring {len(chunk)} settings changes in one DCS run: "
+            + ", ".join(f"{s['label']} = {s['levels'][i]['name']}" for s, i, _ in chunk) + "...")
+        try:
+            res = measure_batch([None] + [{s["key"]: s["levels"][i]["v"]} for s, i, _ in chunk] + [None])
+            ms = [1000.0 / r["avg_fps"] for r in res]
+        except Exception as e:
+            log(f"  this run failed ({e}); using built-in estimates for these settings")
+            disturbed = True
+            continue
+        first, last = ms[0], ms[-1]
+        if abs(first - last) / first > DRIFT_LIMIT:
+            disturbed = True
+            log("  The PC's speed changed during this run (another program was probably using it). "
+                "Discarding it and using built-in estimates for these settings.")
+            continue
+        batch_base = (first + last) / 2
+        for (s, i, _), m in zip(chunk, ms[1:-1]):
+            deltas.setdefault(s["key"], {})[i] = m - batch_base
+    for s in M.SETTINGS:
+        if s["key"] in deltas:
+            cur_i = M.level_index(s, current.get(s["key"], s["levels"][0]["v"]))
+            ms_at = {cur_i: base_ms}
+            ms_at.update({i: base_ms + d for i, d in deltas[s["key"]].items()})
+            commit(s, ms_at)
+
+    # ---- one DCS launch per change -------------------------------------------------
+    if single:
+        if measure_fast is not None:
+            log("Measuring your current settings (short run)...")
+            measure, base_ms = measure_fast, 1000.0 / measure_fast(None)["avg_fps"]
+        pending, runs_since_check = [], 0
+
+        def recheck():
+            nonlocal base_ms, disturbed, pending, runs_since_check
+            runs_since_check = 0
+            if not pending:
+                return
+            log("Re-checking your current settings...")
             try:
-                r = measure({key: s["levels"][i]["v"]})
-            except Exception as e:      # one failed launch must not waste the whole hour
-                log(f"  skipped ({e}); using the built-in estimate for this level")
-                continue
-            ms_at[i] = 1000.0 / r["avg_fps"]
-            runs_since_check += 1
-        if 0 in ms_at and len(ms_at) > 1:
-            pending.append((s, ms_at))
-        if runs_since_check >= RECHECK_EVERY:
-            recheck()
-    recheck()
+                now_ms = 1000.0 / measure(None)["avg_fps"]
+            except Exception as e:
+                log(f"  re-check failed ({e}); discarding the last measurements")
+                now_ms = None
+            if now_ms is None or abs(now_ms - base_ms) / base_ms > DRIFT_LIMIT:
+                disturbed = True
+                log("  The PC's speed changed during these measurements (another program was probably "
+                    "using it). Discarding them and using built-in estimates for: "
+                    + ", ".join(s["label"] for s, _ in pending))
+                if now_ms is not None:
+                    base_ms = now_ms            # carry on from the new normal
+            else:
+                for s, ms_at in pending:
+                    commit(s, ms_at)
+            pending = []
+
+        by_setting: dict[str, tuple] = {}
+        for s, i, cur_i in single:
+            by_setting.setdefault(s["key"], (s, cur_i, []))[2].append(i)
+        for s, cur_i, levels in by_setting.values():
+            ms_at = {cur_i: base_ms}
+            for i in levels:
+                log(f"Measuring {s['label']} = {s['levels'][i]['name']}...")
+                try:
+                    r = measure({s["key"]: s["levels"][i]["v"]})
+                except Exception as e:      # one failed launch must not waste the whole test
+                    log(f"  skipped ({e}); using the built-in estimate for this level")
+                    continue
+                ms_at[i] = 1000.0 / r["avg_fps"]
+                runs_since_check += 1
+            if len(ms_at) > 1:
+                pending.append((s, ms_at))
+            if runs_since_check >= RECHECK_EVERY:
+                recheck()
+        recheck()
     # measured costs replace priors, so re-anchor the model on the baseline
     mdl.calibrate(current, cur_rung, before["avg_fps"])
     return disturbed

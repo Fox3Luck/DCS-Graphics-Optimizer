@@ -90,21 +90,52 @@ local function finish(ok, reason)
   pcall(function() DCS.exitProcess() end)
 end
 
--- Apply a trial's graphics options the way the options screen does: set them in DCS's
--- options data and save. DCS picks them up when the next mission starts.
+-- Apply a trial's graphics options from inside DCS; they take effect when the next
+-- mission starts. The hook's Lua state offers 'optionsEditor' (the interface mods such
+-- as SRS use); 'Options.Data' is the options screen's own module and is the fallback.
+local function keysOf(t)
+  if type(t) ~= "table" then return type(t) end
+  local k = {}
+  for name in pairs(t) do k[#k + 1] = tostring(name) end
+  table.sort(k)
+  return table.concat(k, ",")
+end
+
 local function applyOptions(set)
   if type(set) ~= "table" then return "unchanged" end
-  local names = {}
+  local names, how = {}, nil
   local ok, err = pcall(function()
-    local OptionsData = require('Options.Data')
+    local okE, editor = pcall(require, 'optionsEditor')
+    if okE and type(editor) == "table" and type(editor.setOption) == "function" then
+      for k, v in pairs(set) do
+        editor.setOption("graphics." .. k, v)
+        names[#names + 1] = k .. "=" .. tostring(v)
+      end
+      how = "optionsEditor"
+      return
+    end
+    L("optionsEditor unusable: " .. tostring(okE) .. " " .. keysOf(editor))
+    local data = require('Options.Data')
+    if type(data) ~= "table" or type(data.setGraphics) ~= "function" then
+      error("no usable options interface; Options.Data has: " .. keysOf(data))
+    end
     for k, v in pairs(set) do
-      OptionsData.setGraphics(k, v)
+      data.setGraphics(k, v)
       names[#names + 1] = k .. "=" .. tostring(v)
     end
-    OptionsData.saveChanges()
+    data.saveChanges()
+    how = "Options.Data"
   end)
   table.sort(names)
   if not ok then L("applyOptions FAILED: " .. tostring(err)); return "FAILED" end
+  -- read back what DCS now reports, as proof the change was accepted
+  local back = {}
+  pcall(function()
+    local editor = require('optionsEditor')
+    for k in pairs(set) do back[#back + 1] = k .. "=" .. tostring(editor.getOption("graphics." .. k)) end
+  end)
+  table.sort(back)
+  L("applied via " .. tostring(how) .. "; DCS reports: " .. table.concat(back, " "))
   return table.concat(names, " ")
 end
 
@@ -289,11 +320,12 @@ function h.onSimulationFrame()
   if not state.ready_at then
     -- wait for the first AI unit to exist, then let textures stream in
     if state.frames % 30 == 0 and pollSubject(D.scenes[1].unit) then
-      state.ready_at = t + cfg.settle_sec
+      local settle = tonumber(trials[state.trial_i].settle_sec) or cfg.settle_sec
+      state.ready_at = t + settle
       pcall(function() DCS.setPause(false) end)
       pcall(function() Export.LoSetCommand(cfg.view_cmd) end)
       updateSubject(D.scenes[1], t)
-      L("world up; settling " .. cfg.settle_sec .. "s")
+      L("world up; settling " .. settle .. "s")
     elseif elapsed > cfg.start_timeout then
       local okd, names = pcall(function() return net.dostring_in("export", [[
         local t, n = {}, 0

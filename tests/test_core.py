@@ -408,3 +408,83 @@ def test_busy_gpu_refuses_to_start(tmp_path, monkeypatch):
     b.allow_busy = True
     with b:
         assert b.other_vram_mb == 8089.0
+
+
+# -- no-restart batches ---------------------------------------------------------------
+def _batch_fn(pc, record, disturb=lambda n, i: 1.0, fail=()):
+    def batch(changes_list):
+        n = len(record)
+        record.append(changes_list)
+        if n in fail:
+            raise RuntimeError("DCS crashed")
+        return [{"avg_fps": pc.measure(c)["avg_fps"] * disturb(n, i)} for i, c in enumerate(changes_list)]
+    return batch
+
+
+def test_batches_measure_everything_except_restart_settings():
+    cur = _current()
+    pc, batches, singles = FakePC(cur, 60, 80), [], []
+
+    def fast(c):
+        singles.append(c)
+        return pc.measure(c)
+    mdl = M.Model(78, 100, 2560, 1440)
+    out = optimize.run(mdl, cur, "nvidia", 120, 16376, pc.measure, full=True, log=lambda *_: None,
+                       measure_fast=fast, measure_batch=_batch_fn(pc, batches))
+    assert out["disturbed"] is False
+    in_batches = {k for b in batches for c in b if c for k in c}
+    in_singles = {k for c in singles if c for k in c}
+    assert in_singles == {"graphics.visibRange", "graphics.terrainTextures"}
+    assert not in_batches & in_singles and "graphics.shadows" in in_batches
+    for b in batches:
+        assert b[0] is None and b[-1] is None and len(b) <= optimize.BATCH_SIZE + 2
+    measurable = {s["key"] for s in M.SETTINGS if s.get("measure") is not False}
+    assert set(mdl.measured) == measurable
+    # the measured cost equals the true cost on the fake PC
+    shadows = next(s for s in M.SETTINGS if s["key"] == "graphics.shadows")
+    rung = M.current_rung(cur, "nvidia")
+    true = pc.truth.frame_ms(cur | {"graphics.shadows": 4}, rung) - pc.truth.frame_ms(cur | {"graphics.shadows": 0}, rung)
+    assert mdl.measured["graphics.shadows"][len(shadows["levels"]) - 1] == pytest.approx(true, rel=0.02)
+
+
+def test_disturbed_or_failed_batch_is_discarded_but_others_kept():
+    cur = _current()
+    pc, batches, logs = FakePC(cur, 60, 80), [], []
+    slow_tail = lambda n, i: 0.8 if (n == 0 and i >= 4) else 1.0     # PC slows mid-way through batch 0
+    mdl = M.Model(78, 100, 2560, 1440)
+    out = optimize.run(mdl, cur, "nvidia", 120, 16376, pc.measure, full=True, log=logs.append,
+                       measure_batch=_batch_fn(pc, batches, slow_tail))
+    assert out["disturbed"] is True and any("speed changed during this run" in m for m in logs)
+    first_batch_keys = {k for c in batches[0] if c for k in c}
+    assert len(batches) >= 2 and mdl.measured                      # later batch still counted
+    kept = set(mdl.measured)
+    later_only = {k for b in batches[1:] for c in b if c for k in c} - first_batch_keys
+    assert later_only <= kept and not (first_batch_keys - later_only) & kept - {"graphics.visibRange", "graphics.terrainTextures"}
+
+    mdl2, batches2 = M.Model(78, 100, 2560, 1440), []
+    out2 = optimize.run(mdl2, cur, "nvidia", 120, 16376, pc.measure, full=True, log=lambda *_: None,
+                        measure_batch=_batch_fn(pc, batches2, fail={0}))
+    assert out2["disturbed"] is True and (out2["recommended"] or out2["keep_current"])
+
+
+def test_bench_batch_builds_self_resetting_trials(tmp_path, monkeypatch):
+    from dcstune import bench
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (1.0, 2000.0))
+    cfg = tmp_path / "Config"; cfg.mkdir()
+    shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
+    b = bench.Bench({"path": str(tmp_path), "name": "DCS", "options": str(cfg / "options.lua")}, tmp_path / "DCS.exe")
+    seen = {}
+
+    def fake_run_trials(trials, short=True, screenshots=True):
+        seen.update(trials=trials, screenshots=screenshots)
+        return [{"avg_fps": 100.0 + n} for n, _ in enumerate(trials)]
+    with b:
+        monkeypatch.setattr(b, "run_trials", fake_run_trials)
+        out = b.measure_batch([None, {"graphics.shadows": 0}, {"graphics.textures": 0}, None])
+    assert [r["avg_fps"] for r in out] == [100.0, 101.0, 102.0, 103.0] and seen["screenshots"] is False
+    sets = [t["set"] for t in seen["trials"]]
+    # fixture values: shadows 3, textures 1. Every trial names both, so each undoes the one before.
+    assert sets == [{"shadows": 3, "textures": 1}, {"shadows": 0, "textures": 1},
+                    {"shadows": 3, "textures": 0}, {"shadows": 3, "textures": 1}]
+    assert [t["settle_sec"] for t in seen["trials"]] == [20, 10, 20, 10]
