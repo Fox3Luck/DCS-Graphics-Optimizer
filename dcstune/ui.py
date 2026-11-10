@@ -124,6 +124,11 @@ class Engine:
         vendor = sysinfo.gpu_vendor(self.info)
         mdl = M.Model(machine["gpu_score"], machine["cpu_score"],
                       flat.get("graphics.width") or gpu["width"], flat.get("graphics.height") or gpu["height"], vendor)
+        # Reuse what an earlier thorough test measured on this PC (same card, processor and
+        # resolution); a thorough test re-measures and overwrites it.
+        cal = rate.load_calibration(self.profile, self.info, flat)
+        if cal and not full:
+            mdl.measured = {k: {int(i): ms for i, ms in v.items()} for k, v in cal.get("measured", {}).items()}
         exe = sysinfo.dcs_exe(sysinfo.pick_install(self.info))
         with Bench(self.profile, exe, log=log) as b:
             out = optimize.run(mdl, flat, vendor, rate.target_fps(gpu.get("refresh")),

@@ -76,7 +76,8 @@ class GpuSampler:
     def __init__(self, interval: float = 1.0):
         self.peak_mb, self.util, self._stop = 0.0, [], threading.Event()
         self._thread = threading.Thread(target=self._loop, args=(interval,), daemon=True)
-        self._nvidia = shutil.which("nvidia-smi")
+        # DCSTUNE_NO_NVSMI: testing switch to exercise the AMD/Intel counter path on an NVIDIA PC
+        self._nvidia = None if os.environ.get("DCSTUNE_NO_NVSMI") else shutil.which("nvidia-smi")
 
     def _sample(self):
         if self._nvidia:
@@ -86,11 +87,18 @@ class GpuSampler:
             if rows:
                 best = max(rows, key=lambda r: float(r[0]))
                 return float(best[0]), float(best[1])
+        # Any vendor: Windows' own counters. Memory = the busiest adapter; load = the busiest
+        # single process's 3D engine use (what Task Manager shows as GPU %).
         out = subprocess.run(["powershell", "-NoProfile", "-Command",
-                              "((Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage').CounterSamples | "
-                              "Measure-Object CookedValue -Maximum).Maximum / 1MB"],
+                              "$c = (Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage','\\GPU Engine(*engtype_3D)\\Utilization Percentage' "
+                              "-ErrorAction SilentlyContinue).CounterSamples; "
+                              "$m = ($c | ? Path -like '*dedicated usage' | Measure-Object CookedValue -Maximum).Maximum / 1MB; "
+                              "$u = ($c | ? Path -like '*utilization percentage' | Group-Object { ($_.InstanceName -split '_')[1] } | "
+                              "% { ($_.Group | Measure-Object CookedValue -Sum).Sum } | Measure-Object -Maximum).Maximum; "
+                              "'{0:F0},{1:F1}' -f $m, $u"],
                              capture_output=True, text=True, creationflags=NO_WINDOW, timeout=20).stdout.strip()
-        return (float(out), None) if out else (0.0, None)
+        mem, _, util = out.partition(",")
+        return (float(mem), float(util) if util else None) if mem else (0.0, None)
 
     def _loop(self, interval):
         while not self._stop.wait(interval):

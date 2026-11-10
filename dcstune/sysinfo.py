@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -85,6 +86,9 @@ def normalise(raw: dict) -> dict:
 
 
 def gpu_vendor(info: dict) -> str:
+    forced = os.environ.get("DCSTUNE_FORCE_VENDOR")     # testing: run the AMD/Intel path on any card
+    if forced in ("nvidia", "other"):
+        return forced
     name = ((info.get("gpu") or {}).get("name") or "").lower()
     if "nvidia" in name or "geforce" in name or "rtx" in name:
         return "nvidia"
