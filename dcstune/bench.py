@@ -166,23 +166,54 @@ class Bench:
         from .optimize import summarise
         self.runs += 1
         tag = f"{self.session_id}r{self.runs:02d}"
+        raw, gpu, seconds = self._launch(changes, {"tag": tag}, short, self.timeout)
+        result = parse_result(raw)
+        result["vram_peak_mb"] = round(gpu.peak_mb) or None
+        result["gpu_util_avg"] = round(sum(gpu.util) / len(gpu.util)) if gpu.util else None
+        result["seconds"] = seconds
+        result["changes"] = changes
+        s = summarise(result)
+        self.log(f"  {tag}: avg {s['avg_fps']:.0f} FPS, 1% low {s['p1_low_fps']:.0f} FPS, "
+                 f"VRAM {result['vram_peak_mb']} MB, {seconds}s")
+        s["raw"] = result
+        return s
+
+    def run_trials(self, trials: list[dict], short: bool = True) -> list[dict]:
+        """Several settings trials in ONE DCS launch (only the mission restarts).
+        trials: [{"tag": "a", "set": {"shadows": 0}}, ...] - bare graphics option names.
+        Returns one {"tag", "applied", "scenes": [stats...]} per trial."""
+        self.runs += 1
+        named = [dict(t, tag=f"{self.session_id}r{self.runs:02d}{t['tag']}") for t in trials]
+        raw, gpu, seconds = self._launch(None, {"tag": named[0]["tag"], "trials": named}, short,
+                                         150 + 100 * len(trials))
+        if not raw.get("ok"):
+            raise BenchError("benchmark did not finish: " + (raw.get("reason") or "unknown"))
+        out = []
+        for t, src in zip(raw["trials"], trials):
+            scenes = [dict(frame_stats([float(x) for x in sc["frame_ms"]]), name=sc["name"]) for sc in t["scenes"]]
+            out.append({"tag": src["tag"], "applied": t["applied"], "scenes": scenes,
+                        "avg_fps": round(sum(sc["avg_fps"] for sc in scenes) / len(scenes), 2)})
+        self.log(f"  {len(out)} trials in {seconds}s, VRAM peak {round(gpu.peak_mb)} MB")
+        return out
+
+    def _launch(self, changes, directive_extra: dict, short: bool, timeout: int):
         # Trials never change resolution, monitor layout or VR; vsync and the frame
         # cap are lifted for every run (including the baseline) so numbers compare.
         trial = {"graphics.sync": False, "graphics.maxFPS": 300}
         trial.update(changes or {})
         self.session.write_trial(trial)
         self.result.unlink(missing_ok=True)
-        self.directive.write_text(json.dumps({
-            "mission": str(self.mission_dst), "scenes": SCENES, "tag": tag,
+        self.directive.write_text(json.dumps(dict({
+            "mission": str(self.mission_dst), "scenes": SCENES,
             "scene_sec": SHORT_SCENE_SEC if short else self.scene_sec,
             "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
-            "total_timeout": self.timeout - 30}))
+            "total_timeout": timeout - 30}, **directive_extra)))
         args = [str(self.exe), "--no-launcher", "--force_disable_VR", "-w", self.profile_name]
         started = time.time()
         with GpuSampler() as gpu:
             proc = subprocess.Popen(args, cwd=str(self.exe.parent))
             try:
-                proc.wait(timeout=self.timeout)
+                proc.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(timeout=30)
@@ -194,14 +225,5 @@ class Bench:
             raise BenchError("DCS closed without writing a benchmark result (see Logs\\dcs.log, DCSTUNE lines).")
         raw_text = self.result.read_text()
         if self.keep_raw_dir:
-            (Path(self.keep_raw_dir) / f"dcstune-raw-{time.strftime('%H%M%S')}-{tag}.json").write_text(raw_text)
-        result = parse_result(json.loads(raw_text))
-        result["vram_peak_mb"] = round(gpu.peak_mb) or None
-        result["gpu_util_avg"] = round(sum(gpu.util) / len(gpu.util)) if gpu.util else None
-        result["seconds"] = round(time.time() - started)
-        result["changes"] = changes
-        s = summarise(result)
-        self.log(f"  {tag}: avg {s['avg_fps']:.0f} FPS, 1% low {s['p1_low_fps']:.0f} FPS, "
-                 f"VRAM {result['vram_peak_mb']} MB, {result['seconds']}s")
-        s["raw"] = result
-        return s
+            (Path(self.keep_raw_dir) / f"dcstune-raw-{time.strftime('%H%M%S')}-{directive_extra['tag']}.json").write_text(raw_text)
+        return json.loads(raw_text), gpu, round(time.time() - started)

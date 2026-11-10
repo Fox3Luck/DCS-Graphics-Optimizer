@@ -22,6 +22,7 @@ net = {
   json2lua = function(s) return W.json2lua(s) end,
   get_default_server_settings = function() return { advanced = {} } end,
   start_server = function(cfg) W.started(cfg.isPublic, cfg.password, cfg.missionList[1]); return true end,
+  stop_network = function() W.netstop() end,
   dostring_in = function(state, code)
     local name = code:match('UnitName == "([^"]+)"')
     if not W.world_up or not name or (W.missing and name == W.missing) then return '' end
@@ -31,7 +32,11 @@ net = {
 Export = { LoSetCommand = function(c) W.cmd(c) end,
            LoSetCameraPosition = function(p) W.cam(p.p.x, p.p.y, p.p.z, p.x.x, p.x.y, p.x.z) end }
 local cb
+package.preload['Options.Data'] = function()
+  return { setGraphics = function(k, v) W.setopt(k, v) end, saveChanges = function() W.saved() end }
+end
 DCS = { getRealTime = function() return wall end, setPause = function() end,
+        stopMission = function() W.stopreq() end,
         makeScreenShot = function(n) W.shot(n) end,
         exitProcess = function() W.exited() end,
         setUserCallbacks = function(t) cb = t end }
@@ -46,9 +51,15 @@ class World:
         self.world_up, self.missing = False, missing
         self.log, self.cams, self.shots, self.cmds = [], [], [], []
         self.exit, self.server = False, None
+        self.starts, self.stop_requested, self.opts, self.saves, self.netstops = 0, False, [], 0, 0
 
     def logs(self, m): self.log.append(str(m))
-    def started(self, public, pw, miz): self.server = (public, pw, miz)
+    def started(self, public, pw, miz):
+        self.server = (public, pw, miz); self.starts += 1; self.pending_start = True
+    def stopreq(self): self.stop_requested = True
+    def setopt(self, k, v): self.opts.append((self.starts, k, v))
+    def saved(self): self.saves += 1
+    def netstop(self): self.netstops += 1
     def cmd(self, c): self.cmds.append(c)
     def cam(self, *a): self.cams.append(a)
     def shot(self, n): self.shots.append(n)
@@ -74,14 +85,18 @@ def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=40
     if cb is None:
         return w, None, real
     dt, t = 1.0 / fps, 0.0
-    started = False
+    start_at = None
     while not w.exit and t < max_seconds:
         tick(dt); t += dt
-        if w.server and not started and t > 3:
-            started = True
+        if getattr(w, "pending_start", False):          # mission takes ~3 s to load
+            w.pending_start, start_at = False, t + 3
+        if start_at and t >= start_at:
+            start_at = None
             cb.onSimulationStart()
-        if started and t > 5:
             w.world_up = True
+        if w.stop_requested:                             # DCS.stopMission ends the mission
+            w.stop_requested, w.world_up = False, False
+            cb.onSimulationStop()
         cb.onSimulationFrame()
     res = real[w.dir + "Config\\dcstune_result.json"]
     return w, json.loads(res.read_text()) if res.exists() else None, real
@@ -145,3 +160,23 @@ def test_never_starting_mission_times_out(tmp_path, monkeypatch):
     d = dict(DIRECTIVE, start_timeout=20, total_timeout=60)
     w, raw, _ = _run(tmp_path, monkeypatch, d, missing="TUNE-CITY-1", fps=30)
     assert w.exit and raw["ok"] is False
+
+
+def test_several_trials_in_one_launch(tmp_path, monkeypatch):
+    d = dict(DIRECTIVE, total_timeout=300, trials=[
+        {"tag": "a"},
+        {"tag": "b", "set": {"shadows": 0, "clouds": 0}},
+        {"tag": "c", "set": {"shadows": 4, "clouds": 3}}])
+    w, raw, _ = _run(tmp_path, monkeypatch, d)
+    assert w.exit and raw["ok"] is True
+    assert w.starts == 3 and w.netstops == 2            # one DCS process, three mission starts
+    assert [t["tag"] for t in raw["trials"]] == ["a", "b", "c"]
+    assert raw["trials"][0]["applied"] == "unchanged" and raw["trials"][1]["applied"] == "clouds=0 shadows=0"
+    # options are set BEFORE the mission of that trial starts, never during the first one
+    assert sorted(w.opts) == [(1, "clouds", 0), (1, "shadows", 0), (2, "clouds", 3), (2, "shadows", 4)]
+    assert w.saves == 2
+    for t in raw["trials"]:
+        assert [s["name"] for s in t["scenes"]] == ["city", "airfield", "clouds"]
+        assert all(len(s["frame_ms"]) > 400 for s in t["scenes"])
+    assert raw["scenes"] == raw["trials"][0]["scenes"]
+    assert "dcstune_b_city" in w.shots and "dcstune_a_clouds" in w.shots

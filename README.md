@@ -9,6 +9,8 @@ them only when the player agrees. Flat-screen only in v1 (VR is planned for v2).
     python -m dcstune apply | undo
     python -m dcstune.ui                the window (Rate / Optimize / Apply / Undo)
 
+**For players:** see the [User Guide](docs/USER-GUIDE.md) for what the tests do, how long they take and what is changed.
+
 Layout: `dcstune/optionslua.py` (byte-preserving options.lua edits, backup, crash
 recovery), `sysinfo.py` (hardware + DCS discovery), `model.py` + `data/` (setting levels,
 quality weights, frame-time model), `rate.py` (scorecard), `optimize.py` (search),

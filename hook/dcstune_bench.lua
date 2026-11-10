@@ -2,6 +2,10 @@
 --
 -- Inert unless Config\dcstune_directive.json exists. The directive is deleted the
 -- moment it is read, so a crash or a manual DCS launch can never replay a benchmark.
+-- A directive may carry several "trials" (each a set of graphics options): they are
+-- applied through DCS's own options module and measured one after another in the SAME
+-- DCS process, restarting only the mission. Options DCS itself says need a full restart
+-- (resolution, visibility range, terrain textures, vsync...) must not be put in trials.
 -- Flow: host the bundled mission locally (unlisted, random password), never slot,
 -- fly a free camera behind named AI aircraft for each scene, time every rendered
 -- frame, write Config\dcstune_result.json, exit DCS.
@@ -42,23 +46,38 @@ local function now()
   return os.clock()
 end
 
+local trials = (type(D.trials) == "table" and #D.trials > 0) and D.trials or { { tag = tostring(D.tag or "run") } }
+
 local state = {
   t0 = os.time(), frames = 0, hosted = false, running = false, finished = false,
   ready_at = nil, scene_i = 0, scene_t0 = nil, last = nil, results = {},
+  trial_i = 1, trial_t0 = os.time(), menu_frames = 0, stopping = false, stop_step = 0,
+  done = {}, applied = "",
   subj = nil, subj_t = 0, vel = { x = 0, y = 0, z = 0 }, fwd = { x = 1, z = 0 },
 }
 
-local function writeResult(ok, reason)
+local function scenesJson(results)
   local parts = {}
-  for _, r in ipairs(state.results) do
+  for _, r in ipairs(results) do
     parts[#parts + 1] = string.format('{"name":"%s","shot":"%s","frame_ms":[%s]}',
       r.name, r.shot or "", table.concat(r.ms, ","))
   end
+  return table.concat(parts, ",")
+end
+
+local function writeResult(ok, reason)
+  local tparts = {}
+  for _, t in ipairs(state.done) do
+    tparts[#tparts + 1] = string.format('{"tag":"%s","applied":"%s","scenes":[%s]}',
+      t.tag, t.applied, scenesJson(t.scenes))
+  end
   local f = io.open(RESULT, "w")
   if f then
-    f:write(string.format('{"ok":%s,"reason":"%s","tag":"%s","clock":"%s","scenes":[%s]}',
+    -- "scenes" = the first trial, so a single-trial directive reads exactly as before
+    f:write(string.format('{"ok":%s,"reason":"%s","tag":"%s","clock":"%s","scenes":[%s],"trials":[%s]}',
       tostring(ok), tostring(reason or ""), cfg.tag,
-      DCS.getRealTime and "DCS.getRealTime" or "os.clock", table.concat(parts, ",")))
+      DCS.getRealTime and "DCS.getRealTime" or "os.clock",
+      scenesJson(state.done[1] and state.done[1].scenes or state.results), table.concat(tparts, ",")))
     f:close()
   end
   L("result written ok=" .. tostring(ok) .. " reason=" .. tostring(reason or ""))
@@ -69,6 +88,24 @@ local function finish(ok, reason)
   state.finished = true
   writeResult(ok, reason)
   pcall(function() DCS.exitProcess() end)
+end
+
+-- Apply a trial's graphics options the way the options screen does: set them in DCS's
+-- options data and save. DCS picks them up when the next mission starts.
+local function applyOptions(set)
+  if type(set) ~= "table" then return "unchanged" end
+  local names = {}
+  local ok, err = pcall(function()
+    local OptionsData = require('Options.Data')
+    for k, v in pairs(set) do
+      OptionsData.setGraphics(k, v)
+      names[#names + 1] = k .. "=" .. tostring(v)
+    end
+    OptionsData.saveChanges()
+  end)
+  table.sort(names)
+  if not ok then L("applyOptions FAILED: " .. tostring(err)); return "FAILED" end
+  return table.concat(names, " ")
 end
 
 local function tryHost()
@@ -178,10 +215,36 @@ local function endScene(t)
   local r = state.results[i]
   L(string.format("scene %d done: %d frames", i, #r.ms))
   if cfg.screenshots then
-    r.shot = string.format("dcstune_%s_%s", cfg.tag, r.name)
+    r.shot = string.format("dcstune_%s_%s", tostring(trials[state.trial_i].tag or cfg.tag), r.name)
     pcall(function() DCS.makeScreenShot(r.shot) end)
   end
-  if i >= #D.scenes then finish(true, "") else startScene(i + 1, t) end
+  if i < #D.scenes then startScene(i + 1, t); return end
+  local trial = trials[state.trial_i]
+  state.done[#state.done + 1] = { tag = tostring(trial.tag or state.trial_i), applied = state.applied, scenes = state.results }
+  if state.trial_i >= #trials then finish(true, ""); return end
+  -- more trials: stop only the mission, keep DCS running
+  state.trial_i = state.trial_i + 1
+  state.results, state.scene_i, state.ready_at, state.running = {}, 0, nil, false
+  state.stopping, state.stop_step, state.stop_t = true, 0, os.time()
+end
+
+-- Stopping a hosted mission from a hook is not documented; try the known calls in turn
+-- and log which one worked.
+local STOP_CALLS = {
+  { "DCS.stopMission", function() DCS.stopMission() end },
+  { "net.stop_game",   function() net.stop_game() end },
+  { "net.stop_network", function() net.stop_network() end },
+}
+local function driveStop()
+  local waited = os.time() - state.stop_t
+  local due = math.floor(waited / 15) + 1
+  if due > #STOP_CALLS then finish(false, "could not stop the mission between trials"); return end
+  if due > state.stop_step then
+    state.stop_step = due
+    local c = STOP_CALLS[due]
+    local ok, err = pcall(c[2])
+    L("stop attempt " .. c[1] .. " ok=" .. tostring(ok) .. " " .. tostring(err or ""))
+  end
 end
 
 local h = {}
@@ -192,16 +255,29 @@ function h.onSimulationStart()
 end
 
 function h.onSimulationStop()
+  if state.stopping then
+    L("mission stopped after " .. tostring(STOP_CALLS[state.stop_step] and STOP_CALLS[state.stop_step][1]))
+    local ok, err = pcall(function() if net.stop_network then net.stop_network() end end)
+    L("net.stop_network after stop ok=" .. tostring(ok) .. " " .. tostring(err or ""))
+    state.stopping, state.hosted, state.menu_frames, state.trial_t0 = false, false, 0, os.time()
+    return
+  end
   if not state.finished then finish(false, "simulation stopped early") end
 end
 
 function h.onSimulationFrame()
   if state.finished then return end
   state.frames = state.frames + 1
-  local elapsed = os.time() - state.t0
-  if elapsed > cfg.total_timeout then finish(false, "total timeout"); return end
+  if os.time() - state.t0 > cfg.total_timeout then finish(false, "total timeout"); return end
+  local elapsed = os.time() - state.trial_t0
+  if state.stopping then driveStop(); return end
   if not state.hosted then
-    if state.frames == 30 then tryHost() end
+    state.menu_frames = state.menu_frames + 1
+    if state.menu_frames == 30 then
+      state.applied = applyOptions(trials[state.trial_i].set)
+      L("trial " .. state.trial_i .. "/" .. #trials .. " options: " .. state.applied)
+      tryHost()
+    end
     return
   end
   if not state.running then

@@ -57,6 +57,19 @@
   <p class="sub">The test starts DCS several times by itself and closes it again. Leave the PC alone while it runs.
      Your settings are put back after every test; nothing is changed until you press Apply.</p>
 
+  <details class="card" style="margin-bottom:14px">
+    <summary style="cursor:pointer;font-weight:600">What do the tests do, and how long do they take?</summary>
+    <ul style="margin-top:10px">
+      <li>Each test starts DCS by itself several times and closes it again. Every start takes about 3 minutes, most of it DCS loading.</li>
+      <li>Each time, the computer flies three short scenes on the Caucasus map (a city pass, an airfield ramp, a cloud layer) while every frame is timed.</li>
+      <li><b>Test and optimize</b>: 2 to 5 starts, usually 10 to 20 minutes. Measures your settings, then tests and corrects a recommendation.</li>
+      <li><b>Thorough test</b>: about 20 to 30 starts, usually 45 to 90 minutes. Also measures what each expensive setting costs on your PC.</li>
+      <li>The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60.</li>
+      <li>Resolution, vertical sync, VR, controls and sound are never changed. Your settings file is restored after every start.</li>
+      <li>Nothing is sent over the internet. The full guide is in the project's User Guide.</li>
+    </ul>
+  </details>
+
   <div class="card hidden" id="progress"><h2>Testing</h2><div id="log"></div></div>
 
   <div class="hidden" id="result">

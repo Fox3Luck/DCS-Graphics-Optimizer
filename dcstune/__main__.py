@@ -69,6 +69,17 @@ def cmd_bench(args):
     return 0
 
 
+def cmd_trials(args):
+    """Developer aid: measure several settings sets in one DCS launch."""
+    info, profile, _, _ = _context(args)
+    args.scene_sec = 25
+    with _bench(info, profile, args) as b:
+        for t in b.run_trials(json.loads(Path(args.file).read_text())):
+            per = "  ".join(f"{s['name']} {s['avg_fps']:.1f}" for s in t["scenes"])
+            print(f"    {t['tag']:14} avg {t['avg_fps']:7.1f}   {per}   [{t['applied']}]")
+    return 0
+
+
 def cmd_optimize(args):
     # Same code path as the window, so both write the same report.
     from .ui import Engine
@@ -121,6 +132,7 @@ def main(argv=None):
         if name == "optimize":
             s.add_argument("--full", action="store_true", help="measure every setting (about an hour)")
         s.set_defaults(fn=fn)
+    s = sub.add_parser("trials"); s.add_argument("file", help="JSON file with a list of trials"); s.set_defaults(fn=cmd_trials)
     sub.add_parser("apply").set_defaults(fn=cmd_apply)
     sub.add_parser("undo").set_defaults(fn=cmd_undo)
     args = p.parse_args(argv)
