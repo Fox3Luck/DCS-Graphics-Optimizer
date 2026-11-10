@@ -7,3 +7,4 @@ ref/
 dist/
 build/work/
 build/signing.json
+build/tools/

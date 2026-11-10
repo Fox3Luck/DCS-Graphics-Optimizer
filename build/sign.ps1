@@ -1,9 +1,9 @@
 # Signs dist\DCSGraphicsOptimizer.exe with Azure Artifact Signing (formerly Trusted Signing).
-# UNTESTED until the Azure account's identity validation completes.
 #
 # Needs on the build PC:
-#   1. Artifact Signing Client Tools (bundles a compatible SignTool >= 10.0.2261.755, the
-#      Azure.CodeSigning.Dlib.dll plugin and the .NET runtime) - see
+#   1. SignTool >= 10.0.2261.755 (NuGet package Microsoft.Windows.SDK.BuildTools), the
+#      Azure.CodeSigning.Dlib.dll plugin (NuGet package Microsoft.ArtifactSigning.Client) and
+#      the .NET 8 runtime. Unzipping both packages under build\tools is enough. See
 #      https://learn.microsoft.com/azure/artifact-signing/how-to-signing-integrations
 #   2. build\signing.json (not committed; nothing secret in it):
 #        { "Endpoint": "https://<region>.codesigning.azure.net/",
