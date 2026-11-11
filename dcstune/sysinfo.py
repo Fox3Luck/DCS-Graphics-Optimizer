@@ -71,6 +71,33 @@ def _as_list(x):
     return x if isinstance(x, list) else [x]
 
 
+def primary_display() -> dict | None:
+    """Current mode of the Windows primary display: the one DCS opens on. The graphics
+    card's own figures (above) describe just one of its displays, and on a PC with two
+    monitors that can be the wrong one."""
+    try:
+        import ctypes
+        from ctypes import wintypes as w
+
+        class DEVMODE(ctypes.Structure):
+            _fields_ = [("name", w.WCHAR * 32), ("spec", w.WORD), ("driver", w.WORD), ("size", w.WORD),
+                        ("extra", w.WORD), ("fields", w.DWORD), ("union", ctypes.c_byte * 16),
+                        ("color", ctypes.c_short), ("duplex", ctypes.c_short), ("yres", ctypes.c_short),
+                        ("tt", ctypes.c_short), ("collate", ctypes.c_short), ("form", w.WCHAR * 32),
+                        ("logpixels", w.WORD), ("bpp", w.DWORD), ("width", w.DWORD), ("height", w.DWORD),
+                        ("flags", w.DWORD), ("hz", w.DWORD), ("icm", w.DWORD * 8)]
+
+        user32 = ctypes.windll.user32
+        dm = DEVMODE()
+        dm.size = ctypes.sizeof(DEVMODE)
+        if not user32.EnumDisplaySettingsW(None, -1, ctypes.byref(dm)) or not dm.width or not dm.height:
+            return None
+        return {"width": int(dm.width), "height": int(dm.height), "refresh": int(dm.hz) if dm.hz > 1 else None,
+                "count": int(user32.GetSystemMetrics(80)) or 1}        # 80 = number of monitors
+    except Exception:
+        return None
+
+
 def collect() -> dict:
     # A script file, not stdin: "powershell -Command -" silently drops multi-line blocks.
     with tempfile.TemporaryDirectory() as tmp:
@@ -82,7 +109,9 @@ def collect() -> dict:
     out = proc.stdout
     if "{" not in out:
         raise RuntimeError("could not read hardware information: " + (proc.stderr.strip()[:300] or "no output"))
-    return normalize(json.loads(out[out.index("{"):]))
+    raw = json.loads(out[out.index("{"):])
+    raw["display"] = primary_display()
+    return normalize(raw)
 
 
 def normalize(raw: dict) -> dict:
@@ -94,6 +123,11 @@ def normalize(raw: dict) -> dict:
     # Primary GPU = the one driving a display with the most VRAM (skips idle iGPUs).
     active = [g for g in info["gpus"] if g.get("width")] or info["gpus"]
     info["gpu"] = max(active, key=lambda g: g.get("vram_mb") or 0) if active else None
+    # The display DCS runs on is the Windows primary one; it replaces the card's own figures.
+    d = info.get("display")
+    if info["gpu"] and isinstance(d, dict) and d.get("width") and d.get("height"):
+        info["gpu"] = dict(info["gpu"], width=d["width"], height=d["height"],
+                           refresh=d.get("refresh") or info["gpu"].get("refresh"))
     return info
 
 

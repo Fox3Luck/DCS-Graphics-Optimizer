@@ -576,3 +576,18 @@ def test_leftovers_of_an_interrupted_test_are_removed_at_start(tmp_path, monkeyp
     assert sorted(bench.remove_leftovers(tmp_path)) == ["dcstune_bench.lua", "dcstune_bench.miz", "dcstune_directive.json"]
     assert not b.hook_dst.exists() and not b.mission_dst.exists() and not b.directive.exists()
     assert bench.remove_leftovers(tmp_path) == []
+
+
+def test_primary_display_replaces_the_cards_own_figures():
+    """Two monitors: the card reported the second one (1440p 144 Hz) while DCS runs on the
+    primary (4K 60 Hz). The primary one must set the resolution and the frame-rate goal."""
+    from dcstune.sysinfo import normalize
+    raw = {"gpus": [{"name": "NVIDIA GeForce RTX 4080", "vram_mb": 16376, "width": 2560, "height": 1440, "refresh": 143}],
+           "display": {"width": 3840, "height": 2160, "refresh": 60, "count": 2}}
+    g = normalize(raw)["gpu"]
+    assert (g["width"], g["height"], g["refresh"]) == (3840, 2160, 60) and g["vram_mb"] == 16376
+    assert raw["gpus"][0]["width"] == 2560                      # the input is not altered
+    for missing in (None, {}, {"width": 0, "height": 0}):       # no answer from Windows: keep the card's figures
+        g = normalize(dict(raw, display=missing))["gpu"]
+        assert (g["width"], g["height"], g["refresh"]) == (2560, 1440, 143)
+    assert normalize(dict(raw, display={"width": 3840, "height": 2160, "refresh": None}))["gpu"]["refresh"] == 143
