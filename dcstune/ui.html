@@ -40,6 +40,22 @@
   <p class="sub" id="profile">Reading your PC and DCS settings...</p>
   <div id="msg"></div>
 
+  <div class="card hidden" id="consent" style="margin-bottom:14px;border-color:var(--accent)">
+    <h2 style="color:var(--text)">Help make this tool better? (optional)</h2>
+    <p style="margin:0 0 8px">May the tool send the result of each test to Fox3, the makers of this tool? It is <b>anonymous</b>.</p>
+    <ul>
+      <li><b>What is sent:</b> your processor, graphics card and driver, memory, monitor resolution, DCS version, VR headset model and VR software if you have one, your DCS graphics and VR settings, the measured frame rates, and whether you applied or undid the recommendation.</li>
+      <li><b>What is not sent:</b> your name, Windows or DCS account, pilot name, folder names, screenshots, controls, or anything that identifies you or your PC. Each test only gets a random number.</li>
+      <li><b>What it is for:</b> the tool estimates what each setting costs on your hardware. Real results from many different PCs and headsets make those estimates and the recommendations better for everyone.</li>
+      <li>After every test the same information is saved as <b>audit.json</b> in the report folder, so you can read exactly what was sent. You can add a comment to a result if you want to tell us more.</li>
+      <li>If you say no, nothing is ever sent and the tool works exactly the same. You can change your answer at any time at the bottom of this window.</li>
+    </ul>
+    <div class="actions" style="margin-bottom:0">
+      <button class="primary" id="share-yes">Yes, send anonymous results</button>
+      <button id="share-no">No, send nothing</button>
+    </div>
+  </div>
+
   <div class="card overall">
     <div><h2 style="margin-bottom:6px">Overall</h2><div class="grade" style="margin:0" id="overall"></div></div>
     <div class="hw" id="hardware"></div>
@@ -67,7 +83,7 @@
       <li><b>Thorough test</b>: about 10 starts, usually 35 to 60 minutes. Also measures what each expensive setting costs on your PC; most of them are measured inside one long DCS session that restarts only the mission.</li>
       <li>The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60.</li>
       <li>Resolution, vertical sync, VR, controls and sound are never changed. Your settings file is restored after every start.</li>
-      <li>Nothing is sent over the internet. The full guide is in the project's User Guide.</li>
+      <li id="sent-line">Nothing is sent over the internet. The full guide is in the project's User Guide.</li>
     </ul>
   </details>
 
@@ -83,7 +99,21 @@
       </div>
       <p class="sub" id="report-where" style="margin:10px 0 0"></p>
     </div>
+    <div class="card hidden" id="fb" style="margin-top:14px">
+      <h2>Tell us more about this result (optional, anonymous)</h2>
+      <p class="sub" style="margin-bottom:8px">After flying with the recommended settings, how do they feel compared with your old ones?</p>
+      <div class="actions" style="margin:0 0 10px">
+        <label><input type="radio" name="feel" value="better"> Better</label>
+        <label><input type="radio" name="feel" value="same"> The same</label>
+        <label><input type="radio" name="feel" value="worse"> Worse</label>
+      </div>
+      <textarea id="fb-text" maxlength="1000" rows="3" style="width:100%;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px"
+        placeholder="Anything else: what went wrong, what looked odd, which aircraft or map you fly. Please leave out names and other personal details."></textarea>
+      <div class="actions" style="margin:10px 0 0"><button id="fb-send">Send feedback</button></div>
+      <p class="sub hidden" id="fb-done" style="margin:8px 0 0"></p>
+    </div>
   </div>
+  <p class="sub hidden" id="share-state" style="margin-top:18px"></p>
 </main>
 <script>
 const TOKEN = "__TOKEN__";
@@ -130,8 +160,31 @@ async function refresh() {
   if (sc.vr && !sc.vr_tested && !sc.recovered && !$("msg").children.length)
     note("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet.");
   showReport(sc);
+  showSharing(sc);
 }
-function busy(on) { ["quick", "full", "apply", "undo", "open-report"].forEach(i => $(i).disabled = on); }
+function showSharing(sc) {
+  const sh = sc.sharing || {}, ask = sh.available && sh.choice == null, rep = sc.report;
+  $("consent").classList.toggle("hidden", !ask);
+  ASKING = ask; if (!RUNNING) busy(false);
+  $("sent-line").textContent = (sh.available && sh.choice === true
+    ? "After each test the anonymous result is sent to Fox3, because you agreed to that; nothing else is sent."
+    : "Nothing is sent over the internet.") + " The full guide is in the project's User Guide.";
+  const st = $("share-state"); st.classList.toggle("hidden", !sh.available || sh.choice == null);
+  if (sh.available && sh.choice != null) {
+    const b = el("button", null, sh.choice ? "Stop sending" : "Start sending anonymous results");
+    b.style.padding = "4px 10px"; b.style.marginLeft = "10px";
+    b.onclick = () => setSharing(!sh.choice);
+    st.replaceChildren(document.createTextNode("Anonymous results: " + (sh.choice ? "sent after each test." : "not sent.")), b);
+  }
+  const fb = sh.available && sh.choice === true && rep && rep.id;
+  $("fb").classList.toggle("hidden", !fb);
+  if (fb && rep.feedback) { $("fb-done").classList.remove("hidden");
+    $("fb-done").textContent = "You already sent feedback for this result. You can send more."; }
+}
+let ASKING = false, RUNNING = false;
+async function setSharing(share) { try { note((await api("/api/sharing", { share })).message); await refresh(); } catch (e) { note(e.message, true); } }
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report"].forEach(i => $(i).disabled = on);
+  if (ASKING) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");
   $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
@@ -145,6 +198,13 @@ async function start(full) {
         $("result").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
   catch (e) { note(e.message, true); }
 }
+$("share-yes").onclick = () => setSharing(true);
+$("share-no").onclick = () => setSharing(false);
+$("fb-send").onclick = async () => {
+  const feel = (document.querySelector('input[name="feel"]:checked') || {}).value || null;
+  try { note((await api("/api/feedback", { feel, comment: $("fb-text").value })).message); $("fb-text").value = ""; await refresh(); }
+  catch (e) { note(e.message, true); }
+};
 $("quick").onclick = () => start(false);
 $("full").onclick = () => start(true);
 $("apply").onclick = async () => { try { note((await api("/api/apply", {})).message); await refresh(); } catch (e) { note(e.message, true); } };

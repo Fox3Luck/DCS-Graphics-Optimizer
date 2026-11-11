@@ -350,3 +350,22 @@ Details of each run are written to `Saved Games\DCS\Logs\dcs.log` on lines conta
 - The image-quality scores behind the recommendation are a judgement of what each
   setting adds visually. If you care more about one thing (for example long
   visibility for spotting), adjust that setting yourself after applying.
+
+## Anonymous results (optional)
+
+Versions of the tool that have result sharing switched on ask one question the first time you
+start them: may the tool send the result of each test to Fox3, the makers of this tool?
+
+- **It is anonymous.** What is sent is the content of `audit.json` (processor, graphics card and
+  driver, memory, monitor resolution, DCS version, VR headset and software, your graphics and VR
+  settings, the measured frame rates) and whether you applied or undid the recommendation. Each
+  test gets a random number; there is no number for you or your PC.
+- **Not sent:** your name, Windows or DCS account, pilot name, folder names, screenshots, controls.
+- **What it is for:** real results from many PCs and headsets make the tool's estimates and
+  recommendations better.
+- You can add a comment to a result (better, same or worse, and free text) if you want to tell
+  us more. Leave personal details out of it.
+- If you answer no, nothing is ever sent and the tool works the same. You can change your answer
+  at the bottom of the window. Your answer is kept in `Config\dcstune-prefs.json`.
+
+Until sharing is switched on in a release, the tool does not ask and sends nothing.

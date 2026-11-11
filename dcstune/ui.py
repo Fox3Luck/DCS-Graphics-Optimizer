@@ -126,7 +126,7 @@ class Engine:
                 "report": self._report()}
 
     def optimize(self, full: bool, log) -> dict:
-        from . import model as M, optimize, rate, sysinfo, vr as V
+        from . import audit, feedback as F, model as M, optimize, rate, sysinfo, vr as V
         from .bench import Bench
         from .optionslua import atomic_write
         started = time.time()
@@ -166,7 +166,8 @@ class Engine:
         rate.save_calibration(self.profile, self.info, flat, out["learned"],
                               [(flat, out["before"])] + [(dict(flat, **h["changes"]), h["result"]) for h in out["history"]])
         base_ms = 1000.0 / out["before"]["avg_fps"]
-        report = {"created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],
+        report = {"id": secrets.token_hex(8),       # random, per test; lets a later Apply or comment refer to it
+                  "created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],
                   "kind": "Thorough test" if full else "Test and optimize",
                   "duration_min": max(1, round((time.time() - started) / 60)),
                   "hardware": rate.hardware_summary(self.info, flat),
@@ -194,7 +195,46 @@ class Engine:
         except OSError as e:
             log(f"The report page could not be saved ({e}); the result is still shown here.")
         atomic_write(self.report_path(), json.dumps(report, indent=1).encode())
+        if F.on(self.profile):
+            sent = F.send(F.payload("result", report["id"],
+                                    audit.build(self.info, self._flat_at_test, report, sysinfo.pick_install(self.info))))
+            log("Sent the anonymous result. Thank you." if sent else
+                "The anonymous result could not be sent (no connection?). Nothing else is affected.")
         return report
+
+    # -- anonymous sharing (opt-in) ------------------------------------------------
+    def sharing(self) -> dict:
+        from . import feedback as F
+        return {"available": F.available(), "choice": F.choice(self.profile)}
+
+    def set_sharing(self, share: bool) -> str:
+        from . import feedback as F
+        F.set_choice(self.profile, share)
+        return ("Thank you. Anonymous results will be sent after each test." if share
+                else "Nothing will be sent. You can change this at the bottom of the window.")
+
+    def _tell(self, event: str, rep: dict | None, **extra) -> None:
+        """Send a follow-up about a test (applied, undone, the player's comment) in the background."""
+        from . import feedback as F
+        if rep and rep.get("id") and F.on(self.profile):
+            threading.Thread(target=F.send, args=(F.payload(event, rep["id"], **extra),), daemon=True).start()
+
+    def feedback(self, feel: str | None, comment: str | None) -> str:
+        from . import feedback as F
+        from .optionslua import atomic_write
+        rep = self._report()
+        if not rep or not rep.get("id"):
+            raise RuntimeError("Run a test first; feedback is attached to a test result.")
+        if not F.on(self.profile):
+            raise RuntimeError("Anonymous sharing is switched off, so nothing was sent.")
+        if feel not in F.FEELS and not (comment or "").strip():
+            raise RuntimeError("Choose better, same or worse, or write a comment.")
+        p = F.payload("feedback", rep["id"], feel=feel, comment=comment)
+        if not F.send(p):
+            raise RuntimeError("Your feedback could not be sent (no connection?). Please try again later.")
+        rep["feedback"] = {k: p[k] for k in ("feel", "comment") if k in p}
+        atomic_write(self.report_path(), json.dumps(rep, indent=1).encode())
+        return "Feedback sent. Thank you."
 
     def apply(self) -> str:
         from .bench import dcs_running
@@ -213,6 +253,7 @@ class Engine:
         opts.save(self.profile["options"])
         rep["applied"] = time.strftime("%Y-%m-%d %H:%M")   # keep the report; the player may want to read it again
         atomic_write(rp, json.dumps(rep, indent=1).encode())
+        self._tell("applied", rep)
         return f"Applied. Your previous settings are kept as {saved.name}."
 
     def undo(self) -> str:
@@ -228,6 +269,7 @@ class Engine:
         rep = self._report()
         if rep and rep.pop("applied", None):
             atomic_write(self.report_path(), json.dumps(rep, indent=1).encode())
+            self._tell("undone", rep)
         return "Your previous settings are back."
 
 
@@ -273,10 +315,17 @@ class App:
             sc = self.engine.scorecard()
             if sc.get("report") and sc["report"].get("before"):
                 sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}")
+            sc["sharing"] = self.engine.sharing()
             return sc
         if method == "GET" and path == "/api/job":
             return self.job
+        if method == "POST" and path == "/api/sharing":
+            return {"message": self.engine.set_sharing(body.get("share") is True)}
+        if method == "POST" and path == "/api/feedback":
+            return {"message": self.engine.feedback(body.get("feel"), body.get("comment"))}
         if method == "POST" and path == "/api/optimize":
+            if self.engine.sharing() == {"available": True, "choice": None}:
+                raise RuntimeError("Please answer the question about anonymous results first.")
             self.start_optimize(bool(body.get("full")))
             return {"ok": True}
         if method == "POST" and path == "/api/apply":

@@ -14,7 +14,7 @@ from . import vr as V
 SCHEMA = "dcsgo-audit/1"
 # Values from the headset software that describe rendering. Body measurements (eye distance) are left out.
 PIMAX_KEYS = ("pixels_per_display_pixel_rate", "enable_foveated_rendering", "gpu_upscaling_sharpness")
-RESULT_KEYS = ("kind", "duration_min", "runs", "target_fps", "target_reached", "keep_current", "disturbed",
+RESULT_KEYS = ("id", "kind", "duration_min", "runs", "target_fps", "target_reached", "keep_current", "disturbed",
                "vr", "vr_skipped", "before_result", "after_result", "changes", "costs",
                "overall_before", "overall_after")
 
