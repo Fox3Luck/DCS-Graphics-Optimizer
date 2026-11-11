@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import threading
@@ -17,6 +18,8 @@ ROOT = Path(__file__).resolve().parent.parent
 HOOK_SRC = ROOT / "hook" / "dcstune_bench.lua"
 MISSION_SRC = ROOT / "mission" / "dcstune_bench.miz"
 HOOK_NAME = "dcstune_bench.lua"
+KEY_MARK = "@DCSTUNE_KEY@"          # in the bundled hook; replaced by a random key on install
+DIRECTIVE_VALID_SEC = 600           # DCS has to read the directive within this time
 SCENES = [
     {"name": "city", "unit": "TUNE-CITY-1", "back": 35, "up": 8},
     {"name": "airfield", "unit": "TUNE-RAMP-1", "back": 28, "up": 5, "side": 10},
@@ -64,8 +67,11 @@ def parse_result(raw: dict) -> dict:
 
 
 def dcs_running() -> bool:
-    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq DCS.exe", "/NH"],
-                         capture_output=True, text=True, creationflags=NO_WINDOW).stdout
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq DCS.exe", "/NH"],
+                             capture_output=True, text=True, creationflags=NO_WINDOW).stdout
+    except FileNotFoundError:      # not Windows (the automated tests)
+        return False
     return "DCS.exe" in out
 
 
@@ -138,6 +144,40 @@ def gpu_idle_check(samples: int = 4) -> tuple[float, float]:
     return (sum(loads) / len(loads) if loads else 0.0), mem
 
 
+def remove_leftovers(profile_dir) -> list[str]:
+    """Delete everything a test puts into the DCS profile (the hook, the mission, the directive
+    and the result). Called at the end of every test and whenever the program starts, so an
+    interrupted test cannot leave the hook installed. Returns the names that were removed."""
+    d = Path(profile_dir)
+    gone = []
+    for p in (d / "Config" / "dcstune_directive.json", d / "Config" / "dcstune_result.json",
+              d / "Scripts" / "Hooks" / HOOK_NAME, d / "Missions" / "dcstune_bench.miz"):
+        try:
+            p.unlink()
+            gone.append(p.name)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass          # locked by a running DCS; the hook also removes itself when it has no directive
+    return gone
+
+
+def free_port() -> int:
+    """A random high port nothing is listening on, for the local session of one DCS start."""
+    import socket
+    rng = secrets.SystemRandom()
+    for _ in range(50):
+        port = rng.randrange(20000, 60000)
+        try:
+            for kind in (socket.SOCK_STREAM, socket.SOCK_DGRAM):
+                with socket.socket(socket.AF_INET, kind) as s:
+                    s.bind(("127.0.0.1", port))
+            return port
+        except OSError:
+            continue
+    raise BenchError("Could not find a free network port on this PC for the test.")
+
+
 class Bench:
     def __init__(self, profile: dict, exe: Path, scene_sec: int = 25, settle_sec: int = 20,
                  timeout: int = 600, log=print, vr: bool = False):
@@ -173,7 +213,12 @@ class Bench:
         self.session.begin()
         self.hook_dst.parent.mkdir(parents=True, exist_ok=True)
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(HOOK_SRC, self.hook_dst)
+        # Each installed copy of the hook gets its own key; it obeys only a directive that carries it.
+        self.key = secrets.token_hex(16)
+        hook = HOOK_SRC.read_text(encoding="utf-8")
+        if hook.count(KEY_MARK) != 1:
+            raise BenchError("The benchmark script inside this program is damaged.")
+        self.hook_dst.write_text(hook.replace(KEY_MARK, self.key), encoding="utf-8", newline="")
         shutil.copyfile(MISSION_SRC, self.mission_dst)
         return self
 
@@ -182,11 +227,7 @@ class Bench:
         return False
 
     def cleanup(self):
-        for p in (self.directive, self.result, self.hook_dst, self.mission_dst):
-            try:
-                p.unlink()
-            except FileNotFoundError:
-                pass
+        remove_leftovers(self.profile_dir)
         # A test makes three screenshots per DCS launch; leave only the ones asked for
         # (before / recommended) in the player's ScreenShots folder.
         # When this session produced a new before/recommended pair, older sessions' pairs go too.
@@ -271,20 +312,26 @@ class Bench:
         trial.update(changes or {})
         self.session.write_trial(trial)
         self.result.unlink(missing_ok=True)
-        self.directive.write_text(json.dumps(dict({
-            "mission": str(self.mission_dst), "scenes": SCENES,
-            "scene_sec": SHORT_SCENE_SEC if short else self.scene_sec,
-            "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
-            "total_timeout": timeout - 30}, **directive_extra)))
+
+        def directive() -> str:
+            # New for every DCS start: the key of the installed hook, a short validity, and the
+            # password and port of the local session DCS has to host to run the mission.
+            return json.dumps(dict({
+                "key": self.key, "not_after": int(time.time()) + DIRECTIVE_VALID_SEC,
+                "password": secrets.token_hex(16), "port": free_port(),
+                "mission": str(self.mission_dst), "scenes": SCENES,
+                "scene_sec": SHORT_SCENE_SEC if short else self.scene_sec,
+                "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
+                "total_timeout": timeout - 30}, **directive_extra))
+        self.directive.write_text(directive())
         args = [str(self.exe), "--no-launcher", "--force_enable_VR" if self.vr else "--force_disable_VR",
                 "-w", self.profile_name]
-        directive_text = self.directive.read_text()
         started = time.time()
         for attempt in (1, 2):
             if attempt == 2:
                 self.log("  DCS closed straight away; waiting a moment and starting it again...")
                 time.sleep(15)
-                self.directive.write_text(directive_text)
+                self.directive.write_text(directive())
             launched = time.time()
             with GpuSampler() as gpu:
                 proc = subprocess.Popen(args, cwd=str(self.exe.parent))

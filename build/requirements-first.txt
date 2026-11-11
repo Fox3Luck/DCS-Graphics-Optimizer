@@ -1,0 +1,5 @@
+# Installed first, so that the one package that is built from source (proxy_tools) is built
+# with this pinned setuptools instead of whatever is newest that day.
+
+setuptools==84.2.1 \
+    --hash=sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2

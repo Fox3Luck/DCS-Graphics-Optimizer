@@ -24,6 +24,9 @@ def _context(args):
     profile = sysinfo.pick_profile(info, args.profile)
     if recover(profile["options"]):
         print("Restored your original settings from an interrupted earlier run.")
+    from . import bench
+    if not bench.dcs_running():
+        bench.remove_leftovers(profile["path"])      # a hook left by an interrupted test
     opts = Options.load(profile["options"])
     return info, profile, opts, rate.flat_options(opts)
 

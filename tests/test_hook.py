@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 lupa = pytest.importorskip("lupa")
-from dcstune.bench import SCENES, parse_result
+from dcstune.bench import KEY_MARK, SCENES, parse_result
 
 HOOK = Path(__file__).resolve().parent.parent / "hook" / "dcstune_bench.lua"
 
@@ -21,7 +21,8 @@ os.clock = function() return wall end
 net = {
   json2lua = function(s) return W.json2lua(s) end,
   get_default_server_settings = function() return { advanced = {} } end,
-  start_server = function(cfg) W.started(cfg.isPublic, cfg.password, cfg.missionList[1]); return true end,
+  start_server = function(cfg) W.cfg(cfg.port, cfg.bind_address, cfg.maxPlayers, cfg.advanced.allow_object_export)
+    W.started(cfg.isPublic, cfg.password, cfg.missionList[1]); return true end,
   stop_network = function() W.netstop() end,
   dostring_in = function(state, code)
     local name = code:match('UnitName == "([^"]+)"')
@@ -61,6 +62,7 @@ class World:
         self.no_editor = False
 
     def logs(self, m): self.log.append(str(m))
+    def cfg(self, *a): self.server_cfg = a
     def started(self, public, pw, miz):
         self.server = (public, pw, miz); self.starts += 1; self.pending_start = True
     def stopreq(self): self.stop_requested = True
@@ -73,7 +75,10 @@ class World:
     def exited(self): self.exit = True
 
 
-def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400):
+KEY = "0123456789abcdef0123456789abcdef"
+
+
+def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY):
     (tmp_path / "Config").mkdir()
     # the hook builds Windows paths; map them onto the temp dir
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
@@ -83,12 +88,14 @@ def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=40
     real = {w.dir + "Config\\dcstune_directive.json": tmp_path / "Config" / "dcstune_directive.json",
             w.dir + "Config\\dcstune_result.json": tmp_path / "Config" / "dcstune_result.json"}
     if directive is not None:
+        directive = dict(directive, mission=str(directive.get("mission")).replace("<profile>", w.dir))
         real[w.dir + "Config\\dcstune_directive.json"].write_text(json.dumps(directive))
     lua.globals().py_open = lambda p, mode: _open(lua, real, p, mode)
-    lua.globals().py_remove = lambda p: real[p].unlink()
+    w.removed = []
+    lua.globals().py_remove = lambda p: (w.removed.append(p), real[p].unlink() if p in real else None)
     lua.execute("io.open = function(p, m) return py_open(p, m) end; os.remove = function(p) py_remove(p) end")
     load, tick = lua.execute(HARNESS, w)
-    cb = load(HOOK.read_text())
+    cb = load(HOOK.read_text().replace(KEY_MARK, hook_key) if hook_key else HOOK.read_text())
     if cb is None:
         return w, None, real
     dt, t = 1.0 / fps, 0.0
@@ -129,20 +136,56 @@ def _open(lua, real, path, mode):
                            "close": lambda self: p.write_text("".join(buf))})
 
 
-DIRECTIVE = {"mission": "C:\\x\\dcstune_bench.miz", "scenes": SCENES, "tag": "t1",
+class _Directive(dict):
+    """The mission path depends on the temp dir of each test, so it is filled in on use."""
+
+
+DIRECTIVE = {"key": KEY, "not_after": 10 ** 9, "password": "ab" * 16, "port": 43210,
+             "mission": "<profile>Missions\\dcstune_bench.miz", "scenes": SCENES, "tag": "t1",
              "scene_sec": 5, "settle_sec": 3, "scene_lead_sec": 1}
 
 
 def test_inert_without_directive(tmp_path, monkeypatch):
     w, result, _ = _run(tmp_path, monkeypatch, None)
     assert result is None and w.server is None and "inert" in w.log[-1]
+    assert w.removed == [w.dir + "Scripts\\Hooks\\dcstune_bench.lua"]       # a leftover copy removes itself
+
+
+@pytest.mark.parametrize("change, why", [
+    ({"key": "f" * 32}, "wrong key"),
+    ({"key": None}, "wrong key"),
+    ({"not_after": -1}, "out of date"),
+    ({"mission": "C:\\evil\\other.miz"}, "not the bundled mission"),
+    ({"password": "short"}, "no strong password"),
+    ({"port": 10308}, "no port"),
+    ({"port": None}, "no port"),
+])
+def test_directive_refused(tmp_path, monkeypatch, change, why):
+    d = {k: v for k, v in dict(DIRECTIVE, **change).items() if v is not None}
+    w, result, _ = _run(tmp_path, monkeypatch, d)
+    assert result is None and w.server is None and not w.exit
+    assert any("directive ignored: " + why in m for m in w.log)
+    assert not (tmp_path / "Config" / "dcstune_directive.json").exists()
+    assert w.dir + "Scripts\\Hooks\\dcstune_bench.lua" in w.removed
+
+
+def test_copy_without_key_is_inert(tmp_path, monkeypatch):
+    w, result, _ = _run(tmp_path, monkeypatch, DIRECTIVE, hook_key=None)
+    assert result is None and w.server is None
+    assert any("this copy has no key" in m for m in w.log)
+
+
+def test_names_from_directive_cannot_break_result(tmp_path, monkeypatch):
+    w, raw, _ = _run(tmp_path, monkeypatch, dict(DIRECTIVE, tag='t1","ok":false,"x":"'))
+    assert raw["ok"] is True and raw["tag"] == "t1okfalsex"
 
 
 def test_full_run(tmp_path, monkeypatch):
     w, raw, real = _run(tmp_path, monkeypatch, DIRECTIVE)
     assert not (tmp_path / "Config" / "dcstune_directive.json").exists()      # consumed on read
     public, password, miz = w.server
-    assert public is False and len(password) == 10 and miz == DIRECTIVE["mission"]
+    assert public is False and password == DIRECTIVE["password"] and miz == w.dir + "Missions\\dcstune_bench.miz"
+    assert w.server_cfg == (43210, "127.0.0.1", 1, False)
     assert w.exit and raw["ok"] is True and raw["clock"] == "DCS.getRealTime"
     assert [s["name"] for s in raw["scenes"]] == ["city", "airfield", "clouds"]
     parsed = parse_result(raw)

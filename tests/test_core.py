@@ -1,5 +1,6 @@
 import json
 import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -528,3 +529,50 @@ def test_scorecard_shows_measured_numbers_for_settings_that_were_tested(tmp_path
     # a later test keeps earlier results
     rate.save_calibration(profile, INFO, cur, learned, [(other, {"p1_low_fps": 140, "avg_fps": 190})])
     assert len(rate.load_calibration(profile, INFO, cur)["results"]) == 3
+
+
+# -- the hook cannot be left behind or driven by a stray file --------------------------
+def _bench(tmp_path, monkeypatch):
+    from dcstune import bench
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (0.0, 0.0))
+    cfg = tmp_path / "Config"; cfg.mkdir()
+    shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
+    return bench, bench.Bench({"path": str(tmp_path), "name": "DCS", "options": str(cfg / "options.lua")},
+                              tmp_path / "DCS.exe")
+
+
+def test_each_installed_hook_has_its_own_key_and_directive_carries_it(tmp_path, monkeypatch):
+    bench, b = _bench(tmp_path, monkeypatch)
+    hook = tmp_path / "Scripts" / "Hooks" / "dcstune_bench.lua"
+    seen = []
+
+    class Proc:
+        def __init__(self, args, cwd): seen.append(json.loads(b.directive.read_text()))
+        def wait(self, timeout=None): b.result.write_text('{"ok":true}')
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+    monkeypatch.setattr(bench.time, "sleep", lambda s: None)
+    with b:
+        text = hook.read_text()
+        assert bench.KEY_MARK not in text and f'"{b.key}"' in text and len(b.key) == 32
+        b._launch(None, {"tag": "x"}, True, 100)
+        b._launch(None, {"tag": "y"}, True, 100)
+    d1, d2 = seen
+    assert d1["key"] == d2["key"] == b.key
+    assert len(d1["password"]) == 32 and d1["password"] != d2["password"]       # new for every DCS start
+    assert 20000 <= d1["port"] < 60000 and d1["mission"] == str(b.mission_dst)
+    assert 0 < d1["not_after"] - time.time() <= bench.DIRECTIVE_VALID_SEC
+    assert not hook.exists()
+    first = b.key
+    with b:
+        assert b.key != first
+
+
+def test_leftovers_of_an_interrupted_test_are_removed_at_start(tmp_path, monkeypatch):
+    bench, b = _bench(tmp_path, monkeypatch)
+    b.__enter__()                                   # ...and the program is killed here
+    b.directive.write_text("{}")
+    assert b.hook_dst.exists() and b.mission_dst.exists()
+    assert sorted(bench.remove_leftovers(tmp_path)) == ["dcstune_bench.lua", "dcstune_bench.miz", "dcstune_directive.json"]
+    assert not b.hook_dst.exists() and not b.mission_dst.exists() and not b.directive.exists()
+    assert bench.remove_leftovers(tmp_path) == []

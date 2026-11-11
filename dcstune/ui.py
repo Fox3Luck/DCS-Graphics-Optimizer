@@ -22,11 +22,13 @@ class Engine:
     """Everything the window can do. Tests replace this with a fake."""
 
     def __init__(self, profile_name: str | None = None):
-        from . import sysinfo
+        from . import bench, sysinfo
         from .optionslua import recover
         self.info = sysinfo.collect()
         self.profile = sysinfo.pick_profile(self.info, profile_name)
         self.recovered = recover(self.profile["options"])
+        if not bench.dcs_running():
+            bench.remove_leftovers(self.profile["path"])     # a hook left by an interrupted test
 
     def _flat(self):
         from . import rate

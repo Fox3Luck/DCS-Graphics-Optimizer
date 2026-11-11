@@ -1,7 +1,12 @@
 -- dcstune_bench.lua -- DCS Graphics Optimizer benchmark driver (Saved Games\<profile>\Scripts\Hooks)
 --
--- Inert unless Config\dcstune_directive.json exists. The directive is deleted the
--- moment it is read, so a crash or a manual DCS launch can never replay a benchmark.
+-- Inert unless Config\dcstune_directive.json exists AND carries this copy's key. The
+-- optimizer writes a fresh random key into each copy of this file it installs, so a
+-- directive written by anything that has not read this copy is ignored, as is one that is
+-- out of date or names any mission other than the bundled one. The directive is deleted
+-- the moment it is read, so a crash or a manual DCS launch can never replay a benchmark.
+-- When DCS starts and there is no valid directive, this file deletes itself: a copy left
+-- behind by an interrupted test is gone after the next DCS start.
 -- A directive may carry several "trials" (each a set of graphics options): they are
 -- applied through DCS's own options module and measured one after another in the SAME
 -- DCS process, restarting only the mission. Options DCS itself says need a full restart
@@ -16,6 +21,22 @@ local function L(msg) log.write("DCSTUNE", log.INFO, tostring(msg)) end
 local DIRECTIVE = lfs.writedir() .. "Config\\dcstune_directive.json"
 local RESULT    = lfs.writedir() .. "Config\\dcstune_result.json"
 
+local SELF      = lfs.writedir() .. "Scripts\\Hooks\\dcstune_bench.lua"
+local MISSION   = lfs.writedir() .. "Missions\\dcstune_bench.miz"
+local KEY       = "@DCSTUNE_KEY@"     -- replaced with a random key when the optimizer installs this file
+
+-- Why a directive must not be obeyed, or nil when it is acceptable.
+local function refuse(tbl)
+  if #KEY < 32 or KEY:find("@", 1, true) then return "this copy has no key" end
+  if type(tbl.key) ~= "string" or tbl.key ~= KEY then return "wrong key" end
+  if type(tbl.not_after) ~= "number" or os.time() > tbl.not_after then return "out of date" end
+  if type(tbl.mission) ~= "string" or tbl.mission:lower() ~= MISSION:lower() then return "not the bundled mission" end
+  if type(tbl.password) ~= "string" or #tbl.password < 32 or tbl.password:find("[^%w]") then return "no strong password" end
+  local port = tonumber(tbl.port)
+  if not port or port < 1024 or port > 65535 or port == 10308 then return "no port" end
+  return nil
+end
+
 local D
 do
   local f = io.open(DIRECTIVE, "r")
@@ -23,11 +44,25 @@ do
     local raw = f:read("*a"); f:close()
     os.remove(DIRECTIVE)
     local ok, tbl = pcall(net.json2lua, raw)
-    if ok and type(tbl) == "table" and type(tbl.scenes) == "table" then D = tbl
+    if ok and type(tbl) == "table" and type(tbl.scenes) == "table" then
+      local why = refuse(tbl)
+      if why then L("directive ignored: " .. why) else D = tbl end
     else L("directive parse failed") end
   end
 end
-if not D then L("no directive -- hook inert"); return end
+if not D then
+  pcall(function() os.remove(SELF) end)
+  L("no directive -- hook inert and removed")
+  return
+end
+
+-- Text from the directive ends up in file names and in the result file: keep it plain.
+local function plain(s) return (tostring(s):gsub("[^%w_%-]", "")) end
+D.tag = plain(D.tag or "run")
+for _, sc in ipairs(D.scenes) do if type(sc) == "table" and sc.name then sc.name = plain(sc.name) end end
+if type(D.trials) == "table" then
+  for i, t in ipairs(D.trials) do if type(t) == "table" then t.tag = plain(t.tag or i) end end
+end
 L("directive loaded: mission=" .. tostring(D.mission) .. " scenes=" .. #D.scenes)
 
 local cfg = {
@@ -69,7 +104,7 @@ local function writeResult(ok, reason)
   local tparts = {}
   for _, t in ipairs(state.done) do
     tparts[#tparts + 1] = string.format('{"tag":"%s","applied":"%s","scenes":[%s]}',
-      t.tag, t.applied, scenesJson(t.scenes))
+      plain(t.tag), (tostring(t.applied):gsub('[%c"\\]', "")), scenesJson(t.scenes))
   end
   local f = io.open(RESULT, "w")
   if f then
@@ -156,15 +191,15 @@ local function tryHost()
     scfg["advanced"]["pause_on_load"] = false
     scfg["advanced"]["external_views"] = true
     scfg["advanced"]["allow_external_views"] = true
-    scfg["advanced"]["allow_object_export"] = true
+    scfg["advanced"]["allow_object_export"] = false
   end
   scfg["missionList"]    = { D.mission }
   scfg["listStartIndex"] = 1
-  scfg["port"]           = tonumber(D.port) or 10319
+  scfg["port"]           = tonumber(D.port)     -- a random port chosen for this run, never the usual 10308
+  scfg["bind_address"]   = "127.0.0.1"          -- this PC only
   scfg["name"]           = "DCSTUNE-LOCAL-BENCH"
   scfg["isPublic"]       = false   -- never advertised; exists only because hooks cannot start single-player
-  pcall(function() math.randomseed(os.time() + math.floor((os.clock() or 0) * 1000)) end)
-  scfg["password"]       = string.format("dt%08x", math.random(0, 0x7fffffff))
+  scfg["password"]       = D.password           -- 128 random bits from the optimizer, new for every start
   scfg["maxPlayers"]     = 1
   scfg["require_pure_clients"] = false
   local ok, ret = pcall(function() return net.start_server(scfg) end)
