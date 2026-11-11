@@ -44,7 +44,8 @@ def test_feature_is_absent_without_an_address(tmp_path, monkeypatch):
     assert not F.available()
     eng = _engine(tmp_path, monkeypatch)
     assert eng.sharing() == {"available": False, "choice": None}
-    for elsewhere in ("http://example.com/x", "https://example.com/x"):      # the override reaches this PC only
+    for elsewhere in ("http://example.com/x", "https://example.com/x", "http://127.0.0.1:80@example.com/x",
+                      "http://127.0.0.1.example.com:80/x", "http://127.0.0.1/x"):      # the override reaches this PC only
         monkeypatch.setenv("DCSTUNE_FEEDBACK_URL", elsewhere)
         assert not F.available()
     monkeypatch.setitem(F._TABLE, "url", "http://fox3.example/x")              # a release address must be https
@@ -120,9 +121,10 @@ def test_window_asks_before_the_first_test(tmp_path, monkeypatch, service):
         assert must in page
 
 
-def _post(url, body: bytes):
+def _post(url, body: bytes, ctype="application/json; charset=utf-8"):
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, data=body, method="POST"), timeout=5) as r:
+        req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": ctype})
+        with urllib.request.urlopen(req, timeout=5) as r:
             return r.status
     except urllib.error.HTTPError as e:
         return e.code
@@ -139,6 +141,8 @@ def test_service_refuses_everything_else(tmp_path, monkeypatch, service):
     for b in bad:
         assert _post(url, json.dumps(b).encode()) == 400, b
     assert _post(url, b"not json") == 400
+    assert _post(url, json.dumps(good).encode(), ctype="text/plain") == 415          # what a web page could send
+    assert _post(url, json.dumps(dict(good, tool_version="1\n2")).encode()) == 400
     assert _post(url, b"x" * (S.MAX_BYTES + 1)) == 413
     assert _post(url.replace("/v1/feedback", "/other"), b"{}") == 404
     assert len(service()) == 1 and "127.0.0.1" not in json.dumps(service())

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -25,8 +26,13 @@ def url() -> str:
     """The address built into this release (https only). For development and the automated
     tests, DCSTUNE_FEEDBACK_URL may point at a receiver on this PC - and nowhere else."""
     dev = (os.environ.get("DCSTUNE_FEEDBACK_URL") or "").strip()
-    if dev.startswith("http://127.0.0.1:"):
-        return dev
+    if dev:
+        try:
+            u = urllib.parse.urlsplit(dev)
+            if u.scheme == "http" and u.hostname == "127.0.0.1" and u.port and not u.username and "@" not in u.netloc:
+                return dev
+        except ValueError:
+            pass
     u = (_TABLE.get("url") or "").strip()
     return u if u.startswith("https://") else ""
 
