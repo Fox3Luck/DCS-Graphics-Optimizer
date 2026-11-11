@@ -360,7 +360,9 @@ start them: may the tool send the result of each test to Fox3, the makers of thi
   driver, memory, monitor resolution, DCS version, VR headset and software, your graphics and VR
   settings, the measured frame rates) and whether you applied or undid the recommendation. Each
   test gets a random number; there is no number for you or your PC.
-- **Not sent:** your name, Windows or DCS account, pilot name, folder names, screenshots, controls.
+- **Not sent:** your name, Windows or DCS account, pilot name, folder names, serial numbers,
+  screenshots, controls. Results are stored without your internet address. (As with any website,
+  the request itself travels through our web host's network, which sees the address in transit.)
 - **What it is for:** real results from many PCs and headsets make the tool's estimates and
   recommendations better.
 - You can add a comment to a result (better, same or worse, and free text) if you want to tell

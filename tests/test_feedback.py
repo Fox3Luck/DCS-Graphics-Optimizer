@@ -44,8 +44,13 @@ def test_feature_is_absent_without_an_address(tmp_path, monkeypatch):
     assert not F.available()
     eng = _engine(tmp_path, monkeypatch)
     assert eng.sharing() == {"available": False, "choice": None}
-    monkeypatch.setenv("DCSTUNE_FEEDBACK_URL", "http://example.com/x")       # only https (or this PC, for tests)
+    for elsewhere in ("http://example.com/x", "https://example.com/x"):      # the override reaches this PC only
+        monkeypatch.setenv("DCSTUNE_FEEDBACK_URL", elsewhere)
+        assert not F.available()
+    monkeypatch.setitem(F._TABLE, "url", "http://fox3.example/x")              # a release address must be https
     assert not F.available()
+    monkeypatch.setitem(F._TABLE, "url", "https://fox3.example/x")
+    assert F.url() == "https://fox3.example/x"
 
 
 def test_nothing_is_sent_until_the_player_says_yes(tmp_path, monkeypatch, service):
@@ -139,8 +144,88 @@ def test_service_refuses_everything_else(tmp_path, monkeypatch, service):
     assert len(service()) == 1 and "127.0.0.1" not in json.dumps(service())
 
 
-def test_service_limits_submissions_per_address(tmp_path):
+def test_service_limits_submissions_per_address(tmp_path, monkeypatch):
     store = S.Store(tmp_path)
     assert all(store.allowed("a", now=1000.0 + i) for i in range(S.PER_HOUR))
     assert not store.allowed("a", now=1100.0) and store.allowed("b", now=1100.0)
     assert store.allowed("a", now=1000.0 + 3601)
+    # a flood of other addresses must not reset a blocked sender's count
+    store = S.Store(tmp_path)
+    monkeypatch.setattr(S, "MAX_ADDRESSES", 50)
+    assert all(store.allowed("bad", now=5000.0) for _ in range(S.PER_HOUR)) and not store.allowed("bad", now=5001.0)
+    for i in range(49):
+        store.allowed(f"other{i}", now=5002.0)
+    assert not store.allowed("bad", now=5003.0) and len(store.seen) <= 50
+
+
+def test_sender_address_comes_only_from_the_proxy_header():
+    assert S.sender({"X-Real-IP": " 203.0.113.9 ", "X-Forwarded-For": "1.1.1.1"}, "127.0.0.1", True) == "203.0.113.9"
+    assert S.sender({"X-Real-IP": "2001:DB8::1"}, "127.0.0.1", True) == "2001:db8::1"
+    for forged in ("1.2.3.4, 5.6.7.8", "x", "", None):
+        assert S.sender({"X-Real-IP": forged}, "127.0.0.1", True) == "unknown"
+    assert S.sender({"X-Real-IP": "9.9.9.9"}, "127.0.0.1", False) == "127.0.0.1"
+
+
+def test_service_has_overall_limits(tmp_path, monkeypatch):
+    good = F.payload("applied", "0123456789abcdef")
+    store = S.Store(tmp_path / "a")
+    monkeypatch.setattr(S, "GLOBAL_PER_HOUR", 3)
+    for i in range(3):
+        store.add(good, now=100.0 + i)
+    with pytest.raises(S.Full):
+        store.add(good, now=200.0)
+    store.add(good, now=100.0 + 3600)                       # an hour later there is room again
+    monkeypatch.setattr(S, "GLOBAL_PER_HOUR", 10 ** 6)
+    store = S.Store(tmp_path / "b")
+    store.add(good)
+    monkeypatch.setattr(S, "MAX_FILE_BYTES", 300)
+    with pytest.raises(S.Full, match="monthly"):
+        [store.add(good) for _ in range(5)]
+    monkeypatch.setattr(S, "MAX_FILE_BYTES", 10 ** 9)
+    monkeypatch.setattr(S, "MAX_DIR_BYTES", 300)
+    with pytest.raises(S.Full, match="folder"):
+        [store.add(good) for _ in range(5)]
+    f = next((tmp_path / "b").glob("*.jsonl"))
+    assert f.stat().st_mode & 0o077 == 0                    # readable by the service account only
+
+
+def test_service_refuses_odd_shapes_inside_the_audit(tmp_path, monkeypatch, service):
+    import os
+    url = os.environ["DCSTUNE_FEEDBACK_URL"]
+    base = {"schema": "dcsgo-audit/1"}
+    deep = cur = {}
+    for _ in range(10):
+        cur["x"] = {}; cur = cur["x"]
+    bad = [dict(base, hardware={"cpu": "x" * 301}), dict(base, hardware={"cpu": "a\x1b[31m"}), dict(base, test=deep),
+           dict(base, graphics={"k" * 61: 1}), dict(base, graphics={"a": 10 ** 20}), dict(base, graphics=list(range(4000)))]
+    for a in bad:
+        assert _post(url, json.dumps(F.payload("result", "0123456789abcdef", a)).encode()) == 400, str(a)[:60]
+    assert _post(url, ("[" * 30000).encode()) == 400                       # pathological nesting
+    assert _post(url, json.dumps(dict(F.payload("feedback", "0123456789abcdef"), comment="a\x07b")).encode()) == 400
+    assert _post(url, json.dumps(F.payload("feedback", "0123456789abcdef", comment="two\nlines")).encode()) == 204
+    assert len(service()) == 1
+
+
+def test_service_tells_the_tool_when_it_is_full(tmp_path, monkeypatch, service):
+    import os
+    monkeypatch.setattr(S, "GLOBAL_PER_HOUR", 0)
+    assert _post(os.environ["DCSTUNE_FEEDBACK_URL"], json.dumps(F.payload("applied", "0123456789abcdef")).encode()) == 503
+
+
+def test_tool_does_not_follow_redirects(tmp_path, monkeypatch, service):
+    import http.server
+    hits = []
+
+    class Redirect(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def do_POST(self):
+            hits.append(self.path)
+            self.send_response(307); self.send_header("Location", os.environ["REAL"]); self.end_headers()
+    import os
+    monkeypatch.setenv("REAL", os.environ["DCSTUNE_FEEDBACK_URL"])
+    srv = http.server.HTTPServer(("127.0.0.1", 0), Redirect)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    monkeypatch.setenv("DCSTUNE_FEEDBACK_URL", f"http://127.0.0.1:{srv.server_address[1]}/v1/feedback")
+    assert F.send(F.payload("applied", "0123456789abcdef")) is False
+    srv.shutdown()
+    assert hits == ["/v1/feedback"] and service() == []

@@ -22,8 +22,13 @@ _TABLE = json.loads((Path(__file__).parent / "data" / "feedback.json").read_text
 
 
 def url() -> str:
-    u = (os.environ.get("DCSTUNE_FEEDBACK_URL") or _TABLE.get("url") or "").strip()
-    return u if u.startswith("https://") or u.startswith("http://127.0.0.1:") else ""
+    """The address built into this release (https only). For development and the automated
+    tests, DCSTUNE_FEEDBACK_URL may point at a receiver on this PC - and nowhere else."""
+    dev = (os.environ.get("DCSTUNE_FEEDBACK_URL") or "").strip()
+    if dev.startswith("http://127.0.0.1:"):
+        return dev
+    u = (_TABLE.get("url") or "").strip()
+    return u if u.startswith("https://") else ""
 
 
 def available() -> bool:
@@ -65,12 +70,17 @@ def payload(event: str, report_id: str, audit: dict | None = None, feel: str | N
     return p
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):      # the result goes to the built-in address or nowhere
+        return None
+
+
 def send(p: dict) -> bool:
     """One attempt, short timeout, never raises: sharing must not get in the player's way."""
     try:
         req = urllib.request.Request(url(), data=json.dumps(p, default=str).encode("utf-8"), method="POST",
                                      headers={"Content-Type": "application/json", "User-Agent": "DCSGraphicsOptimizer"})
-        with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as r:
+        with urllib.request.build_opener(_NoRedirect).open(req, timeout=TIMEOUT_SEC) as r:
             return 200 <= r.status < 300
     except Exception:
         return False
