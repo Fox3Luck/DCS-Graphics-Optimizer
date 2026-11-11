@@ -4,7 +4,7 @@ from pathlib import Path
 from dcstune import model as M
 from dcstune import optimize, rate, vr as V
 from dcstune.optionslua import Options
-from dcstune.sysinfo import normalise
+from dcstune.sysinfo import normalize
 
 from test_core import FIX, INFO, FakePC, _current
 
@@ -29,7 +29,7 @@ def test_detects_pimax_headset_and_render_quality():
         "runtime": "SteamVR", "headset": None, "render_quality": None, "layers": 0, "quad_layer": True}
     assert V.detect(None)["runtime"] is None and V.detect({"pimax_profile": "not json"})["headset"] is None
     # a single API layer arrives from PowerShell as a string, not a list
-    assert normalise({"vr": {"layers": "one.json"}})["vr"]["layers"] == ["one.json"]
+    assert normalize({"vr": {"layers": "one.json"}})["vr"]["layers"] == ["one.json"]
 
 
 def test_state_is_none_on_a_monitor_and_describes_the_headset_in_vr():

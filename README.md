@@ -122,9 +122,9 @@ Status 2026-11-10: scorecard, quick and thorough tests (including the no-restart
 measuring session), apply and undo all verified in real DCS 2.9.31 on one PC
 (RTX 4080 / 9800X3D). Not yet verified: AMD/Intel GPUs, a second PC, the packaged exe's
 full click-through. The exe is signed with Azure Artifact Signing (publisher Fox3 Managed
-Solutions Inc.); whether SmartScreen still warns on a fresh PC is not yet checked. VR: the scorecard recognises the
+Solutions Inc.); whether SmartScreen still warns on a fresh PC is not yet checked. VR: the scorecard recognizes the
 headset and rates VR settings (an estimate); testing inside the headset is written but not yet
 proven on a real headset, and stays switched off (`DCSTUNE_VR_BENCH=1` enables it for development).
 
-## Licence
+## License
 MIT — see [LICENSE](LICENSE).

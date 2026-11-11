@@ -246,7 +246,7 @@ class Bench:
         return self.measure(changes, short=True)
 
     def measure(self, changes: dict | None, short: bool = False) -> dict:
-        from .optimize import summarise
+        from .optimize import summarize
         self.runs += 1
         tag = f"{self.session_id}r{self.runs:02d}"
         raw, gpu, seconds = self._launch(changes, {"tag": tag}, short, self.timeout)
@@ -256,7 +256,7 @@ class Bench:
         result["gpu_util_avg"] = round(sum(gpu.util) / len(gpu.util)) if gpu.util else None
         result["seconds"] = seconds
         result["changes"] = changes
-        s = summarise(result)
+        s = summarize(result)
         self.log(f"  {tag}: avg {s['avg_fps']:.0f} FPS, 1% low {s['p1_low_fps']:.0f} FPS, "
                  f"VRAM {result['vram_peak_mb']} MB, {seconds}s")
         s["raw"] = result

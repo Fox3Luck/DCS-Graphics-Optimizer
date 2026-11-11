@@ -17,7 +17,7 @@ FIXED = TABLE["fixed"]
 
 # Rough conversion from "pixels the headset asks for" to "pixels a monitor would cost",
 # anchored on Pimax's published DCS figures (RTX 3080 and RTX 4090 on a Crystal Light).
-# It only feeds the no-test estimate, which is labelled as rough; a real test replaces it.
+# It only feeds the no-test estimate, which is labeled as rough; a real test replaces it.
 PIXEL_FACTOR = 0.4
 CPU_FACTOR = 1.2        # two views to prepare instead of one
 QUAD_FACTOR = 0.65      # quad views: Pimax measured GPU load 92% -> 61% on an RTX 4090
@@ -92,7 +92,7 @@ def goal_steps(refresh: list[int], target: int) -> list[int]:
 
 
 def describe(st: dict) -> str:
-    name = st["headset"] or "Headset not recognised"
+    name = st["headset"] or "Headset not recognized"
     return name + (f" ({st['eye_w']} x {st['eye_h']} per eye)" if st["known"] else "")
 
 

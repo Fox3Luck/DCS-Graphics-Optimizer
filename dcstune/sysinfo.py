@@ -82,10 +82,10 @@ def collect() -> dict:
     out = proc.stdout
     if "{" not in out:
         raise RuntimeError("could not read hardware information: " + (proc.stderr.strip()[:300] or "no output"))
-    return normalise(json.loads(out[out.index("{"):]))
+    return normalize(json.loads(out[out.index("{"):]))
 
 
-def normalise(raw: dict) -> dict:
+def normalize(raw: dict) -> dict:
     info = dict(raw)
     for k in ("gpus", "installs", "profiles"):
         info[k] = _as_list(raw.get(k))

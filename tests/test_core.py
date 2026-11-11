@@ -232,7 +232,7 @@ def test_describe_changes():
     assert lst[0] == {"key": "graphics.shadows", "label": "Shadows", "from": "Medium", "to": "High", "direction": "up"}
 
 
-# -- benchmark maths -------------------------------------------------------------
+# -- benchmark math -------------------------------------------------------------
 def test_frame_stats():
     ms = [10.0] * 990 + [50.0] * 10
     s = frame_stats(ms)
@@ -246,7 +246,7 @@ def test_parse_result_failure_is_reported():
     with pytest.raises(BenchError, match="unit not found"):
         parse_result({"ok": False, "reason": "unit not found: X", "scenes": []})
     r = parse_result({"ok": True, "scenes": [{"name": "city", "shot": "", "frame_ms": ["8.1"] * 100}]})
-    assert r["scenes"][0]["name"] == "city" and optimize.summarise(r)["p1_low_fps"] == pytest.approx(123.46, abs=0.01)
+    assert r["scenes"][0]["name"] == "city" and optimize.summarize(r)["p1_low_fps"] == pytest.approx(123.46, abs=0.01)
 
 
 # -- fixes after the first real session -------------------------------------------

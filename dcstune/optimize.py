@@ -85,7 +85,7 @@ def pick_target(mdl: M.Model, display_target: int, vram_total_mb: float, low_rat
     return steps[-1]
 
 
-def summarise(result: dict) -> dict:
+def summarize(result: dict) -> dict:
     """Collapse a benchmark result into the numbers the optimizer steers by:
     the worst scene's 1% low, and the mean of scene averages."""
     scenes = result["scenes"]
@@ -98,7 +98,7 @@ def summarise(result: dict) -> dict:
 def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_mb: float,
         measure, full: bool = False, log=print, measure_fast=None, measure_batch=None,
         steps: list[int] | None = None, extra: dict | None = None) -> dict:
-    """current: the player's flat options. measure(changes|None) -> summarise()d result
+    """current: the player's flat options. measure(changes|None) -> summarize()d result
     (None = benchmark the player's settings untouched).
     steps: goals to fall back through (VR). extra: changes that are part of every
     candidate whatever the search picks (VR: pixel density 1.0, effects that break in a headset)."""

@@ -157,7 +157,7 @@ class Model:
 
 def _interp(measured: dict[int, float], i: int, setting: dict) -> float:
     """Measured ms for level i; unmeasured levels are placed between measured
-    neighbours in proportion to the prior cost curve."""
+    neighbors in proportion to the prior cost curve."""
     if i in measured:
         return measured[i]
     lo = max((k for k in measured if k < i), default=None)

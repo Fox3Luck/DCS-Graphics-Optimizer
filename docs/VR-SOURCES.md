@@ -98,7 +98,7 @@ Headset facts (pimax.com comparison pages):
 - Launch switches `--force_enable_VR --force_OpenXR` are widely quoted; users disagree
   whether they are still needed (the multithreaded build always uses OpenXR; the VR checkbox
   replaces the first). **Not documented by ED; to verify on the headset.**
-- MSAA mask size: sources contradict each other (limits MSAA to the centre of the view /
+- MSAA mask size: sources contradict each other (limits MSAA to the center of the view /
   only affects the desktop mirror / "does not seem to work"). **Treat as unknown; measure.**
 - RTX 4080 starting points quoted: render quality 0.65–0.85, pixel density 1.0, 90 Hz.
 - Community practice often prefers mbucchia's layer over Pimax's built-in quad views, with

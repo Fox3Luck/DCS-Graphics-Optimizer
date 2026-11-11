@@ -28,7 +28,7 @@ MAX_RESULTS = 24
 
 def config_key(options: dict) -> str:
     """Identifies one combination of the settings that decide frame rate, so a later
-    scorecard can recognise settings that were actually measured."""
+    scorecard can recognize settings that were actually measured."""
     import hashlib
     def norm(v):
         return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v

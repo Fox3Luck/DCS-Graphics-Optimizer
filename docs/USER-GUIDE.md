@@ -57,7 +57,7 @@ DCS. This grade comes from a built-in table of hardware.
 - whether video memory is close to full (a common cause of stutter),
 - specific mismatches, for example low textures on a card with plenty of video memory.
 
-Before you have run a test this grade is an **estimate**. After a test it is labelled
+Before you have run a test this grade is an **estimate**. After a test it is labeled
 **measured**, and later visits use what the test learned about your PC
 ("estimated from your last test").
 
@@ -277,7 +277,7 @@ distance, civilian traffic, heat blur, and the anti-aliasing / upscaling mode
 (DLAA, DLSS, MSAA, TAA, FSR).
 
 It never changes: resolution, monitor setup, full-screen mode, vertical sync, your
-frame-rate cap, field of view, gamma, colour grading, lens effects, motion blur,
+frame-rate cap, field of view, gamma, color grading, lens effects, motion blur,
 VR settings, controls, sound, gameplay or module options.
 
 ## Safety
@@ -343,11 +343,11 @@ Details of each run are written to `Saved Games\DCS\Logs\dcs.log` on lines conta
   the monitor's, and lists VR-specific advice (pixel density, quad views, effects that
   do not work well in a headset). That frame rate is a rough estimate, and it says so.
   The tests still run on the monitor and no VR setting is changed; testing inside the
-  headset is in development. Pimax Crystal headsets are recognised by name so far;
+  headset is in development. Pimax Crystal headsets are recognized by name so far;
   other headsets are rated as a typical headset.
 - Tested so far on one PC with an NVIDIA card. AMD and Intel graphics cards are
   supported in the code but not yet tested.
-- The image-quality scores behind the recommendation are a judgement of what each
+- The image-quality scores behind the recommendation are a judgment of what each
   setting adds visually. If you care more about one thing (for example long
   visibility for spotting), adjust that setting yourself after applying.
 

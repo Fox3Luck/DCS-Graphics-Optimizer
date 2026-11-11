@@ -1,6 +1,6 @@
 """Run the real hook file inside a Lua VM with DCS's functions mocked, to prove the
 state machine: consume directive -> host -> wait for world -> settle -> scenes ->
-result JSON -> exit. (Real-game behaviour is verified separately on the test box.)"""
+result JSON -> exit. (Real-game behavior is verified separately on the test box.)"""
 import json
 from pathlib import Path
 

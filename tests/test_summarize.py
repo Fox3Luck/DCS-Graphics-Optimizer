@@ -42,7 +42,7 @@ def _rows():
 
 
 def test_summary_numbers():
-    s = Z.summarise(_rows())
+    s = Z.summarize(_rows())
     assert s["tests"] == 5 and s["deploy_checks"] == 1 and s["follow_ups_without_result"] == 1
     o = s["outcomes"]
     assert o["with_recommendation"] == 3 and o["applied"] == 2 and o["undone"] == 1 and o["undone_pct"] == 50
@@ -53,7 +53,7 @@ def test_summary_numbers():
     assert gpus["Matrox Future 9000"]["low_fps"] == 60
     v = s["vr"]
     assert v["pcs_with_vr_software"] == 2 and v["headsets"] == {"Pimax Crystal Light": 1}
-    assert v["not_recognised"] == [{"runtime_file": "VarjoOpenXR", "runtime": v["not_recognised"][0]["runtime"],
+    assert v["not_recognized"] == [{"runtime_file": "VarjoOpenXR", "runtime": v["not_recognized"][0]["runtime"],
                                     "pimax_models": "-", "layers": "XR_APILAYER_MBUCCHIA_quad_views_foveated", "tests": 1}]
     cost = s["costs"][0]
     assert cost["key"] == "shadows" and cost["tests"] == 2 and cost["median_pct"] == 11.0 and cost["max_pct"] == 14.0   # disturbed test left out
@@ -67,7 +67,7 @@ def test_report_text_is_safe_and_readable(tmp_path, capsys):
     f.write_text("\n".join(json.dumps(r) for r in _rows()) + "\nnot json\n[1,2]\n" + json.dumps({"schema": "x"}) + "\n")
     rows, bad = Z.read([str(tmp_path)])
     assert bad == 3
-    text = Z.render(Z.summarise(rows, bad))
+    text = Z.render(Z.summarize(rows, bad))
     assert "5 tests from 11 submissions" in text and "3 unreadable lines" in text and "1 install-check rows left out" in text
     assert "NO - add it" in text and "Pimax Crystal Light (1)" in text and "VarjoOpenXR" in text
     assert "felt worse | undone" in text and "smooth over Batumi" in text
@@ -80,7 +80,7 @@ def test_hostile_rows_cannot_break_it():
             "audit": {"hardware": "nope", "vr": {"detected": [1], "pimax": {"models": "abc"}}, "test": {
                 "costs": [{"cost_pct": "NaN"}, 7, {"cost_pct": 3.0}], "changes": [1, 2], "before_result": {"avg_fps": "fast"},
                 "target_reached": "yes"}}}
-    s = Z.summarise([junk, {"schema": "dcsgo-feedback/1", "id": "8" * 16, "event": "feedback", "feel": {"a": 1}, "comment": 7}])
+    s = Z.summarize([junk, {"schema": "dcsgo-feedback/1", "id": "8" * 16, "event": "feedback", "feel": {"a": 1}, "comment": 7}])
     assert s["tests"] == 1 and s["outcomes"]["goal_reached_pct"] == 0 and s["gpus"][0]["name"] == "?"
     assert "1 tests" in Z.render(s)
-    assert "No test results yet" in Z.render(Z.summarise([]))
+    assert "No test results yet" in Z.render(Z.summarize([]))

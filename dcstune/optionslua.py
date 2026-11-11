@@ -1,7 +1,7 @@
 """Byte-preserving reader/writer for DCS ``options.lua``.
 
 DCS writes the file as ``options = { ["section"] = { ["key"] = value, ... }, ... }``
-with tab indentation and sorted keys. We never re-serialise the whole file: only the
+with tab indentation and sorted keys. We never re-serialize the whole file: only the
 value text of scalar keys directly inside a top-level section is replaced, so every
 other byte (plugins, views, line endings) is left exactly as DCS wrote it.
 """
