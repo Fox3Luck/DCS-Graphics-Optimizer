@@ -40,8 +40,9 @@ def _wait(received, n):
 
 def test_feature_is_absent_without_an_address(tmp_path, monkeypatch):
     monkeypatch.delenv("DCSTUNE_FEEDBACK_URL", raising=False)
-    assert json.loads((Path(F.__file__).parent / "data" / "feedback.json").read_text())["url"] == ""   # as shipped
-    assert not F.available()
+    shipped = json.loads((Path(F.__file__).parent / "data" / "feedback.json").read_text())["url"]
+    assert shipped == "https://fox3servers.com/dcsgo/v1/feedback"
+    assert not F.available()                 # conftest blanks the address for every test
     eng = _engine(tmp_path, monkeypatch)
     assert eng.sharing() == {"available": False, "choice": None}
     for elsewhere in ("http://example.com/x", "https://example.com/x", "http://127.0.0.1:80@example.com/x",

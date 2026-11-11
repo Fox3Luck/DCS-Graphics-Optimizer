@@ -370,4 +370,4 @@ start them: may the tool send the result of each test to Fox3, the makers of thi
 - If you answer no, nothing is ever sent and the tool works the same. You can change your answer
   at the bottom of the window. Your answer is kept in `Config\dcstune-prefs.json`.
 
-Until sharing is switched on in a release, the tool does not ask and sends nothing.
+Sharing is switched on from version 0.1.0-beta.6. Earlier versions do not ask and send nothing.
