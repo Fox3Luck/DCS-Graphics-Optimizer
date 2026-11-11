@@ -6,7 +6,7 @@ Thank you for trying this. It is a beta: it has been tested thoroughly on one PC
 It rates your PC and your DCS graphics settings, tests them in real DCS, and recommends settings that hold your monitor's refresh rate in the worst moments. Nothing is changed until you press **Apply**, and **Undo last change** puts your previous settings back.
 
 ## Before you start
-- Windows 10 or 11, DCS World 2.9 (standalone or Steam), flat screen. VR is not supported yet; if you fly in VR, the tool leaves your VR settings alone.
+- Windows 10 or 11, DCS World 2.9 (standalone or Steam), flat screen. If VR is switched on in DCS, the scorecard rates your VR settings as a rough estimate; the tests still run on the monitor and leave your VR settings alone.
 - Close DCS and anything else that uses the graphics card (other games, video renders, AI tools).
 - Plan to leave the PC alone during a test: 10 to 20 minutes for the normal test, 35 to 60 for the thorough one.
 

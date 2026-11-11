@@ -125,3 +125,6 @@ full click-through. The exe is signed with Azure Artifact Signing (publisher Fox
 Solutions Inc.); whether SmartScreen still warns on a fresh PC is not yet checked. VR: the scorecard recognises the
 headset and rates VR settings (an estimate); testing inside the headset is written but not yet
 proven on a real headset, and stays switched off (`DCSTUNE_VR_BENCH=1` enables it for development).
+
+## Licence
+MIT — see [LICENSE](LICENSE).
