@@ -99,6 +99,12 @@ class Engine:
                 shots.append(row)
         report.update(dir=folder.name, shots=shots)
         atomic_write(folder / "report.html", R.page(report).encode("utf-8"))
+        try:      # what the tool saw and measured, for the player to send back if they choose to
+            from . import audit, sysinfo
+            atomic_write(folder / "audit.json",
+                         audit.text(self.info, self._flat_at_test, report, sysinfo.pick_install(self.info)).encode("utf-8"))
+        except Exception:      # the audit file must never cost the player their report
+            pass
 
     def scorecard(self) -> dict:
         from . import rate
@@ -125,6 +131,7 @@ class Engine:
         from .optionslua import atomic_write
         started = time.time()
         flat, gpu = self._flat(), self.info["gpu"]
+        self._flat_at_test = dict(flat)       # the player's real settings, for the audit file
         st = V.state(self.info, flat)
         vr_skipped = bool(st) and not V.bench_enabled()
         if vr_skipped:

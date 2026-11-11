@@ -309,6 +309,9 @@ Kept:
 - `Config\dcstune-report.json` — the last test result
 - `DCS Graphics Optimizer Reports\report-<date>-<time>\` — one folder per test: the report page
   and its before and recommended screenshots
+  and `audit.json`, a plain list of what the tool saw and measured (hardware, DCS version,
+  VR headset and software, graphics and VR settings, results). It has no names, folder paths or
+  account details, and the tool never sends it anywhere; it is there for you to share if asked
 - `Config\dcstune-calibration.json` — what the last test learned about your PC
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
 - `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed

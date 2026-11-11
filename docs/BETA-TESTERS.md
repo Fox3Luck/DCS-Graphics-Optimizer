@@ -17,7 +17,7 @@ It rates your PC and your DCS graphics settings, tests them in real DCS, and rec
 4. Read the result. Press **Apply these settings** if you want them, fly a mission you know well, and press **Undo last change** if you do not like them.
 
 ## What to send back
-- The report folder: `Saved Games\DCS\DCS Graphics Optimizer Reports\report-<date>-<time>` (zip it). It contains the report page and screenshots, and lists your CPU, graphics card, memory and monitor. It contains no account details.
+- The report folder: `Saved Games\DCS\DCS Graphics Optimizer Reports\report-<date>-<time>` (zip it). It contains the report page, screenshots and `audit.json`: your CPU, graphics card, memory, monitor, DCS version, VR headset and VR software if any, your graphics and VR settings, and the test results. It contains no names, folder paths or account details.
 - Any Windows warning you saw when starting the exe.
 - Whether the recommended settings felt better, worse or the same in your normal flying.
 - Anything that went wrong: DCS not starting, the test stopping, settings not put back.

@@ -219,3 +219,36 @@ def test_experimental_vr_test_measures_in_the_headset_and_recommends_vr_changes(
     assert Options.load(eng.profile["options"]).section("VR")["pixel_density"] == 1.0
     eng.undo()
     assert Options.load(eng.profile["options"]).section("VR")["pixel_density"] == 1.3
+
+
+def test_report_folder_gets_an_audit_file_without_personal_details(tmp_path, monkeypatch):
+    monkeypatch.delenv("DCSTUNE_VR_BENCH", raising=False)
+    from dcstune import __version__, sysinfo
+    eng = _engine(tmp_path, monkeypatch, **{"VR.pixel_density": 1.3})
+    eng.info = dict(eng.info, vr=dict(RAW_VR, layers=[r"C:\Users\Maverick\AppData\Local\layers\quad-views-foveated.json"]))
+    monkeypatch.setattr(sysinfo, "pick_install", lambda info: {
+        "version": "2.9.31.29434", "variant": "", "mt": True, "media": "SSD", "path": r"C:\Users\Maverick\DCS World"})
+    rep = eng.optimize(False, lambda *_: None)
+    f = tmp_path / "DCS Graphics Optimizer Reports" / rep["dir"] / "audit.json"
+    text = f.read_text()
+    a = json.loads(text)
+    assert a["schema"] == "dcsgo-audit/1" and a["tool_version"] == __version__
+    assert a["hardware"]["cpu"] == INFO["cpu"] and a["hardware"]["gpu"]["name"] == INFO["gpu"]["name"]
+    assert a["dcs"] == {"version": "2.9.31.29434", "variant": "", "mt": True, "media": "SSD"}
+    v = a["vr"]
+    assert v["enabled"] and v["runtime_file"] == "PiOpenXR_64" and v["detected"]["headset"] == "Pimax Crystal Light"
+    assert v["detected"]["layers"] == ["quad-views-foveated"] and v["pimax"]["models"] == ["P3C9"]
+    assert v["pimax"]["values"]["enable_foveated_rendering"] == 1 and v["rated_as"]["target"] == 90
+    assert v["options"]["pixel_density"] == 1.3 and v["options"]["enable"] is True      # the player's real settings
+    assert a["graphics"]["width"] == 2560 and a["test"]["vr_skipped"] is True
+    assert a["test"]["before_result"]["avg_fps"] > 0 and a["settings_rating_before"]["grade"]
+    # no names, folders or body measurements
+    low = text.lower()
+    assert "maverick" not in low and "users" not in low and ":\\\\" not in text and "ipd" not in low
+    assert str(tmp_path).lower() not in low
+
+
+def test_audit_survives_missing_information():
+    from dcstune import audit
+    a = audit.build({"cpu": "x"}, {}, {})
+    assert a["vr"]["enabled"] is False and a["vr"]["pimax"] is None and a["graphics"] == {} and a["test"] == {}
