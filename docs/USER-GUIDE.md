@@ -335,8 +335,13 @@ Details of each run are written to `Saved Games\DCS\Logs\dcs.log` on lines conta
 
 ## Current limits
 
-- Flat-screen only. If VR is switched on, the tool says so and leaves VR settings
-  alone; VR tuning is planned for the next version.
+- VR is partly supported. If VR is switched on in DCS, the scorecard is rated for your
+  headset: it names the headset it found, aims at the headset's refresh rate instead of
+  the monitor's, and lists VR-specific advice (pixel density, quad views, effects that
+  do not work well in a headset). That frame rate is a rough estimate, and it says so.
+  The tests still run on the monitor and no VR setting is changed; testing inside the
+  headset is in development. Pimax Crystal headsets are recognised by name so far;
+  other headsets are rated as a typical headset.
 - Tested so far on one PC with an NVIDIA card. AMD and Intel graphics cards are
   supported in the code but not yet tested.
 - The image-quality scores behind the recommendation are a judgement of what each

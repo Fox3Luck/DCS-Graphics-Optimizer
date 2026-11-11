@@ -44,12 +44,12 @@ def cmd_rate(args):
     fit = rate.rate_settings(info, flat, machine, calibration=rate.load_calibration(profile, info, flat))
     if args.json:
         print(json.dumps({"profile": profile["name"], "overall": rate.overall(machine, fit),
-                          "hardware": rate.hardware_summary(info), "machine": machine, "settings": fit}, indent=1))
+                          "hardware": rate.hardware_summary(info, flat), "machine": machine, "settings": fit}, indent=1))
         return 0
     total = rate.overall(machine, fit)
     print(f"Profile: {profile['name']}")
     print(f"\nOverall: {total['grade']}  ({total['score']}/100)   [40% PC, 60% settings; settings {total['basis']}]")
-    for row in rate.hardware_summary(info):
+    for row in rate.hardware_summary(info, flat):
         print(f"  {row['label'] + ':':15} {row['value']}")
     _print_card("Your PC for DCS", machine, machine["reasons"])
     _print_card(f"Your settings ({fit['basis']})", fit,
@@ -89,9 +89,6 @@ def cmd_optimize(args):
     # Same code path as the window, so both write the same report.
     from .ui import Engine
     engine = Engine(args.profile)
-    if engine.scorecard()["vr"]:
-        print("VR is switched on in this profile. VR tuning comes in the next version; "
-              "the benchmark runs flat-screen and your VR settings are left alone.")
     report = engine.optimize(args.full, print)
     machine = engine.scorecard()["machine"]
     _print_card("Your PC for DCS", machine, machine["reasons"])

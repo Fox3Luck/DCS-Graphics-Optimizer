@@ -48,7 +48,17 @@ Get-ChildItem $sg -Directory -Filter 'DCS*' | ForEach-Object {
   $o = Join-Path $_.FullName 'Config\options.lua'
   if (Test-Path $o) { $profiles += @{ name=$_.Name; path=$_.FullName; options=$o; modified=(Get-Item $o).LastWriteTime.ToString('s') } }
 }
-@{ cpu=$cpu.Name.Trim(); cores=$cpu.NumberOfCores;
+$xr = 'SOFTWARE\Khronos\OpenXR\1'
+$layers = @()
+foreach ($hive in 'HKLM:','HKCU:') {
+  $k = Get-Item "$hive\$xr\ApiLayers\Implicit"
+  if ($k) { foreach ($n in $k.Property) { if ($k.GetValue($n) -eq 0) { $layers += [string]$n } } }
+}
+$pimax = ''
+$pp = Join-Path $env:LOCALAPPDATA 'Pimax\runtime\profile.json'
+if (Test-Path $pp) { $pimax = [string](Get-Content $pp -Raw) }
+$vr = @{ runtime=[string](Get-ItemProperty "HKLM:\$xr").ActiveRuntime; layers=$layers; pimax_profile=$pimax }
+@{ cpu=$cpu.Name.Trim(); cores=$cpu.NumberOfCores; vr=$vr;
    ram_gb=[math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB);
    gpus=$gpus; installs=$installs; profiles=$profiles;
    dcs_running=[bool](Get-Process DCS,DCS_server -ErrorAction SilentlyContinue) } | ConvertTo-Json -Depth 5 -Compress
@@ -79,6 +89,8 @@ def normalise(raw: dict) -> dict:
     info = dict(raw)
     for k in ("gpus", "installs", "profiles"):
         info[k] = _as_list(raw.get(k))
+    if isinstance(info.get("vr"), dict):
+        info["vr"] = dict(info["vr"], layers=_as_list(info["vr"].get("layers")))
     # Primary GPU = the one driving a display with the most VRAM (skips idle iGPUs).
     active = [g for g in info["gpus"] if g.get("width")] or info["gpus"]
     info["gpu"] = max(active, key=lambda g: g.get("vram_mb") or 0) if active else None

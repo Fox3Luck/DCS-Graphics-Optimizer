@@ -95,6 +95,11 @@ def fragment(rep: dict, img=lambda name: name) -> str:
     if rep.get("applied"):
         h.append(f'<p class="note">These settings were applied on {e(str(rep["applied"]))}. '
                  'Use Undo in the app to go back.</p>')
+    if rep.get("vr_skipped"):
+        h.append('<p class="note">VR is switched on in this DCS profile. This test ran on the monitor, so the '
+                 'numbers below are monitor numbers, and no VR setting is changed.</p>')
+    if rep.get("vr"):
+        h.append('<p class="note">Measured in the VR headset.</p>')
     if rep.get("disturbed"):
         h.append('<p class="note err">Another program was using the PC during part of this test, so some '
                  'measurements were discarded. For the most accurate result, close other programs and run it again.</p>')

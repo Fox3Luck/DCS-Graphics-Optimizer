@@ -1,0 +1,29 @@
+{
+ "_comment": "VR facts. Sources and their trust levels are in docs/VR-SOURCES.md. Per-eye sizes are panel pixels; refresh lists are what the headset software offers.",
+ "runtimes": [
+  ["pimax", "Pimax"], ["steam", "SteamVR"], ["oculus|meta", "Meta (Oculus)"], ["virtualdesktop|virtual desktop", "Virtual Desktop"],
+  ["mixedreality|mixed reality", "Windows Mixed Reality"], ["varjo", "Varjo"], ["vive", "Vive"]
+ ],
+ "pimax_models": {"P3C9": "Pimax Crystal Light", "P3C10": "Pimax Crystal Super", "P3B": "Pimax Crystal"},
+ "headsets": [
+  {"name": "Pimax Crystal Light", "eye_w": 2880, "eye_h": 2880, "refresh": [72, 90, 120], "eye_tracking": false},
+  {"name": "Pimax Crystal Super", "eye_w": 3840, "eye_h": 3840, "refresh": [72, 90], "eye_tracking": true},
+  {"name": "Pimax Crystal", "eye_w": 2880, "eye_h": 2880, "refresh": [72, 90, 120], "eye_tracking": true}
+ ],
+ "unknown_headset": {"eye_w": 2160, "eye_h": 2160, "refresh": [90], "eye_tracking": false},
+ "hires_eye_w": 2500,
+ "fixed": [
+  {"key": "VR.pixel_density", "to": 1.0, "when": "hires", "label": "VR pixel density", "fmt": "{:.2f}",
+   "why": "This headset is sharp enough at 1.0; a higher value renders pixels the lenses cannot show"},
+  {"key": "VR.bloom", "to": false, "when": "quad", "label": "VR bloom effect", "names": {"true": "On", "false": "Off"},
+   "why": "Bloom shows visible seams when quad views (foveated rendering) is on"},
+  {"key": "graphics.LensEffects", "to": 0, "when": "quad", "label": "Lens effects",
+   "names": {"0": "None", "1": "Dirt", "2": "Flare", "3": "Dirt and flare"},
+   "why": "Lens effects show visible seams when quad views (foveated rendering) is on"},
+  {"key": "graphics.motionBlur", "to": 0, "when": "always", "label": "Motion blur", "names": {"0": "Off", "1": "On"},
+   "why": "Made for monitors; in a headset it smears the picture and can cause discomfort"},
+  {"key": "graphics.DOF", "to": 0, "when": "always", "label": "Depth of field",
+   "names": {"0": "Off", "1": "Bokeh", "2": "Simple"},
+   "why": "Made for monitors; in a headset it blurs whatever you are not expected to look at"}
+ ]
+}

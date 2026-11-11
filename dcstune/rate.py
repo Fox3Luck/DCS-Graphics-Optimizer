@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from . import model as M
+from . import vr as V
 from .sysinfo import gpu_vendor
 
 CALIBRATION_NAME = "dcstune-calibration.json"
@@ -12,8 +13,12 @@ CALIBRATION_NAME = "dcstune-calibration.json"
 
 def _fingerprint(info: dict, options: dict) -> dict:
     gpu = info.get("gpu") or {}
-    return {"gpu": gpu.get("name"), "cpu": info.get("cpu"),
-            "width": options.get("graphics.width"), "height": options.get("graphics.height")}
+    fp = {"gpu": gpu.get("name"), "cpu": info.get("cpu"),
+          "width": options.get("graphics.width"), "height": options.get("graphics.height")}
+    st = V.state(info, options)
+    if st:      # what was learned on the monitor says nothing about the headset, and vice versa
+        fp["vr"] = [st["headset"], st["render_quality"]]
+    return fp
 
 
 RESULT_KEYS = ("graphics.Upscaling", "graphics.AA", "graphics.DLSS_PerfQuality", "graphics.MSAA",
@@ -28,6 +33,8 @@ def config_key(options: dict) -> str:
     def norm(v):
         return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v
     keys = [s["key"] for s in M.SETTINGS] + list(RESULT_KEYS)
+    if options.get("VR.enable"):
+        keys += ["VR.enable", "VR.pixel_density", "VR.openxr_quadView", "VR.msaaMaskSize"]
     return hashlib.sha1(json.dumps([[k, norm(options.get(k))] for k in sorted(keys)]).encode()).hexdigest()[:16]
 
 
@@ -70,8 +77,9 @@ def target_fps(refresh: int | None) -> int:
     return max(60, min(int(refresh or 60), 120))
 
 
-def hardware_summary(info: dict) -> list[dict]:
-    """The PC at a glance, as label/value rows for the scorecard."""
+def hardware_summary(info: dict, options: dict | None = None) -> list[dict]:
+    """The PC at a glance, as label/value rows for the scorecard. With the player's
+    options, the VR headset is listed when VR is switched on."""
     gpu = info.get("gpu") or {}
     inst = (info.get("installs") or [{}])[0]
     rows = [("Graphics card", gpu.get("name") or "unknown"),
@@ -80,6 +88,11 @@ def hardware_summary(info: dict) -> list[dict]:
              + (f" ({info['cores']} cores)" if info.get("cores") else "")),
             ("Memory", f"{info.get('ram_gb')} GB" if info.get("ram_gb") else "unknown"),
             ("Display", f"{gpu['width']} x {gpu['height']} at {gpu.get('refresh') or '?'} Hz" if gpu.get("width") else "unknown")]
+    st = V.state(info, options or {})
+    if st:
+        rows.append(("VR headset", V.describe(st)))
+        soft = (st["runtime"] or "unknown") + (f", render quality {st['render_quality']:.2f}" if st["render_quality"] else "")
+        rows.append(("VR software", soft))
     media = (inst.get("media") or "").upper()
     if media in ("SSD", "HDD"):
         rows.append(("DCS drive", "SSD" if media == "SSD" else "Hard disk"))
@@ -139,14 +152,18 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
     vendor = gpu_vendor(info)
     width = options.get("graphics.width") or gpu.get("width") or 1920
     height = options.get("graphics.height") or gpu.get("height") or 1080
-    mdl = M.Model(machine["gpu_score"], machine["cpu_score"], width, height, vendor)
+    st = V.state(info, options)
+    mdl = M.Model(machine["gpu_score"], machine["cpu_score"], width, height, vendor, vr=st and st["model"])
     low_ratio, est_basis = 0.75, "estimated"   # generic: 1% lows in DCS run ~25% under typical
+    if st:
+        est_basis = "rough estimate for VR, not measured"
+    dev = "headset" if st else "display"
     if calibration:
         mdl.calibration, mdl.vram_offset = calibration["calibration"], calibration["vram_offset"]
         mdl.measured = {k: {int(i): ms for i, ms in v.items()} for k, v in calibration.get("measured", {}).items()}
         low_ratio, est_basis = calibration["low_ratio"], "estimated from your last test"
     rung = M.current_rung(options, vendor)
-    target = target or target_fps(gpu.get("refresh"))
+    target = target or (st["target"] if st else target_fps(gpu.get("refresh")))
     vram_total = gpu.get("vram_mb") or 0
 
     if not measured and calibration:
@@ -167,10 +184,10 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
         score -= min(60, (1 - ratio) * 130)
         if ratio >= 0.9:
             findings.append(("warn", f"Frame rate dips to about {fps:.0f} FPS ({basis}), "
-                                     f"just short of the {target} your display can show."))
+                                     f"just short of the {target} your {dev} can show."))
         else:
             findings.append(("bad", f"Frame rate dips to about {fps:.0f} FPS ({basis}); "
-                                    f"your display wants {target}. Settings ask more than this PC can hold."))
+                                    f"your {dev} wants {target}. Settings ask more than this PC can hold."))
     else:
         findings.append(("good", f"Holds about {fps:.0f} FPS in the worst moments ({basis}) "
                                  f"against a {target} FPS goal."))
@@ -184,7 +201,7 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
                                 f"{basis}); this causes stutter when new scenery loads."))
 
     untouched = set()      # findings about things this tool never changes
-    for sev, penalty, text, *tag in _rules(info, options, machine, gpu, ratio):
+    for sev, penalty, text, *tag in _rules(info, options, machine, gpu, ratio, st):
         score -= penalty
         findings.append((sev, text))
         if tag:
@@ -194,18 +211,18 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
     return {"score": round(score), "grade": grade(score), "basis": basis, "target_fps": target,
             "fps": round(fps, 1), "quality_share": round(share, 3),
             "vram_mb": round(vram_used) if vram_used else None,
-            "aa": rung["name"], "findings": [{"severity": s, "text": t} | ({"untouched": True} if t in untouched else {})
+            "aa": rung["name"], "vr": bool(st), "findings": [{"severity": s, "text": t} | ({"untouched": True} if t in untouched else {})
                                          for s, t in findings]}
 
 
-def _rules(info, o, machine, gpu, ratio):
+def _rules(info, o, machine, gpu, ratio, st=None):
     g = lambda k, d=None: o.get("graphics." + k, d)
     vram_gb = (gpu.get("vram_mb") or 0) / 1024
     ram = info.get("ram_gb") or 0
-    if o.get("VR.enable"):
-        yield "info", 0, "VR is switched on. This version tunes flat-screen settings only; VR tuning comes in the next version.", "untouched"
+    if st:
+        yield from V.rules(st, o, machine, ratio)
     dw, dh = gpu.get("width"), gpu.get("height")
-    if dw and dh and g("width") and (g("width") > dw or g("height") > dh):
+    if not st and dw and dh and g("width") and (g("width") > dw or g("height") > dh):
         yield "warn", 6, (f"DCS is set to {g('width')}x{g('height')} but the desktop is {dw}x{dh}. "
                           "The extra pixels are rendered and then thrown away or pushed off-screen."), "untouched"
     if vram_gb >= 12 and g("textures") is not None and g("textures") < 2:
@@ -218,7 +235,7 @@ def _rules(info, o, machine, gpu, ratio):
         yield "warn", 5, f"Preload radius is {g('preloadRadius')} with {ram} GB of memory; this can push Windows into swapping.", "untouched"
     if ram >= 48 and (g("preloadRadius") or 0) < 60000:
         yield "info", 2, "Preload radius is low for a PC with this much memory; raising it reduces pop-in stutter.", "untouched"
-    if g("Upscaling") == "DLSS" and (g("DLSS_PerfQuality") or 0) >= 3 and (g("height") or 0) <= 1440:
+    if not st and g("Upscaling") == "DLSS" and (g("DLSS_PerfQuality") or 0) >= 3 and (g("height") or 0) <= 1440:
         yield "warn", 5, "DLSS Performance at this resolution makes cockpit text and distant aircraft blurry."
     if g("Upscaling") in ("DLSS", "FSR", "NIS") and ratio > 1.4:
         yield "info", 3, "Upscaling is on although the PC has room to render at full resolution, which is sharper."

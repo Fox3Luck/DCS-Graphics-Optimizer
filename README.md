@@ -3,7 +3,8 @@
 DCS Graphics Optimizer looks at your PC and your DCS World graphics settings, tests
 them by actually running DCS, and recommends the best-looking settings your PC can
 run smoothly. Nothing is changed until you press **Apply**, and **Undo** puts your old
-settings back. Flat-screen only for now; VR tuning is planned for the next version.
+settings back. The tests run on the monitor for now; with VR switched on you get a VR scorecard, and
+measuring inside the headset is in development.
 
 ## For players
 
@@ -121,5 +122,6 @@ Status 2026-11-10: scorecard, quick and thorough tests (including the no-restart
 measuring session), apply and undo all verified in real DCS 2.9.31 on one PC
 (RTX 4080 / 9800X3D). Not yet verified: AMD/Intel GPUs, a second PC, the packaged exe's
 full click-through. The exe is signed with Azure Artifact Signing (publisher Fox3 Managed
-Solutions Inc.); whether SmartScreen still warns on a fresh PC is not yet checked. VR is planned
-for v2.
+Solutions Inc.); whether SmartScreen still warns on a fresh PC is not yet checked. VR: the scorecard recognises the
+headset and rates VR settings (an estimate); testing inside the headset is written but not yet
+proven on a real headset, and stays switched off (`DCSTUNE_VR_BENCH=1` enables it for development).

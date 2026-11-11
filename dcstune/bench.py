@@ -140,7 +140,7 @@ def gpu_idle_check(samples: int = 4) -> tuple[float, float]:
 
 class Bench:
     def __init__(self, profile: dict, exe: Path, scene_sec: int = 25, settle_sec: int = 20,
-                 timeout: int = 600, log=print):
+                 timeout: int = 600, log=print, vr: bool = False):
         self.profile_dir = Path(profile["path"])
         self.profile_name = profile["name"]
         self.options = Path(profile["options"])
@@ -152,6 +152,7 @@ class Bench:
         self.result = self.profile_dir / "Config" / "dcstune_result.json"
         self.session = TrialSession(self.options)
         self.runs = 0
+        self.vr = vr                  # start DCS in the headset (experimental, see vr.py)
         self.session_id = time.strftime("%m%d%H%M")   # makes this session's screenshots identifiable
         self.keep_shots: set[str] = set()             # screenshot names to leave for the player
         self.allow_busy = bool(os.environ.get("DCSTUNE_ALLOW_BUSY"))   # developer override
@@ -275,7 +276,8 @@ class Bench:
             "scene_sec": SHORT_SCENE_SEC if short else self.scene_sec,
             "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
             "total_timeout": timeout - 30}, **directive_extra)))
-        args = [str(self.exe), "--no-launcher", "--force_disable_VR", "-w", self.profile_name]
+        args = [str(self.exe), "--no-launcher", "--force_enable_VR" if self.vr else "--force_disable_VR",
+                "-w", self.profile_name]
         directive_text = self.directive.read_text()
         started = time.time()
         for attempt in (1, 2):

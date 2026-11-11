@@ -6,6 +6,7 @@ a ``measure(changes) -> summary`` callable, so it can be tested with a fake.
 from __future__ import annotations
 
 from . import model as M
+from . import vr as V
 
 VRAM_BUDGET = 0.90          # of the card
 HIT_MARGIN = 0.95           # measured 1% low must reach this share of target (run-to-run noise is ~3-6%)
@@ -70,10 +71,12 @@ def choose(mdl: M.Model, target_fps: float, vram_total_mb: float, low_ratio: flo
     return best[1], best[2], True
 
 
-def pick_target(mdl: M.Model, display_target: int, vram_total_mb: float, low_ratio: float) -> int:
+def pick_target(mdl: M.Model, display_target: int, vram_total_mb: float, low_ratio: float,
+                steps: list[int] | None = None) -> int:
     """Automatic goal. Prefer the display's refresh rate, but if holding it would strip
-    the image below half of maximum quality, settle for a lower smooth rate instead."""
-    steps = [t for t in (display_target, 90, 72, 60) if t <= display_target]
+    the image below half of maximum quality, settle for a lower smooth rate instead.
+    steps: the rates to fall back through (a VR headset's own refresh rates)."""
+    steps = [t for t in (steps or (display_target, 90, 72, 60)) if t <= display_target]
     top = M.max_quality(mdl.vendor)
     for t in steps:
         config, rung, feasible = choose(mdl, t, vram_total_mb, low_ratio)
@@ -93,9 +96,12 @@ def summarise(result: dict) -> dict:
 
 
 def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_mb: float,
-        measure, full: bool = False, log=print, measure_fast=None, measure_batch=None) -> dict:
+        measure, full: bool = False, log=print, measure_fast=None, measure_batch=None,
+        steps: list[int] | None = None, extra: dict | None = None) -> dict:
     """current: the player's flat options. measure(changes|None) -> summarise()d result
-    (None = benchmark the player's settings untouched)."""
+    (None = benchmark the player's settings untouched).
+    steps: goals to fall back through (VR). extra: changes that are part of every
+    candidate whatever the search picks (VR: pixel density 1.0, effects that break in a headset)."""
     cur_rung = M.current_rung(current, vendor)
     log("Measuring your current settings...")
     before = measure(None)
@@ -106,7 +112,7 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     if full:
         disturbed = _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch)
     display_target = target_fps
-    target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio)
+    target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio, steps)
     if target_fps < display_target:
         log(f"Holding {display_target} FPS would cost too much image quality on this PC; aiming for {target_fps}.")
 
@@ -116,6 +122,7 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     for attempt in range(1, MAX_CONFIRM_RUNS + 1):
         config, rung, feasible = choose(mdl, target_fps * AIM_ABOVE, vram_total_mb, low_ratio)
         changes = config_changes(config, rung)
+        changes.update(extra or {})
         if history and changes == history[-1]["changes"]:
             break
         log(f"Testing candidate {attempt} ({rung['name']})...")
@@ -335,6 +342,11 @@ def describe_changes(current: dict, changes: dict, vendor: str = "nvidia", mdl=N
             if mdl:
                 row["why"] = s.get("why", "") if up else "Lowered to free up frame rate"
                 cost(row, dict(current, **{key: new}), rung0, key in mdl.measured)
+            out.append(row)
+        elif V.fixed_row(key, old, new):
+            row = V.fixed_row(key, old, new)
+            if key == "VR.pixel_density":
+                cost(row, dict(current, **{key: new}), rung0, False)
             out.append(row)
         else:
             out.append({"key": key, "label": key.split(".", 1)[1], "from": old, "to": new, "direction": ""})

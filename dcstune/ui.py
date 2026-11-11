@@ -105,8 +105,11 @@ class Engine:
         flat = self._flat()
         fit = rate.rate_settings(self.info, flat, machine,
                                  calibration=rate.load_calibration(self.profile, self.info, flat))
+        from . import vr as V
+        st = V.state(self.info, flat)
         return {"profile": self.profile["name"], "profile_dir": Path(self.profile["path"]).name,
-                "hardware": rate.hardware_summary(self.info), "overall": rate.overall(machine, fit),
+                "vr_tested": bool(st) and V.bench_enabled(),
+                "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
                 "profiles": [p["name"] for p in self.info["profiles"]],
                 "machine": machine,
                 "settings": fit,
@@ -115,25 +118,38 @@ class Engine:
                 "report": self._report()}
 
     def optimize(self, full: bool, log) -> dict:
-        from . import model as M, optimize, rate, sysinfo
+        from . import model as M, optimize, rate, sysinfo, vr as V
         from .bench import Bench
         from .optionslua import atomic_write
         started = time.time()
         flat, gpu = self._flat(), self.info["gpu"]
+        st = V.state(self.info, flat)
+        vr_skipped = bool(st) and not V.bench_enabled()
+        if vr_skipped:
+            # Measuring inside the headset is not released yet: test on the monitor, rate the
+            # result as a monitor result, and leave every VR setting alone.
+            log("VR is switched on in this profile. This test runs on the monitor and your VR settings are left alone.")
+            flat, st = dict(flat, **{"VR.enable": False}), None
         machine = rate.rate_machine(self.info)
         vendor = sysinfo.gpu_vendor(self.info)
         mdl = M.Model(machine["gpu_score"], machine["cpu_score"],
-                      flat.get("graphics.width") or gpu["width"], flat.get("graphics.height") or gpu["height"], vendor)
+                      flat.get("graphics.width") or gpu["width"], flat.get("graphics.height") or gpu["height"], vendor,
+                      vr=st and st["model"])
+        goal = st["target"] if st else rate.target_fps(gpu.get("refresh"))
+        extra = V.fixed_changes(st, flat) if st else None
+        if extra and "VR.pixel_density" in extra:      # candidates are judged at the density they will use
+            mdl.vr = dict(mdl.vr, pd=extra["VR.pixel_density"])
         # Reuse what an earlier thorough test measured on this PC (same card, processor and
         # resolution); a thorough test re-measures and overwrites it.
         cal = rate.load_calibration(self.profile, self.info, flat)
         if cal and not full:
             mdl.measured = {k: {int(i): ms for i, ms in v.items()} for k, v in cal.get("measured", {}).items()}
         exe = sysinfo.dcs_exe(sysinfo.pick_install(self.info))
-        with Bench(self.profile, exe, log=log) as b:
-            out = optimize.run(mdl, flat, vendor, rate.target_fps(gpu.get("refresh")),
+        with Bench(self.profile, exe, log=log, vr=bool(st)) as b:
+            out = optimize.run(mdl, flat, vendor, goal,
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
-                               measure_fast=b.measure_fast, measure_batch=b.measure_batch)
+                               measure_fast=b.measure_fast, measure_batch=b.measure_batch,
+                               steps=st and st["steps"], extra=extra)
             launches = b.runs
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
@@ -144,7 +160,8 @@ class Engine:
         report = {"created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],
                   "kind": "Thorough test" if full else "Test and optimize",
                   "duration_min": max(1, round((time.time() - started) / 60)),
-                  "hardware": rate.hardware_summary(self.info),
+                  "hardware": rate.hardware_summary(self.info, flat),
+                  "vr": bool(st), "vr_skipped": vr_skipped,
                   "costs": optimize.measured_costs(mdl, base_ms),
                   "target_fps": target, "target_reached": out["target_reached"],
                   "keep_current": out["keep_current"], "runs": launches,

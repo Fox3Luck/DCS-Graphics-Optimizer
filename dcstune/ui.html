@@ -127,6 +127,8 @@ async function refresh() {
   card($("fit"), sc.settings, sc.settings.findings);
   $("undo").classList.toggle("hidden", !sc.can_undo);
   if (sc.recovered) note("An earlier test was interrupted. Your original settings have been restored.");
+  if (sc.vr && !sc.vr_tested && !sc.recovered && !$("msg").children.length)
+    note("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet.");
   showReport(sc);
 }
 function busy(on) { ["quick", "full", "apply", "undo", "open-report"].forEach(i => $(i).disabled = on); }

@@ -86,9 +86,12 @@ def max_quality(vendor: str) -> float:
 
 class Model:
     def __init__(self, gpu_score: float, cpu_score: float, width: int, height: int,
-                 vendor: str = "nvidia"):
+                 vendor: str = "nvidia", vr: dict | None = None):
+        """vr: None for a monitor, else {"eye_px", "render_quality", "pd"} (see vr.state);
+        "pd" is the pixel density assumed for configs that do not carry one."""
         self.gpu_score, self.cpu_score = gpu_score, cpu_score
         self.pixels = width * height
+        self.vr = vr
         self.vendor = vendor
         self.calibration = 1.0                  # measured_ms / predicted_ms
         self.vram_offset = 0.0                  # measured - predicted, MB
@@ -103,6 +106,17 @@ class Model:
     def quality(self, config: dict, rung: dict) -> float:
         return sum(lv["quality"] for _, _, lv in self._levels(config)) + rung["quality"]
 
+    def _px(self, config: dict, rung: dict) -> float:
+        """Pixels drawn per frame, in monitor-equivalent terms."""
+        if not self.vr:
+            return self.pixels * rung["render_scale"] ** 2
+        from .vr import PIXEL_FACTOR, QUAD_FACTOR
+        pd = config.get("VR.pixel_density", self.vr["pd"])
+        px = 2 * self.vr["eye_px"] * (self.vr["render_quality"] * pd) ** 2 * PIXEL_FACTOR
+        if config.get("VR.openxr_quadView", self.vr.get("quad")):
+            px *= QUAD_FACTOR
+        return px * rung["render_scale"] ** 2
+
     def frame_ms(self, config: dict, rung: dict) -> float:
         gpu_cost = cpu_cost = 0.0
         measured_ms = 0.0
@@ -113,16 +127,19 @@ class Model:
             else:
                 gpu_cost += lv["gpu"]
                 cpu_cost += lv["cpu"]
-        px = self.pixels * rung["render_scale"] ** 2
+        px = self._px(config, rung)
         gpu_ms = 1000.0 / (self.gpu_score * 2.6) * (px / REF_PIXELS) ** 0.85 * (1 + gpu_cost)
         cpu_ms = 1000.0 / (self.cpu_score * 2.2) * (1 + cpu_cost)
+        if self.vr:
+            from .vr import CPU_FACTOR
+            cpu_ms *= CPU_FACTOR
         return (max(gpu_ms, cpu_ms) + 0.3 * min(gpu_ms, cpu_ms)) * self.calibration + measured_ms
 
     def fps(self, config: dict, rung: dict) -> float:
         return 1000.0 / self.frame_ms(config, rung)
 
     def vram_mb(self, config: dict, rung: dict) -> float:
-        px = self.pixels * rung["render_scale"] ** 2
+        px = self._px(config, rung)
         return (BASE_VRAM_MB + sum(lv["vram_mb"] for _, _, lv in self._levels(config))
                 + 1200 * px / REF_PIXELS + self.vram_offset)
 
