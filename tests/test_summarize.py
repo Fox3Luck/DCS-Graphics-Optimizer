@@ -84,3 +84,20 @@ def test_hostile_rows_cannot_break_it():
     assert s["tests"] == 1 and s["outcomes"]["goal_reached_pct"] == 0 and s["gpus"][0]["name"] == "?"
     assert "1 tests" in Z.render(s)
     assert "No test results yet" in Z.render(Z.summarize([]))
+
+
+def test_spare_frame_rate_spent_on_quality_is_not_reported_as_a_loss():
+    """A PC far above its goal gets higher quality and a lower (still sufficient) frame rate."""
+    rep = {"id": "9" * 16, "kind": "Test and optimize", "target_fps": 60, "target_reached": True, "keep_current": False,
+           "disturbed": False, "vr": False, "before_result": {"avg_fps": 178, "p1_low_fps": 129, "scenes": []},
+           "after_result": {"avg_fps": 96, "p1_low_fps": 75, "scenes": []}, "changes": {"graphics.shadows": 4}}
+    pimax_no_model = {"runtime": r"C:\Program Files\Pimax\Runtime\PiOpenXR_64.json", "layers": [], "pimax_profile": ""}
+    a = audit.build(dict(INFO, vr=pimax_no_model), {"graphics.width": 3840, "graphics.height": 2160}, rep, {"version": "2.9"})
+    s = Z.summarize([dict(F.payload("result", rep["id"], a), received="2026-11-11T21:00:00Z")])
+    o = s["outcomes"]
+    assert o["low_fps_gain_median"] is None and o["below_goal_before"] == 0
+    assert o["quality_raised"] == {"tests": 1, "still_held": 1, "low_before_median": 129, "low_after_median": 75}
+    # Pimax software, VR off, no model on the PC: counted, but not a candidate for the headset table
+    assert s["vr"]["not_recognized"] == [] and s["vr"]["model_not_readable"] == 1 and s["vr"]["pcs_with_vr_software"] == 1
+    text = Z.render(s)
+    assert "image quality was raised: 1 tests" in text and "from 129 to 75 FPS" in text and "candidates for the headset table" not in text

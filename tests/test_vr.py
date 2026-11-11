@@ -252,3 +252,10 @@ def test_audit_survives_missing_information():
     from dcstune import audit
     a = audit.build({"cpu": "x"}, {}, {})
     assert a["vr"]["enabled"] is False and a["vr"]["pimax"] is None and a["graphics"] == {} and a["test"] == {}
+
+
+def test_pimax_without_a_model_is_named_by_brand():
+    from dcstune import vr
+    base = {"headset": None, "known": False, "eye_w": 1, "eye_h": 1}
+    assert vr.describe(dict(base, runtime="Pimax")) == "Pimax headset (model not known yet)"
+    assert vr.describe(dict(base, runtime="SteamVR")) == "Headset not recognized"

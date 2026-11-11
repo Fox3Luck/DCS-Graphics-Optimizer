@@ -92,7 +92,8 @@ def goal_steps(refresh: list[int], target: int) -> list[int]:
 
 
 def describe(st: dict) -> str:
-    name = st["headset"] or "Headset not recognized"
+    # Pimax Play records the model once a headset has connected; until then only the brand is known.
+    name = st["headset"] or ("Pimax headset (model not known yet)" if st.get("runtime") == "Pimax" else "Headset not recognized")
     return name + (f" ({st['eye_w']} x {st['eye_h']} per eye)" if st["known"] else "")
 
 
