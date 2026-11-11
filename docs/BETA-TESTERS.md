@@ -17,6 +17,7 @@ It rates your PC and your DCS graphics settings, tests them in real DCS, and rec
 4. Read the result. Press **Apply these settings** if you want them, fly a mission you know well, and press **Undo last change** if you do not like them.
 
 ## What to send back
+If you answered yes to anonymous results, the test data reaches us by itself; the items below are still welcome, especially screenshots and anything that went wrong.
 - The report folder: `Saved Games\DCS\DCS Graphics Optimizer Reports\report-<date>-<time>` (zip it). It contains the report page, screenshots and `audit.json`: your CPU, graphics card, memory, monitor, DCS version, VR headset and VR software if any, your graphics and VR settings, and the test results. It contains no names, folder paths or account details.
 - Any Windows warning you saw when starting the exe.
 - Whether the recommended settings felt better, worse or the same in your normal flying.
@@ -26,4 +27,5 @@ It rates your PC and your DCS graphics settings, tests them in real DCS, and rec
 - Start the tool again: if a test was interrupted it restores your original settings by itself and tells you.
 - Your original file is also kept next to `options.lua` in `Saved Games\DCS\Config` as `options.lua.dcstune-bak-<date>-<time>`.
 
-Nothing is sent over the internet by the tool.
+## Anonymous results (your choice)
+The first time you start it, the tool asks whether it may send the result of each test to Fox3. It is anonymous: hardware, DCS version, VR headset, settings and frame rates, with no names, accounts, folder names or screenshots, and stored without your internet address. It explains this on screen. If you say yes, you can also add a comment to a result from inside the tool, and you do not need to send the report folder unless we ask. If you say no, nothing is sent over the internet and the tool works the same.
