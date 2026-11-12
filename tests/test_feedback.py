@@ -8,8 +8,13 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
-import feedback_server as S
+# The receiving service is kept in a separate repository. These tests run against it when it is
+# checked out next to this one (../dcsgo-feedback-server) or DCSGO_FEEDBACK_SERVER points at it;
+# without it they are skipped.
+import os
+sys.path.insert(0, os.environ.get("DCSGO_FEEDBACK_SERVER")
+                or str(Path(__file__).resolve().parent.parent.parent / "dcsgo-feedback-server"))
+S = pytest.importorskip("feedback_server")
 
 from dcstune import feedback as F
 from test_vr import _FakeBench, _engine          # noqa: F401  (engine with a fake DCS)
