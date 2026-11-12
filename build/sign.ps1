@@ -22,32 +22,33 @@ param([Parameter(Mandatory = $true)][string]$Sha256)
 $File = "dist\DCSGraphicsOptimizer.exe"
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
-$cfgPath = "build\signing.json"
-if (-not (Test-Path $cfgPath)) { throw "build\signing.json not found - see the header of build\sign.ps1" }
-$cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
-if ($cfg.Endpoint -notmatch '^https://[a-z0-9-]+\.codesigning\.azure\.net/?$') { throw "signing.json: Endpoint is not an Azure Artifact Signing address" }
-if (-not (Test-Path $File)) { throw "not found: $File" }
-if ((Get-FileHash $File -Algorithm SHA256).Hash -ne $Sha256.Trim().ToUpper()) { throw "$File does not have the hash you gave; it is not the file that was built. Not signing." }
-# Tenant and client ID are not secret and may come from signing.json. If the secret is not in
-# the environment, ask for it (hidden); it stays in this process's memory only.
-if (-not $env:AZURE_TENANT_ID -and $cfg.TenantId) { $env:AZURE_TENANT_ID = $cfg.TenantId }
-if (-not $env:AZURE_CLIENT_ID -and $cfg.ClientId) { $env:AZURE_CLIENT_ID = $cfg.ClientId }
 try {
-if (-not $env:AZURE_CLIENT_SECRET) {
-    $sec = Read-Host -AsSecureString "Paste the signing client secret (it will not be shown) and press Enter"
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
-    try { $env:AZURE_CLIENT_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim() }
-    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
-}
-foreach ($v in 'AZURE_TENANT_ID','AZURE_CLIENT_ID','AZURE_CLIENT_SECRET') {
-    if (-not [Environment]::GetEnvironmentVariable($v)) { throw "$v is not set (environment or build\signing.json)" }
-}
-foreach ($p in $cfg.SignTool, $cfg.Dlib, $File) { if (-not (Test-Path $p)) { throw "not found: $p" } }
+    $cfgPath = "build\signing.json"
+    if (-not (Test-Path $cfgPath)) { throw "build\signing.json not found - see the header of build\sign.ps1" }
+    $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+    if ($cfg.Endpoint -notmatch '^https://[a-z0-9-]+\.codesigning\.azure\.net/?$') { throw "signing.json: Endpoint is not an Azure Artifact Signing address" }
+    foreach ($p in $cfg.SignTool, $cfg.Dlib, $File) { if (-not $p -or -not (Test-Path $p)) { throw "not found: $p" } }
+    # Tenant and client ID are not secret and may come from signing.json. If the secret is not in
+    # the environment, ask for it (hidden); it stays in this process's memory only.
+    if (-not $env:AZURE_TENANT_ID -and $cfg.TenantId) { $env:AZURE_TENANT_ID = $cfg.TenantId }
+    if (-not $env:AZURE_CLIENT_ID -and $cfg.ClientId) { $env:AZURE_CLIENT_ID = $cfg.ClientId }
+    if (-not $env:AZURE_CLIENT_SECRET) {
+        $sec = Read-Host -AsSecureString "Paste the signing client secret (it will not be shown) and press Enter"
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+        try { $env:AZURE_CLIENT_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim() }
+        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+    }
+    foreach ($v in 'AZURE_TENANT_ID','AZURE_CLIENT_ID','AZURE_CLIENT_SECRET') {
+        if (-not [Environment]::GetEnvironmentVariable($v)) { throw "$v is not set (environment or build\signing.json)" }
+    }
 
-# SignTool wants only the three service fields in the metadata file.
-$meta = Join-Path $env:TEMP ("dcsgo-signing-" + [guid]::NewGuid().ToString("N") + ".json")
-@{ Endpoint = $cfg.Endpoint; CodeSigningAccountName = $cfg.CodeSigningAccountName;
-   CertificateProfileName = $cfg.CertificateProfileName } | ConvertTo-Json | Set-Content $meta -Encoding ascii
+    # SignTool wants only the three service fields in the metadata file.
+    $meta = Join-Path $env:TEMP ("dcsgo-signing-" + [guid]::NewGuid().ToString("N") + ".json")
+    @{ Endpoint = $cfg.Endpoint; CodeSigningAccountName = $cfg.CodeSigningAccountName;
+       CertificateProfileName = $cfg.CertificateProfileName } | ConvertTo-Json | Set-Content $meta -Encoding ascii
+    # The hash is checked last, with nothing to wait for between the check and the signing, so
+    # a file swapped in while the secret was being pasted is not signed.
+    if ((Get-FileHash $File -Algorithm SHA256).Hash -ne $Sha256.Trim().ToUpper()) { throw "$File does not have the hash you gave; it is not the file that was built. Not signing." }
     # The timestamp is required: these certificates are valid for only a few days, and the
     # timestamp is what keeps the signature valid after they expire.
     & $cfg.SignTool sign /v /fd SHA256 /tr "http://timestamp.acs.microsoft.com" /td SHA256 `
@@ -56,6 +57,7 @@ $meta = Join-Path $env:TEMP ("dcsgo-signing-" + [guid]::NewGuid().ToString("N") 
     & $cfg.SignTool verify /pa /v $File
     if ($LASTEXITCODE -ne 0) { throw "signature did not verify ($LASTEXITCODE)" }
 } finally {
+    # Reached however the script ends, including every check above failing.
     if ($meta) { Remove-Item $meta -ErrorAction SilentlyContinue }
     Remove-Item Env:AZURE_CLIENT_SECRET -ErrorAction SilentlyContinue
 }

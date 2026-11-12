@@ -5,8 +5,11 @@
 -- directive written by anything that has not read this copy is ignored, as is one that is
 -- out of date or names any mission other than the bundled one. The directive is deleted
 -- the moment it is read, so a crash or a manual DCS launch can never replay a benchmark.
--- When DCS starts and there is no valid directive, this file deletes itself: a copy left
--- behind by an interrupted test is gone after the next DCS start.
+-- This file is used once: it deletes itself every time DCS loads it, whether or not it
+-- found a valid directive (the code keeps running from memory). The optimizer installs a
+-- fresh copy with a new key before each DCS start, so the key never stays on disk after
+-- DCS has read it, and a copy left behind by an interrupted test is gone after the next
+-- DCS start.
 -- A directive may carry several "trials" (each a set of graphics options): they are
 -- applied through DCS's own options module and measured one after another in the SAME
 -- DCS process, restarting only the mission. Options DCS itself says need a full restart
@@ -50,8 +53,8 @@ do
     else L("directive parse failed") end
   end
 end
+pcall(function() os.remove(SELF) end)     -- one use only, valid directive or not
 if not D then
-  pcall(function() os.remove(SELF) end)
   L("no directive -- hook inert and removed")
   return
 end
@@ -110,7 +113,7 @@ local function writeResult(ok, reason)
   if f then
     -- "scenes" = the first trial, so a single-trial directive reads exactly as before
     f:write(string.format('{"ok":%s,"reason":"%s","tag":"%s","clock":"%s","scenes":[%s],"trials":[%s]}',
-      tostring(ok), tostring(reason or ""), cfg.tag,
+      tostring(ok), (tostring(reason or ""):gsub('[%c"\\]', "")), cfg.tag,
       DCS.getRealTime and "DCS.getRealTime" or "os.clock",
       scenesJson(state.done[1] and state.done[1].scenes or state.results), table.concat(tparts, ",")))
     f:close()
@@ -186,13 +189,12 @@ local function tryHost()
     end
   end
   if type(scfg) ~= "table" then scfg = {} end
-  if type(scfg["advanced"]) == "table" then
-    scfg["advanced"]["resume_mode"] = 1
-    scfg["advanced"]["pause_on_load"] = false
-    scfg["advanced"]["external_views"] = true
-    scfg["advanced"]["allow_external_views"] = true
-    scfg["advanced"]["allow_object_export"] = false
-  end
+  if type(scfg["advanced"]) ~= "table" then scfg["advanced"] = {} end
+  scfg["advanced"]["resume_mode"] = 1
+  scfg["advanced"]["pause_on_load"] = false
+  scfg["advanced"]["external_views"] = true
+  scfg["advanced"]["allow_external_views"] = true
+  scfg["advanced"]["allow_object_export"] = false
   scfg["missionList"]    = { D.mission }
   scfg["listStartIndex"] = 1
   scfg["port"]           = tonumber(D.port)     -- a random port chosen for this run, never the usual 10308

@@ -188,6 +188,7 @@ def test_full_run(tmp_path, monkeypatch):
     assert w.server_cfg == (43210, "127.0.0.1", 1, False)
     assert w.exit and raw["ok"] is True and raw["clock"] == "DCS.getRealTime"
     assert [s["name"] for s in raw["scenes"]] == ["city", "airfield", "clouds"]
+    assert w.dir + "Scripts\\Hooks\\dcstune_bench.lua" in w.removed       # used once: gone even after a valid run
     parsed = parse_result(raw)
     for s in parsed["scenes"]:
         assert 480 <= s["frames"] <= 500            # 5 s at 100 fps, lead-in excluded
@@ -230,3 +231,12 @@ def test_several_trials_in_one_launch(tmp_path, monkeypatch):
         assert all(len(s["frame_ms"]) > 400 for s in t["scenes"])
     assert raw["scenes"] == raw["trials"][0]["scenes"]
     assert "dcstune_b_city" in w.shots and "dcstune_a_clouds" in w.shots
+
+
+def test_missing_unit_name_cannot_break_result(tmp_path, monkeypatch):
+    bad = 'X","ok":true,"y":"'
+    scenes = [SCENES[0], dict(SCENES[1], unit=bad), SCENES[2]]
+    # the mock world reads the name up to the first quote of the escaped string: X\
+    w, raw, _ = _run(tmp_path, monkeypatch, dict(DIRECTIVE, scenes=scenes), missing="X\\", max_seconds=200)
+    assert raw["ok"] is False and raw["reason"].startswith("unit not found") and '"' not in raw["reason"]
+    assert set(raw) == {"ok", "reason", "tag", "clock", "scenes", "trials"}

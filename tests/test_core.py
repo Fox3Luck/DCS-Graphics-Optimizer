@@ -548,7 +548,7 @@ def test_each_installed_hook_has_its_own_key_and_directive_carries_it(tmp_path, 
     seen = []
 
     class Proc:
-        def __init__(self, args, cwd): seen.append(json.loads(b.directive.read_text()))
+        def __init__(self, args, cwd): seen.append(dict(json.loads(b.directive.read_text()), hook=hook.read_text()))
         def wait(self, timeout=None): b.result.write_text('{"ok":true}')
     monkeypatch.setattr(bench.subprocess, "Popen", Proc)
     monkeypatch.setattr(bench.time, "sleep", lambda s: None)
@@ -558,7 +558,8 @@ def test_each_installed_hook_has_its_own_key_and_directive_carries_it(tmp_path, 
         b._launch(None, {"tag": "x"}, True, 100)
         b._launch(None, {"tag": "y"}, True, 100)
     d1, d2 = seen
-    assert d1["key"] == d2["key"] == b.key
+    assert d1["key"] != d2["key"] and d2["key"] == b.key                         # new hook and key for every DCS start
+    assert f'"{d1["key"]}"' in d1["hook"] and f'"{d2["key"]}"' in d2["hook"]
     assert len(d1["password"]) == 32 and d1["password"] != d2["password"]       # new for every DCS start
     assert 20000 <= d1["port"] < 60000 and d1["mission"] == str(b.mission_dst)
     assert 0 < d1["not_after"] - time.time() <= bench.DIRECTIVE_VALID_SEC

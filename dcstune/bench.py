@@ -213,14 +213,19 @@ class Bench:
         self.session.begin()
         self.hook_dst.parent.mkdir(parents=True, exist_ok=True)
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)
-        # Each installed copy of the hook gets its own key; it obeys only a directive that carries it.
+        self._install_hook()
+        shutil.copyfile(MISSION_SRC, self.mission_dst)
+        return self
+
+    def _install_hook(self):
+        """A fresh copy of the hook with a new key. Done before every DCS start: the hook deletes
+        itself as soon as DCS loads it, so a key is on disk only until DCS has read it, and the
+        hook obeys only a directive that carries that key."""
         self.key = secrets.token_hex(16)
         hook = HOOK_SRC.read_text(encoding="utf-8")
         if hook.count(KEY_MARK) != 1:
             raise BenchError("The benchmark script inside this program is damaged.")
         self.hook_dst.write_text(hook.replace(KEY_MARK, self.key), encoding="utf-8", newline="")
-        shutil.copyfile(MISSION_SRC, self.mission_dst)
-        return self
 
     def __exit__(self, *exc):
         self.cleanup()
@@ -314,8 +319,9 @@ class Bench:
         self.result.unlink(missing_ok=True)
 
         def directive() -> str:
-            # New for every DCS start: the key of the installed hook, a short validity, and the
+            # New for every DCS start: a fresh hook with its own key, a short validity, and the
             # password and port of the local session DCS has to host to run the mission.
+            self._install_hook()
             return json.dumps(dict({
                 "key": self.key, "not_after": int(time.time()) + DIRECTIVE_VALID_SEC,
                 "password": secrets.token_hex(16), "port": free_port(),
