@@ -610,3 +610,61 @@ def test_primary_display_replaces_the_cards_own_figures():
         g = normalize(dict(raw, display=missing))["gpu"]
         assert (g["width"], g["height"], g["refresh"]) == (2560, 1440, 143)
     assert normalize(dict(raw, display={"width": 3840, "height": 2160, "refresh": None}))["gpu"]["refresh"] == 143
+
+
+# -- VR: monitor numbers must never be reported as headset numbers ----------------------
+# Lines DCS 2.9.31 really wrote on 2026-11-13: first with no headset behind the VR software,
+# then with a (simulated) headset that accepted the picture.
+LOG_NO_HEADSET = """INFO    VISUALIZER (Main): [00:57:49.896][Info   ] OpenXR: Instance RuntimeName=Pimax OpenXR RuntimeVersion=0.1.0
+WARNING VISUALIZER (Main): [00:57:49.897][Warning] OpenXR: waiting for HMD to warm up...
+ERROR   VISUALIZER (Main): OpenXR failure XrResult failure [XR_ERROR_FORM_FACTOR_UNAVAILABLE]
+ERROR   VISUALIZER (Main): OpenXR exception: XrResult failure [XR_ERROR_FORM_FACTOR_UNAVAILABLE]
+"""
+LOG_IN_HEADSET = """INFO    VISUALIZER (Main): [01:01:01.783][Info   ] OpenXR: Instance RuntimeName=SteamVR/OpenXR RuntimeVersion=2.18.4
+INFO    VISUALIZER (21588): [01:01:09.068][Info   ] OpenXR: Creating swapchain for view 0 with dimensions Width=2880 Height=2880 SampleCount=1
+INFO    VISUALIZER (21588): [01:01:09.070][Info   ] OpenXR: Creating swapchain for view 1 with dimensions Width=2880 Height=2880 SampleCount=1
+"""
+
+
+def test_vr_run_that_fell_back_to_the_monitor_is_refused(tmp_path, monkeypatch):
+    bench, b = _bench(tmp_path, monkeypatch)
+    assert bench.vr_started(LOG_IN_HEADSET) and not bench.vr_started(LOG_NO_HEADSET) and not bench.vr_started("")
+    b.vr = True
+    logs = tmp_path / "Logs"; logs.mkdir()
+
+    class Proc:
+        def __init__(self, args, cwd): assert ("--force_enable_VR" in args) is b.vr
+        def wait(self, timeout=None): b.result.write_text('{"ok":true}')       # DCS finished - on the monitor
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+    monkeypatch.setattr(bench.time, "sleep", lambda s: None)
+    (logs / "dcs.log").write_text(LOG_NO_HEADSET)
+    with b:
+        with pytest.raises(bench.BenchError, match="ran on the monitor instead"):
+            b._launch(None, {"tag": "x"}, True, 100)
+        assert not b.result.exists() and not b.directive.exists()
+        assert (tmp_path / "Config" / "dcstune-last-failure.log").read_text() == LOG_NO_HEADSET
+        (logs / "dcs.log").write_text(LOG_IN_HEADSET)
+        assert b._launch(None, {"tag": "y"}, True, 100)[0] == {"ok": True}
+        (logs / "dcs.log").unlink()                                            # no log to prove it: refuse
+        with pytest.raises(bench.BenchError, match="ran on the monitor instead"):
+            b._launch(None, {"tag": "z"}, True, 100)
+    b.vr = False                                                               # monitor tests never look at it
+    with b:
+        assert b._launch(None, {"tag": "m"}, True, 100)[0] == {"ok": True}
+
+
+def test_headset_software_is_not_counted_as_another_program(tmp_path, monkeypatch):
+    from dcstune import bench
+    # 2026-11-13: 3.6 GB in use before DCS started, 1.5 GB of it SteamVR - no warning in VR, a warning on the monitor
+    assert bench.other_vram_high(3600, 16376) and not bench.other_vram_high(3600, 16376, vr=True)
+    assert bench.other_vram_high(7200, 16376, vr=True)                         # an AI model on top still warns
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (1.0, 3600.0))
+    cfg = tmp_path / "Config"; cfg.mkdir()
+    shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
+    prof = {"path": str(tmp_path), "name": "DCS", "options": str(cfg / "options.lua")}
+    for vr in (True, False):
+        said = []
+        with bench.Bench(prof, tmp_path / "DCS.exe", log=said.append, vr=vr, vram_total_mb=16376):
+            pass
+        assert any("other programs are using" in m for m in said) is (not vr)

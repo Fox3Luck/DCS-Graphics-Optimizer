@@ -114,6 +114,23 @@ Headset facts (pimax.com comparison pages):
 4. The goal is the headset's refresh rate (72 / 90 / 120), and 60–90 is considered good.
 5. DLSS/DLAA on NVIDIA; MSAA with FSR or NIS elsewhere.
 
+## Measured without a headset (test box, 2026-11-13, DCS 2.9.31, SteamVR 2.18.4)
+
+A headset simulated with SteamVR's built-in `null` driver (2880 x 2880 per eye, 90 Hz), no hardware connected.
+
+- `--force_steam_VR` is ignored by the multithreaded DCS: its log says "MT support SteamVR only through OpenXR,
+  fallback to OpenXR" and it uses whatever OpenXR runtime is the Windows default.
+- When that runtime has no headset, DCS logs `OpenXR failure ... XR_ERROR_FORM_FACTOR_UNAVAILABLE` and **carries on
+  drawing on the monitor**. A test would finish with monitor numbers. `bench.vr_started()` now reads `dcs.log` after
+  every VR run and refuses the result unless DCS created its headset pictures and logged no OpenXR failure.
+- The environment variable `XR_RUNTIME_JSON` (pointing at SteamVR's `steamxr_win64.json`) sends one DCS start to
+  SteamVR without changing the Windows default. DCS then starts in VR and creates two 2880 x 2880 pictures.
+- With the simulated headset DCS does **not** render a real VR load: the graphics card stayed near idle (about 20%
+  busy, 25 W) and the frame rate sat at exactly 140 FPS in every scene. One of three runs hung. So a simulated
+  headset proves the start-up and clean-up path but gives no frame rates. Why it does not render is not confirmed.
+- SteamVR itself held about 1.5 GB of video memory before DCS started. The "other programs are using video memory"
+  warning allows for the headset software in VR (`VR_SOFTWARE_VRAM_MB`).
+
 ## Still unknown — only the headset can answer
 
 - Does DCS start in VR unattended from our scheduled task, and with which switches?

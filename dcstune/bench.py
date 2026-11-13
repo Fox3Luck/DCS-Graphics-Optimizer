@@ -129,11 +129,24 @@ BUSY_GPU_PERCENT = 25     # refuse to test above this while DCS is not even runn
 # Video memory in use before DCS starts. A desktop with a browser and two 4K monitors sits near
 # 2 GB; more than this means another program (a game, an AI tool, a video editor) is holding it.
 OTHER_VRAM_MB, OTHER_VRAM_SHARE = 2500, 0.20
+# In VR the headset's own software is running before DCS starts and holds video memory too
+# (SteamVR with a 2880 x 2880 headset: about 1.5 GB). It is part of playing in VR, not "another program".
+VR_SOFTWARE_VRAM_MB = 2000
 
 
-def other_vram_high(other_mb: float, total_mb: float = 0) -> bool:
+def other_vram_high(other_mb: float, total_mb: float = 0, vr: bool = False) -> bool:
     """True when other programs hold enough video memory to distort what the test measures."""
-    return other_mb > max(OTHER_VRAM_MB, OTHER_VRAM_SHARE * (total_mb or 0))
+    return other_mb > max(OTHER_VRAM_MB, OTHER_VRAM_SHARE * (total_mb or 0)) + (VR_SOFTWARE_VRAM_MB if vr else 0)
+
+
+VR_STARTED = "OpenXR: Creating swapchain for view"      # DCS writes this once the headset accepted a picture
+VR_FAILED = ("OpenXR failure", "OpenXR exception")
+
+
+def vr_started(dcs_log: str) -> bool:
+    """Did DCS really render to the headset? When the headset software reports no headset, DCS
+    carries on and draws on the monitor without saying so - those would be monitor numbers."""
+    return VR_STARTED in dcs_log and not any(bad in dcs_log for bad in VR_FAILED)
 
 
 def gpu_idle_check(samples: int = 4) -> tuple[float, float]:
@@ -219,7 +232,7 @@ class Bench:
                              "otherwise the results would be wrong.")
         if load > BUSY_GPU_PERCENT:
             self.log(f"WARNING: graphics card is {load:.0f}% busy before DCS starts; results will be unreliable.")
-        if other_vram_high(self.other_vram_mb, self.vram_total_mb):
+        if other_vram_high(self.other_vram_mb, self.vram_total_mb, self.vr):
             of = f" of {self.vram_total_mb / 1024:.0f} GB" if self.vram_total_mb else ""
             self.log(f"WARNING: other programs are using {self.other_vram_mb / 1024:.1f} GB{of} of video memory "
                      "before DCS starts. The test continues, but the video memory figures will include them and "
@@ -372,6 +385,18 @@ class Bench:
             self._keep_failure_log()
             raise BenchError("DCS closed without writing a benchmark result "
                              "(a copy of its log is in Config\\dcstune-last-failure.log).")
+        if self.vr:
+            try:
+                dcs_log = (self.profile_dir / "Logs" / "dcs.log").read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                dcs_log = ""
+            if not vr_started(dcs_log):
+                self.directive.unlink(missing_ok=True)
+                self.result.unlink(missing_ok=True)
+                self._keep_failure_log()
+                raise BenchError("DCS could not show its picture in the headset, so it ran on the monitor instead. "
+                                 "Nothing was measured. Check that the headset is connected, switched on and "
+                                 "working in its own software, then try again.")
         raw_text = self.result.read_text()
         if self.keep_raw_dir:
             (Path(self.keep_raw_dir) / f"dcstune-raw-{time.strftime('%H%M%S')}-{directive_extra['tag']}.json").write_text(raw_text)

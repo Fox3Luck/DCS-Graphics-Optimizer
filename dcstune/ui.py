@@ -179,7 +179,7 @@ class Engine:
                   "before": rate.rate_settings(self.info, flat, machine, out["before"], target),
                   "machine": machine,
                   "before_result": _slim(out["before"])}
-        if other_vram_high(other_vram, gpu.get("vram_mb") or 0):
+        if other_vram_high(other_vram, gpu.get("vram_mb") or 0, vr=bool(st)):
             report["vram_other_mb"] = round(other_vram)       # shown as a note on the report
         rec = out["recommended"]
         if rec:
