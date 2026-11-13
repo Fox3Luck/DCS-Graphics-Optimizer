@@ -146,8 +146,9 @@ def test_vr_keys_are_written_without_disturbing_the_file():
 class _FakeBench:
     """Stands in for bench.Bench: a FakePC behind the same interface."""
     made = []
+    other_vram_mb = 0.0             # video memory other programs hold before DCS starts
 
-    def __init__(self, profile, exe, log=print, vr=False):
+    def __init__(self, profile, exe, log=print, vr=False, vram_total_mb=0):
         self.vr, self.runs, self.keep_shots = vr, 0, set()
         self.options = profile["options"]
         _FakeBench.made.append(self)
@@ -204,6 +205,16 @@ def test_with_vr_on_the_released_test_stays_on_the_monitor(tmp_path, monkeypatch
     assert not any(k.startswith("VR.") for k in rep.get("changes", {}))
     from dcstune import report as R
     assert "This test ran on the monitor" in R.fragment(rep)
+    assert "vram_other_mb" not in rep and "Other programs were using" not in R.fragment(rep)
+
+
+def test_video_memory_held_by_other_programs_is_noted_on_the_report(tmp_path, monkeypatch):
+    eng = _engine(tmp_path, monkeypatch)
+    monkeypatch.setattr(_FakeBench, "other_vram_mb", 7200.0)
+    rep = eng.optimize(False, lambda m: None)
+    from dcstune import report as R
+    assert rep["vram_other_mb"] == 7200
+    assert "Other programs were using 7.0 GB of video memory" in R.fragment(rep)
 
 
 def test_experimental_vr_test_measures_in_the_headset_and_recommends_vr_changes(tmp_path, monkeypatch):

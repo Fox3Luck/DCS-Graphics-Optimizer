@@ -103,6 +103,10 @@ def fragment(rep: dict, img=lambda name: name) -> str:
     if rep.get("disturbed"):
         h.append('<p class="note err">Another program was using the PC during part of this test, so some '
                  'measurements were discarded. For the most accurate result, close other programs and run it again.</p>')
+    if rep.get("vram_other_mb"):
+        h.append(f'<p class="note err">Other programs were using {rep["vram_other_mb"] / 1024:.1f} GB of video memory '
+                 'before DCS started. The video memory figures below include them, and the recommendation may be '
+                 'more cautious than needed. For the most accurate result, close them and run the test again.</p>')
     if has and rep.get("target_reached") is False:
         h.append(f'<p class="note">This PC cannot hold {rep["target_fps"]} FPS in the heaviest scene; '
                  'this is the smoothest result measured.</p>')

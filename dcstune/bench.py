@@ -126,6 +126,14 @@ class GpuSampler:
 
 
 BUSY_GPU_PERCENT = 25     # refuse to test above this while DCS is not even running
+# Video memory in use before DCS starts. A desktop with a browser and two 4K monitors sits near
+# 2 GB; more than this means another program (a game, an AI tool, a video editor) is holding it.
+OTHER_VRAM_MB, OTHER_VRAM_SHARE = 2500, 0.20
+
+
+def other_vram_high(other_mb: float, total_mb: float = 0) -> bool:
+    """True when other programs hold enough video memory to distort what the test measures."""
+    return other_mb > max(OTHER_VRAM_MB, OTHER_VRAM_SHARE * (total_mb or 0))
 
 
 def gpu_idle_check(samples: int = 4) -> tuple[float, float]:
@@ -180,7 +188,7 @@ def free_port() -> int:
 
 class Bench:
     def __init__(self, profile: dict, exe: Path, scene_sec: int = 25, settle_sec: int = 20,
-                 timeout: int = 600, log=print, vr: bool = False):
+                 timeout: int = 600, log=print, vr: bool = False, vram_total_mb: float = 0):
         self.profile_dir = Path(profile["path"])
         self.profile_name = profile["name"]
         self.options = Path(profile["options"])
@@ -197,6 +205,7 @@ class Bench:
         self.keep_shots: set[str] = set()             # screenshot names to leave for the player
         self.allow_busy = bool(os.environ.get("DCSTUNE_ALLOW_BUSY"))   # developer override
         self.other_vram_mb = 0.0
+        self.vram_total_mb = vram_total_mb or 0       # the card's size, to judge other_vram_mb against
         self.keep_raw_dir = None      # developer aid: keep every frame time
 
     # -- session lifecycle ---------------------------------------------------
@@ -210,6 +219,11 @@ class Bench:
                              "otherwise the results would be wrong.")
         if load > BUSY_GPU_PERCENT:
             self.log(f"WARNING: graphics card is {load:.0f}% busy before DCS starts; results will be unreliable.")
+        if other_vram_high(self.other_vram_mb, self.vram_total_mb):
+            of = f" of {self.vram_total_mb / 1024:.0f} GB" if self.vram_total_mb else ""
+            self.log(f"WARNING: other programs are using {self.other_vram_mb / 1024:.1f} GB{of} of video memory "
+                     "before DCS starts. The test continues, but the video memory figures will include them and "
+                     "the recommendation may be more cautious than needed. Close them and test again for the best result.")
         self.session.begin()
         self.hook_dst.parent.mkdir(parents=True, exist_ok=True)
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)

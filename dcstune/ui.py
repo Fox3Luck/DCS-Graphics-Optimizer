@@ -127,7 +127,7 @@ class Engine:
 
     def optimize(self, full: bool, log) -> dict:
         from . import audit, feedback as F, model as M, optimize, rate, sysinfo, vr as V
-        from .bench import Bench
+        from .bench import Bench, other_vram_high
         from .optionslua import atomic_write
         started = time.time()
         flat, gpu = self._flat(), self.info["gpu"]
@@ -154,12 +154,12 @@ class Engine:
         if cal and not full:
             mdl.measured = {k: {int(i): ms for i, ms in v.items()} for k, v in cal.get("measured", {}).items()}
         exe = sysinfo.dcs_exe(sysinfo.pick_install(self.info))
-        with Bench(self.profile, exe, log=log, vr=bool(st)) as b:
+        with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0) as b:
             out = optimize.run(mdl, flat, vendor, goal,
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
                                measure_fast=b.measure_fast, measure_batch=b.measure_batch,
                                steps=st and st["steps"], extra=extra)
-            launches = b.runs
+            launches, other_vram = b.runs, b.other_vram_mb
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
         target = out["target_fps"]
@@ -179,6 +179,8 @@ class Engine:
                   "before": rate.rate_settings(self.info, flat, machine, out["before"], target),
                   "machine": machine,
                   "before_result": _slim(out["before"])}
+        if other_vram_high(other_vram, gpu.get("vram_mb") or 0):
+            report["vram_other_mb"] = round(other_vram)       # shown as a note on the report
         rec = out["recommended"]
         if rec:
             after = dict(flat)

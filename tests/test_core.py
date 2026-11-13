@@ -413,6 +413,24 @@ def test_busy_gpu_refuses_to_start(tmp_path, monkeypatch):
         assert b.other_vram_mb == 8089.0
 
 
+def test_video_memory_held_by_other_programs_is_warned_about(tmp_path, monkeypatch):
+    """A local AI model holding video memory does not stop the test, but the player is told."""
+    from dcstune import bench, report as R
+    assert bench.other_vram_high(7200, 16376) and not bench.other_vram_high(2100, 16376)
+    assert bench.other_vram_high(2600, 8192) and not bench.other_vram_high(2600, 16376)    # a share of big cards
+    assert bench.other_vram_high(2600) and not bench.other_vram_high(0)                    # card size unknown
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    cfg = tmp_path / "Config"; cfg.mkdir()
+    shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
+    prof = {"path": str(tmp_path), "name": "DCS", "options": str(cfg / "options.lua")}
+    for other, warned in ((7200.0, True), (2100.0, False)):
+        monkeypatch.setattr(bench, "gpu_idle_check", lambda: (1.0, other))
+        said = []
+        with bench.Bench(prof, tmp_path / "DCS.exe", log=said.append, vram_total_mb=16376):
+            pass
+        assert any("other programs are using 7.0 GB of 16 GB" in m for m in said) is warned
+
+
 # -- no-restart batches ---------------------------------------------------------------
 def _batch_fn(pc, record, disturb=lambda n, i: 1.0, fail=()):
     def batch(changes_list):
