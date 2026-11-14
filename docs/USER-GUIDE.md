@@ -316,6 +316,9 @@ Kept:
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
 - `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed
 
+Outside that folder, only if you used Browse: `%APPDATA%\DCS Graphics Optimizer\folders.json`,
+the DCS and Saved Games folders you picked.
+
 To remove every trace, delete the files starting with `dcstune` and
 `options.lua.dcstune` from those folders, and the `DCS Graphics Optimizer Reports` folder.
 
@@ -323,6 +326,8 @@ To remove every trace, delete the files starting with `dcstune` and
 
 | What you see | What to do |
 |---|---|
+| "Where is DCS World installed?" | The tool looked in the registry, your Steam libraries and the usual folders on every drive and did not find DCS. Press **Browse** (or paste the path) and pick the main DCS World folder, the one that contains `bin`. Steam: `...\steamapps\common\DCSWorld`. The choice is remembered. |
+| "Where are your DCS settings?" | Your `Saved Games\DCS` folder was not found, for example because Saved Games is on another drive. Press **Browse** and pick the `DCS` folder inside Saved Games (the one that contains `Config\options.lua`). If there is none, start DCS once and close it. |
 | "DCS is running. Close it first" | Close DCS completely, then try again. |
 | DCS opens and sits at a login box | Log in once in DCS with auto-login on, close DCS, run the test again. |
 | "Another program is using your graphics card" | Close other games, video renders, AI tools and browser videos, then try again. |
