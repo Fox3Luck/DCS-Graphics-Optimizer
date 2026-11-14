@@ -280,3 +280,32 @@ def test_wide_multi_screen_picture_is_graded_against_a_reachable_goal():
     assert "thrown away" not in " ".join(f["text"] for f in fit["findings"])
     # a measured test result keeps using the goal that test aimed for
     assert rate.rate_settings(info, flat, rate.rate_machine(info), {"p1_low_fps": 70, "avg_fps": 90}, 72)["target_fps"] == 72
+
+
+def test_finished_benchmark_is_kept_when_dcs_stays_open(tmp_path, monkeypatch):
+    # beta 15 logs: the benchmark wrote its result, DCS went back to the menu and stayed there,
+    # and the test was reported as "did not finish in time".
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+    clock = [1000.0]
+    monkeypatch.setattr(bench.time, "time", lambda: clock[0])
+    monkeypatch.setattr(bench.time, "sleep", lambda s: clock.__setitem__(0, clock[0] + s))
+    killed = []
+
+    class Proc:
+        def __init__(self, args, cwd): pass
+        def wait(self, timeout=None):
+            if killed:
+                return 0
+            clock[0] += timeout or 0
+            if clock[0] > 1060:
+                b.result.write_text('{"ok":true}')    # benchmark done after a minute...
+            raise bench.subprocess.TimeoutExpired("DCS.exe", timeout)   # ...but DCS never closes
+        def kill(self): killed.append(clock[0])
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+    logs = []
+    b.log = logs.append
+    with b:
+        assert b._launch(None, {"tag": "x"}, True, 600)[0] == {"ok": True}
+    assert killed and killed[0] - 1060 <= bench.EXIT_GRACE_SEC + 5
+    assert any("did not close by itself" in m for m in logs)

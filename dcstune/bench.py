@@ -27,6 +27,7 @@ SCENES = [
 ]
 BATCH_SETTLE_SEC = 10     # wait before timing in every measured no-restart trial
 QUICK_EXIT_SEC = 45       # DCS gone this fast without a result = it never really started
+EXIT_GRACE_SEC = 45       # result written: how long DCS gets to close itself before the tool closes it
 HANDOFF_WAIT_SEC = 25     # after such an exit, how long to look for a DCS that Steam/the updater started instead
 SHORT_SCENE_SEC, SHORT_LEAD_SEC = 10, 2   # cost-only runs: averages repeat within 0.2% at 10 s
 STUTTER_FACTOR = 2.5     # a frame this many times the median counts as a stutter
@@ -71,6 +72,13 @@ def parse_result(raw: dict) -> dict:
         stats.update(name=s["name"], shot=s.get("shot") or None)
         scenes.append(stats)
     return {"scenes": scenes, "clock": raw.get("clock"), "tag": raw.get("tag")}
+
+
+def _taskkill_dcs() -> None:
+    try:
+        subprocess.run(["taskkill", "/IM", "DCS.exe", "/F"], capture_output=True, creationflags=NO_WINDOW)
+    except FileNotFoundError:
+        pass
 
 
 def dcs_running() -> bool:
@@ -359,13 +367,44 @@ class Bench:
         if not seen:
             return False
         self.log("  DCS was started again by another program (for example Steam); following that one...")
+        done_at = None
         while dcs_running():
-            if time.time() > deadline:
+            if self.result.exists():
+                done_at = done_at or time.time()
+                if time.time() - done_at > EXIT_GRACE_SEC:         # finished but did not close: close it
+                    self.log("  The benchmark finished but DCS did not close by itself; closing it.")
+                    _taskkill_dcs()
+                    time.sleep(5)
+                    return True
+            elif time.time() > deadline:
                 self.directive.unlink(missing_ok=True)
                 self._keep_failure_log()
                 raise BenchError("DCS did not finish the benchmark in time. Close DCS, then try again.")
             time.sleep(2)
         return True
+
+    def _wait_for(self, proc, deadline: float) -> bool:
+        """Wait for the DCS we started. True when it closed, or when the benchmark finished and
+        DCS was closed for it because it stayed open (beta 15 logs: result written, then DCS sat
+        at the menu and the test was wrongly called a failure). False on a real timeout."""
+        done_at = None
+        while True:
+            try:
+                proc.wait(timeout=2)
+                return True
+            except subprocess.TimeoutExpired:
+                pass
+            if self.result.exists():
+                done_at = done_at or time.time()
+                if time.time() - done_at > EXIT_GRACE_SEC:
+                    self.log("  The benchmark finished but DCS did not close by itself; closing it.")
+                    proc.kill()
+                    proc.wait(timeout=30)
+                    return True
+            elif time.time() > deadline:
+                proc.kill()
+                proc.wait(timeout=30)
+                return False
 
     def _keep_failure_log(self):
         try:
@@ -394,7 +433,8 @@ class Bench:
                 "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
                 "total_timeout": timeout - 30},
                 # development only: force the fallback way of finding the aircraft (issue #3)
-                **({"subject_source": "server"} if os.environ.get("DCSTUNE_SUBJECT_SOURCE") == "server" else {}),
+                **({"subject_source": os.environ["DCSTUNE_SUBJECT_SOURCE"]}
+                   if os.environ.get("DCSTUNE_SUBJECT_SOURCE") in ("server", "direct") else {}),
                 **directive_extra))
         self.directive.write_text(directive())
         from . import winproc
@@ -412,11 +452,7 @@ class Bench:
             launched = time.time()
             with GpuSampler() as gpu:
                 proc = subprocess.Popen(args, cwd=str(self.exe.parent))
-                try:
-                    proc.wait(timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait(timeout=30)
+                if not self._wait_for(proc, launched + timeout):
                     self.directive.unlink(missing_ok=True)
                     self._keep_failure_log()
                     raise BenchError("DCS did not finish the benchmark in time and was closed. "

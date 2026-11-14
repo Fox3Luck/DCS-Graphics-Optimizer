@@ -20,6 +20,9 @@
 -- Log lines: grep "DCSTUNE" in dcs.log.
 
 local function L(msg) log.write("DCSTUNE", log.INFO, tostring(msg)) end
+-- Kept as DCS gave it when this file loaded: other add-ons' hooks sometimes replace
+-- net.dostring_in with a wrapper that returns nothing (beta issue #3, 2026-11-14 logs).
+local DOSTRING_IN = net and net.dostring_in
 
 local DIRECTIVE = lfs.writedir() .. "Config\\dcstune_directive.json"
 local RESULT    = lfs.writedir() .. "Config\\dcstune_result.json"
@@ -242,8 +245,37 @@ local SUBJECT_CODE = {
 local subject_src = nil            -- the source that answered first; nil until one has
 local subject_err = {}             -- last thing each source said, for the log on failure
 
+-- Third source, no net.dostring_in at all: this hook state's own Export table.
+local function askDirect(unitName)
+  if not (Export and type(Export.LoGetWorldObjects) == "function") then
+    subject_err.direct = "no Export.LoGetWorldObjects here"; return nil
+  end
+  local ok, objs = pcall(Export.LoGetWorldObjects)
+  if not ok then subject_err.direct = "pcall: " .. tostring(objs); return nil end
+  if type(objs) ~= "table" then subject_err.direct = "no answer (" .. tostring(objs) .. ")"; return nil end
+  for _, o in pairs(objs) do
+    if type(o) == "table" and o.UnitName == unitName and type(o.Position) == "table" then
+      subject_err.direct = nil
+      return { x = o.Position.x, y = o.Position.y, z = o.Position.z, h = o.Heading or 0 }
+    end
+  end
+  subject_err.direct = "answers, unit not there yet"
+  return false
+end
+
+local function dostring(src, code)
+  local ok, s, ok2 = pcall(DOSTRING_IN, src, code)
+  if ok and type(s) == "string" then return ok, s, ok2 end
+  if net.dostring_in ~= DOSTRING_IN then          -- replaced after we loaded: try the current one too
+    local okb, sb, ok2b = pcall(net.dostring_in, src, code)
+    if okb and type(sb) == "string" then return okb, sb, ok2b end
+  end
+  return ok, s, ok2
+end
+
 local function askSubject(src, unitName)
-  local ok, s, ok2 = pcall(function() return net.dostring_in(src, string.format(SUBJECT_CODE[src], unitName)) end)
+  if src == "direct" then return askDirect(unitName) end
+  local ok, s, ok2 = dostring(src, string.format(SUBJECT_CODE[src], unitName))
   if not ok then subject_err[src] = "pcall: " .. tostring(s); return nil end
   if type(s) ~= "string" then subject_err[src] = "no answer (" .. tostring(s) .. ", " .. tostring(ok2) .. ")"; return nil end
   if s:sub(1, 4) == "ERR " then subject_err[src] = s; return nil end
@@ -259,7 +291,8 @@ local function pollSubject(unitName)
     local p = askSubject(subject_src, unitName)
     return p or nil
   end
-  local order = (D.subject_source == "server") and { "server" } or { "export", "server" }
+  local forced = { server = { "server" }, direct = { "direct" } }
+  local order = forced[D.subject_source] or { "export", "server", "direct" }
   for _, src in ipairs(order) do
     local p = askSubject(src, unitName)
     if p then
@@ -404,7 +437,8 @@ function h.onSimulationFrame()
       updateSubject(D.scenes[1], t)
       L("world up; settling " .. settle .. "s")
     elseif elapsed > cfg.start_timeout then
-      local okd, names = pcall(function() return net.dostring_in("export", [[
+      L("net.dostring_in replaced by another script: " .. tostring(net.dostring_in ~= DOSTRING_IN))
+      local okd, names = pcall(function() return DOSTRING_IN("export", [[
         local t, n = {}, 0
         local objs = LoGetWorldObjects()
         if not objs then return 'LoGetWorldObjects=nil' end

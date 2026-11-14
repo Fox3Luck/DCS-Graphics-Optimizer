@@ -32,7 +32,19 @@ net = {
     return string.format('%.2f %.2f %.2f %.4f', 1000 + wall * 120, 300, 5000, 0.5)
   end,
 }
-Export = { LoSetCommand = function(c) W.cmd(c) end,
+Export = { LoGetWorldObjects = function()
+              if W.no_direct then return nil end
+              W.asked("direct")
+              if not W.world_up then return {} end
+              local t = {}
+              for _, name in ipairs({"TUNE-CITY-1", "TUNE-RAMP-1", "TUNE-HIGH-1"}) do
+                if not (W.missing and name == W.missing) then
+                  t[#t + 1] = { UnitName = name, Heading = 0.5, Position = { x = 1000 + wall * 120, y = 300, z = 5000 } }
+                end
+              end
+              return t
+            end,
+           LoSetCommand = function(c) W.cmd(c) end,
            LoSetCameraPosition = function(p) W.cam(p.p.x, p.p.y, p.p.z, p.x.x, p.x.y, p.x.z) end }
 local cb
 local live = {}
@@ -85,7 +97,8 @@ class World:
 KEY = "0123456789abcdef0123456789abcdef"
 
 
-def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY, dead=()):
+def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY, dead=(),
+         wrap_dostring=None, no_direct=True):
     (tmp_path / "Config").mkdir()
     # the hook builds Windows paths; map them onto the temp dir
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
@@ -102,8 +115,15 @@ def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=40
     w.removed = []
     lua.globals().py_remove = lambda p: (w.removed.append(p), real[p].unlink() if p in real else None)
     lua.execute("io.open = function(p, m) return py_open(p, m) end; os.remove = function(p) py_remove(p) end")
+    w.no_direct = no_direct
     load, tick = lua.execute(HARNESS, w)
+    # another add-on replaces net.dostring_in with a wrapper that returns nothing (#3)
+    wrap = "net.dostring_in = function(...) end"
+    if wrap_dostring == "before":
+        lua.execute(wrap)
     cb = load(HOOK.read_text().replace(KEY_MARK, hook_key) if hook_key else HOOK.read_text())
+    if wrap_dostring == "after":
+        lua.execute(wrap)
     if cb is None:
         return w, None, real
     dt, t = 1.0 / fps, 0.0
@@ -271,3 +291,24 @@ def test_working_export_state_is_still_used(tmp_path, monkeypatch):
     w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE)
     assert raw["ok"] is True and any("positions come from the export state" in m for m in w.log)
     assert set(w.states_asked) == {"export"}
+
+
+def test_dostring_replaced_after_load_still_finds_aircraft(tmp_path, monkeypatch):
+    # beta 15 logs: both sources answered nothing because another hook replaced net.dostring_in
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, wrap_dostring="after")
+    assert raw["ok"] is True and any("positions come from the export state" in m for m in w.log)
+
+
+def test_dostring_replaced_before_load_falls_back_to_direct(tmp_path, monkeypatch):
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, wrap_dostring="before", no_direct=False)
+    assert raw["ok"] is True and any("positions come from the direct state" in m for m in w.log)
+    px, py, pz, fx, fy, fz = w.cams[-1]
+    assert py > 300 and fx > 0 and fy < 0                    # camera still behind and above the subject
+
+
+def test_all_sources_dead_logs_each_reason(tmp_path, monkeypatch):
+    d = dict(DIRECTIVE, start_timeout=20, total_timeout=60)
+    w, raw, _ = _run(tmp_path, monkeypatch, d, fps=30, wrap_dostring="before")
+    assert raw["ok"] is False and "never appeared" in raw["reason"]
+    assert any(m.startswith("position source direct: no") for m in w.log)
+    assert any(m == "net.dostring_in replaced by another script: false" for m in w.log)
