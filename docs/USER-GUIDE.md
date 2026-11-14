@@ -5,6 +5,9 @@ them by actually running DCS, and recommends the best-looking settings your PC c
 run smoothly. Nothing is changed until you press **Apply**, and **Undo** puts your old
 settings back.
 
+**Monitor (2D) only for now.** The tests and recommendations are for flying on a
+monitor; VR settings are never changed. VR testing is in development.
+
 - [Before you start](#before-you-start)
 - [The scorecard](#the-scorecard)
 - [The two tests and how long they take](#the-two-tests-and-how-long-they-take)

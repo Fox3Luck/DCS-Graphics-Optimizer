@@ -3,8 +3,11 @@
 DCS Graphics Optimizer looks at your PC and your DCS World graphics settings, tests
 them by actually running DCS, and recommends the best-looking settings your PC can
 run smoothly. Nothing is changed until you press **Apply**, and **Undo** puts your old
-settings back. The tests run on the monitor for now; with VR switched on you get a VR scorecard, and
-measuring inside the headset is in development.
+settings back.
+
+**Monitor (2D) only for now.** The tests and recommendations are for flying on a monitor;
+VR settings are never changed. With VR switched on you get an estimated VR scorecard, and
+testing inside the headset is in development (#10).
 
 ## For players
 
