@@ -45,8 +45,11 @@ if ($steam) {
   $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
   if (Test-Path $vdf) { Select-String -Path $vdf -Pattern '"path"\s+"([^"]+)"' | ForEach-Object { $libs += $_.Matches[0].Groups[1].Value.Replace('\\','\') } }
 }
-# Local fixed disks only: network, optical and card-reader drives can stall or prompt.
-$drives = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object { $_.DeviceID + '\' })
+# Local disks only: network drives can stall.
+# DriveType 2 too: some external USB disks report as removable. Size is empty for a card reader
+# or DVD drive with nothing in it, so those are skipped and never asked for.
+$drives = @(Get-CimInstance Win32_LogicalDisk | Where-Object { ($_.DriveType -eq 3 -or $_.DriveType -eq 2) -and $_.Size } |
+            ForEach-Object { $_.DeviceID + '\' })
 foreach ($d in $drives) { $libs += (Join-Path $d 'SteamLibrary'); $libs += (Join-Path $d 'Steam'); $libs += (Join-Path $d 'Program Files (x86)\Steam'); $libs += (Join-Path $d 'Games\SteamLibrary') }
 foreach ($l in $libs) { Add-Cand (Join-Path $l 'steamapps\common\DCSWorld') 'DCS World (Steam)' 'Steam' }
 foreach ($d in $drives) {
