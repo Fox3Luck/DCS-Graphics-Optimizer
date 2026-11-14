@@ -110,6 +110,15 @@
   </details>
 
   <div class="card hidden" id="progress"><h2>Testing</h2><div id="log"></div></div>
+  <div class="card hidden" id="faillog" style="margin-bottom:14px">
+    <h2>Help us fix this</h2>
+    <p id="faillog-text" style="margin:0 0 10px"></p>
+    <div class="actions" style="margin:0">
+      <button class="primary" id="faillog-send">Send this failure log to the developer</button>
+      <button id="faillog-show">Show what will be sent</button>
+    </div>
+    <pre id="faillog-lines" class="hidden" style="max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;margin:10px 0 0"></pre>
+  </div>
 
   <div class="hidden" id="result">
     <div class="card">
@@ -261,15 +270,31 @@ async function poll() {
   $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
   if (j.state === "running") return setTimeout(poll, 1500);
   busy(false);
-  if (j.state === "failed") note(j.error, true);
+  if (j.state === "failed") { note(j.error, true); showFailureLog(j.failure_log); }
   if (j.state === "done") { $("progress").classList.add("hidden"); await refresh(); }
 }
 function chosenMode() { return (document.querySelector('input[name="mode"]:checked') || {}).value || "balanced"; }
 try { const m = localStorage.getItem("dcsgo-mode"); const r = m && document.querySelector('input[name="mode"][value="' + m + '"]'); if (r) r.checked = true; } catch (e) {}
 document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = () => { try { localStorage.setItem("dcsgo-mode", chosenMode()); } catch (e) {} });
+// A failed test: an anonymized extract of DCS's log (user name and folders removed) can go to the
+// developer. Sent already if the player shares results; otherwise only when they click.
+function showFailureLog(fl) {
+  $("faillog").classList.toggle("hidden", !fl);
+  if (!fl) return;
+  $("faillog-lines").textContent = fl.lines.join("\n");
+  $("faillog-send").classList.toggle("hidden", !!fl.sent);
+  $("faillog-text").textContent = fl.sent
+    ? "Because you share test results, a short extract of DCS's log for this failure was sent to the developer (no names or folder paths). You can see it below."
+    : "A short extract of DCS's log would show us why this failed. Your Windows user name and folder paths are removed. Nothing is sent unless you press the button.";
+}
+$("faillog-show").onclick = () => $("faillog-lines").classList.toggle("hidden");
+$("faillog-send").onclick = async () => {
+  try { note((await api("/api/failure-log", {})).message); $("faillog-send").classList.add("hidden"); }
+  catch (e) { note(e.message, true); }
+};
 async function start(full) {
   try { await api("/api/optimize", { full, mode: chosenMode() }); busy(true); $("msg").replaceChildren();
-        $("result").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
+        $("result").classList.add("hidden"); $("faillog").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
   catch (e) { note(e.message, true); }
 }
 $("share-yes").onclick = () => setSharing(true);

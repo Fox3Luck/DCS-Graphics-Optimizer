@@ -343,7 +343,42 @@ class App:
             job["report"] = self.engine.optimize(full, lambda m: job["log"].append(str(m)), mode)
             job["state"] = "done"
         except Exception as e:
-            job["error"], job["state"] = str(e), "failed"
+            job["error"] = str(e)
+            self._failure_log(job)
+            job["state"] = "failed"
+
+    def _failure_log(self, job: dict) -> None:
+        """Attach an anonymized extract of DCS's log to a failed test. Sent at once if the player
+        agreed to share results; otherwise the window offers to send it (with a preview)."""
+        from . import failurelog, feedback as F, sysinfo
+        try:
+            eng = self.engine
+            try:
+                inst = sysinfo.pick_install(eng.info)
+            except Exception:
+                inst = None
+            lines = failurelog.for_profile(eng.profile, inst, since=job.get("started", 0) - 5)
+        except Exception:
+            return
+        if not lines or not F.available():
+            return
+        fl = {"id": secrets.token_hex(8), "lines": lines, "sent": False}
+        job["failure_log"] = fl
+        if F.on(eng.profile):
+            fl["sent"] = F.send(F.payload("failure", fl["id"], error=job.get("error"), log=lines))
+            fl["auto"] = True
+
+    def send_failure_log(self) -> dict:
+        from . import feedback as F
+        fl = self.job.get("failure_log")
+        if not fl:
+            raise RuntimeError("There is no failure log to send.")
+        if fl.get("sent"):
+            return {"message": "The failure log was already sent. Thank you."}
+        if not F.send(F.payload("failure", fl["id"], error=self.job.get("error"), log=fl["lines"])):
+            raise RuntimeError("The failure log could not be sent (no connection?). Please try again later.")
+        fl["sent"] = True
+        return {"message": "Failure log sent. Thank you, it helps us fix this."}
 
     def setup_needed(self) -> dict | None:
         """What the player must point to before anything else works, or None."""
@@ -407,6 +442,8 @@ class App:
                 raise RuntimeError("Please answer the question about anonymous results first.")
             self.start_optimize(bool(body.get("full")), str(body.get("mode") or "balanced"))
             return {"ok": True}
+        if method == "POST" and path == "/api/failure-log":
+            return self.send_failure_log()
         if method == "POST" and path == "/api/apply":
             return {"message": self.engine.apply(body.get("vr_ok") is True)}
         if method == "POST" and path == "/api/undo":

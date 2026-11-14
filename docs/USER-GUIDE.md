@@ -326,7 +326,7 @@ Kept:
   account details, and the tool never sends it anywhere; it is there for you to share if asked
 - `Config\dcstune-calibration.json` — what the last test learned about your PC
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
-- `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed
+- `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed (only the anonymized extract described under "Anonymous results" is ever sent)
 
 Outside that folder, only if you used Browse: `%APPDATA%\DCS Graphics Optimizer\folders.json`,
 the DCS and Saved Games folders you picked.
@@ -388,6 +388,13 @@ start them: may the tool send the result of each test to Fox3, the makers of thi
   recommendations better.
 - You can add a comment to a result (better, same or worse, and free text) if you want to tell
   us more. Leave personal details out of it.
+- **When a test fails**, a short extract of DCS's log for that run is sent as well: the lines the
+  benchmark wrote, DCS's errors and warnings, and the end of the log. Your Windows user name and
+  folder paths are replaced by `<USER>`, `<SAVED>` and `<DCS>`, and lines that mention logins,
+  passwords, tokens, serials or e-mail addresses are left out. Mod and module names stay in,
+  because they are often the cause. The window shows exactly what was sent. If you do not share
+  results, nothing is sent; the window offers a **Send this failure log** button with a preview
+  instead, and sends only if you press it.
 - If you answer no, nothing is ever sent and the tool works the same. You can change your answer
   at the bottom of the window. Your answer is kept in `Config\dcstune-prefs.json`.
 

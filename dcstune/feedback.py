@@ -64,7 +64,7 @@ def on(profile: dict) -> bool:
 
 
 def payload(event: str, report_id: str, audit: dict | None = None, feel: str | None = None,
-            comment: str | None = None) -> dict:
+            comment: str | None = None, error: str | None = None, log: list[str] | None = None) -> dict:
     from . import __version__
     p = {"schema": SCHEMA, "tool_version": __version__, "event": event, "id": report_id}
     if audit is not None:
@@ -73,6 +73,9 @@ def payload(event: str, report_id: str, audit: dict | None = None, feel: str | N
         p["feel"] = feel
     if comment and comment.strip():
         p["comment"] = comment.strip()[:COMMENT_MAX]
+    if event == "failure":                 # see failurelog.py: already anonymized and size-limited
+        p["error"] = " ".join(str(error or "").split())[:280]
+        p["log"] = list(log or [])
     return p
 
 

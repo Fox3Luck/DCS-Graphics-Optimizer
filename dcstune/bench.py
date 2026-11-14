@@ -413,6 +413,11 @@ class Bench:
                                  "Nothing was measured. Check that the headset is connected, switched on and "
                                  "working in its own software, then try again.")
         raw_text = self.result.read_text()
+        try:
+            if not json.loads(raw_text).get("ok"):
+                self._keep_failure_log()          # the hook gave up: its reasons are in DCS's log
+        except ValueError:
+            self._keep_failure_log()
         if self.keep_raw_dir:
             (Path(self.keep_raw_dir) / f"dcstune-raw-{time.strftime('%H%M%S')}-{directive_extra['tag']}.json").write_text(raw_text)
         return json.loads(raw_text), gpu, round(time.time() - started)
