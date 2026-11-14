@@ -120,7 +120,7 @@ def cmd_optimize(args):
 
 def cmd_apply(args):
     from .ui import Engine
-    print(Engine(args.profile).apply() + " 'python -m dcstune undo' puts them back.")
+    print(Engine(args.profile).apply(args.vr_ok) + " 'python -m dcstune undo' puts them back.")
     return 0
 
 
@@ -150,7 +150,10 @@ def main(argv=None):
                            help="what matters most: frame rate, a balance (default), or picture quality")
         s.set_defaults(fn=fn)
     s = sub.add_parser("trials"); s.add_argument("file", help="JSON file with a list of trials"); s.set_defaults(fn=cmd_trials)
-    sub.add_parser("apply").set_defaults(fn=cmd_apply)
+    s = sub.add_parser("apply")
+    s.add_argument("--vr-ok", action="store_true",
+                   help="apply a monitor-tested result although VR is switched on in this profile")
+    s.set_defaults(fn=cmd_apply)
     sub.add_parser("undo").set_defaults(fn=cmd_undo)
     args = p.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):

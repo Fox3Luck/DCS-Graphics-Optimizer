@@ -240,7 +240,11 @@ class Engine:
         atomic_write(self.report_path(), json.dumps(rep, indent=1).encode())
         return "Feedback sent. Thank you."
 
-    def apply(self) -> str:
+    VR_WARNING = ("[vr] VR is switched on in this DCS profile, but this test ran on the monitor. DCS uses the same "
+                  "graphics settings in the headset, so settings that are smooth on the monitor can be much slower in "
+                  "VR (players have seen their headset frame rate halve). Apply them anyway?")
+
+    def apply(self, vr_ok: bool = False) -> str:
         from .bench import dcs_running
         from .optionslua import Options, atomic_write, backup
         if dcs_running():
@@ -251,6 +255,9 @@ class Engine:
             raise RuntimeError("There is no recommendation to apply yet.")
         if rep.get("applied"):
             raise RuntimeError("These settings are already applied.")
+        measured_on_monitor = not rep.get("vr")
+        if measured_on_monitor and (rep.get("vr_skipped") or self._flat().get("VR.enable")) and not vr_ok:
+            raise RuntimeError(self.VR_WARNING)
         saved = backup(self.profile["options"])
         opts = Options.load(self.profile["options"])
         opts.update(changes)
@@ -401,7 +408,7 @@ class App:
             self.start_optimize(bool(body.get("full")), str(body.get("mode") or "balanced"))
             return {"ok": True}
         if method == "POST" and path == "/api/apply":
-            return {"message": self.engine.apply()}
+            return {"message": self.engine.apply(body.get("vr_ok") is True)}
         if method == "POST" and path == "/api/undo":
             return {"message": self.engine.undo()}
         if method == "POST" and path == "/api/open-report":

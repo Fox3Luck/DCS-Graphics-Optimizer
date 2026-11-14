@@ -98,7 +98,8 @@ def fragment(rep: dict, img=lambda name: name) -> str:
                  'Use Undo in the app to go back.</p>')
     if rep.get("vr_skipped"):
         h.append('<p class="note">VR is switched on in this DCS profile. This test ran on the monitor, so the '
-                 'numbers below are monitor numbers, and no VR setting is changed.</p>')
+                 'numbers below are monitor numbers, and no VR setting is changed. DCS uses the same graphics '
+                 'settings in the headset, so applying these can make VR slower; the tool asks before it does.</p>')
     if rep.get("vr"):
         h.append('<p class="note">Measured in the VR headset.</p>')
     if rep.get("disturbed"):

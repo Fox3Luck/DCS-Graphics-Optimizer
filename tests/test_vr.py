@@ -270,3 +270,19 @@ def test_pimax_without_a_model_is_named_by_brand():
     base = {"headset": None, "known": False, "eye_w": 1, "eye_h": 1}
     assert vr.describe(dict(base, runtime="Pimax")) == "Pimax headset (model not known yet)"
     assert vr.describe(dict(base, runtime="SteamVR")) == "Headset not recognized"
+
+
+def test_monitor_result_is_not_applied_to_a_vr_profile_without_asking(tmp_path, monkeypatch):
+    # Beta feedback: VR players applied a monitor-tested result and their headset frame rate
+    # halved ("from 60-70 to 18-25"). DCS uses the same graphics settings in the headset.
+    import pytest
+    eng = _engine(tmp_path, monkeypatch)
+    rep = eng.optimize(False, lambda *_: None)
+    assert rep["vr_skipped"]
+    if not rep.get("changes"):
+        pytest.skip("nothing recommended in this fixture")
+    before = Path(eng.profile["options"]).read_bytes()
+    with pytest.raises(RuntimeError, match=r"^\[vr\] "):
+        eng.apply()
+    assert Path(eng.profile["options"]).read_bytes() == before
+    assert "Applied" in eng.apply(vr_ok=True)

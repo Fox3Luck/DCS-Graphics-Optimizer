@@ -281,7 +281,18 @@ $("fb-send").onclick = async () => {
 };
 $("quick").onclick = () => start(false);
 $("full").onclick = () => start(true);
-$("apply").onclick = async () => { try { note((await api("/api/apply", {})).message); await refresh(); } catch (e) { note(e.message, true); } };
+$("apply").onclick = async () => {
+  try { note((await api("/api/apply", {})).message); await refresh(); }
+  catch (e) {
+    // VR profile, monitor test (beta feedback: VR frame rate halved after Apply): ask first.
+    if (e.message.startsWith("[vr] ")) {
+      if (!confirm(e.message.slice(5))) { note("Nothing was changed."); return; }
+      try { note((await api("/api/apply", { vr_ok: true })).message); await refresh(); } catch (e2) { note(e2.message, true); }
+      return;
+    }
+    note(e.message, true);
+  }
+};
 $("open-report").onclick = async () => { try { await api("/api/open-report", {}); } catch (e) { note(e.message, true); } };
 $("undo").onclick = async () => { try { note((await api("/api/undo", {})).message); await refresh(); } catch (e) { note(e.message, true); } };
 refresh().then(async () => { const j = await api("/api/job"); if (j.state === "running") { busy(true); $("progress").classList.remove("hidden"); poll(); } })
