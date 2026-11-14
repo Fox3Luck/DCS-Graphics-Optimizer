@@ -71,16 +71,23 @@ def choose(mdl: M.Model, target_fps: float, vram_total_mb: float, low_ratio: flo
     return best[1], best[2], True
 
 
+FLAT_QUALITY_FLOOR = 0.65  # monitor: a goal above 60 FPS must leave at least this share of maximum quality
+VR_QUALITY_FLOOR = 0.5     # headset: smoothness matters more (a missed frame is felt, not just seen)
+
+
 def pick_target(mdl: M.Model, display_target: int, vram_total_mb: float, low_ratio: float,
                 steps: list[int] | None = None) -> int:
     """Automatic goal. Prefer the display's refresh rate, but if holding it would strip
-    the image below half of maximum quality, settle for a lower smooth rate instead.
+    the image too far, settle for a lower smooth rate instead.
+    On a monitor the bar is high: a player on a fast screen with a mid-range card would
+    otherwise be told to give up a lot of picture for a few frames (beta feedback, #12).
     steps: the rates to fall back through (a VR headset's own refresh rates)."""
+    floor = VR_QUALITY_FLOOR if steps else FLAT_QUALITY_FLOOR
     steps = [t for t in (steps or (display_target, 90, 72, 60)) if t <= display_target]
     top = M.max_quality(mdl.vendor)
     for t in steps:
         config, rung, feasible = choose(mdl, t, vram_total_mb, low_ratio)
-        if feasible and mdl.quality(config, rung) >= 0.5 * top:
+        if feasible and mdl.quality(config, rung) >= floor * top:
             return t
     return steps[-1]
 

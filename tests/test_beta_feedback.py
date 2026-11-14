@@ -104,3 +104,21 @@ def test_restart_through_explorer_happens_once(tmp_path, monkeypatch):
     assert started[0][0] == "explorer.exe"
     assert winproc.restart_through_explorer() is False       # just restarted and still on: no loop
     assert len(started) == 1
+
+
+def test_fast_screen_does_not_strip_a_mid_range_pc(monkeypatch):
+    # Issue #12: RX 7700 XT on a fast monitor. The player already runs nice-looking settings
+    # smoothly; the tool must not trade most of the picture for a few frames.
+    from dcstune import model as M, optimize
+    from test_core import FakePC, _current
+    hi = dict(_current())
+    for s in M.SETTINGS:
+        hi[s["key"]] = s["levels"][-2 if len(s["levels"]) > 2 else -1]["v"]
+    top = M.max_quality("amd")
+    for gpu, cpu in ((44, 62), (60, 75), (78, 100)):
+        pc = FakePC(hi, gpu, cpu)
+        out = optimize.run(M.Model(gpu, cpu, 2560, 1440, "amd"), hi, "amd", rate.target_fps(144), 12288,
+                           pc.measure, log=lambda *_: None)
+        rec = out["recommended"]
+        after = rec["quality"] if rec else out["current_quality"]
+        assert after >= out["current_quality"] - 0.05 * top, (gpu, out["target_fps"])

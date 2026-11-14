@@ -140,9 +140,11 @@ During a test, vertical sync and the frame-rate cap are switched off so the numb
 show what the PC can really do. Your own choices for both come back afterwards.
 
 **The goal is chosen automatically:** hold your monitor's refresh rate in the worst
-moments, up to 120 FPS. If reaching that would cost more than half of the possible
-image quality on your PC, the tool aims for 90, then 72, then 60 FPS instead, and
-tells you so.
+moments, up to 120 FPS. If reaching that would leave less than about two thirds of the
+best possible image quality, the tool aims for 90, then 72, then 60 FPS instead, and
+tells you so. So a mid-range card on a fast monitor is not stripped down just to chase
+the screen's refresh rate. (In VR the bar is lower, because smoothness matters more in
+a headset.)
 
 ## The result
 
