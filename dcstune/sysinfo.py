@@ -316,13 +316,23 @@ def pick_profile(info: dict, name: str | None = None) -> dict:
     for p in profiles:
         if p.get("chosen"):
             return p
-    # Default: the profile DCS itself would use (install variant), else most recently used.
-    for inst in info["installs"]:
-        want = "DCS" + ("." + inst["variant"] if inst.get("variant") else "")
-        for p in profiles:
-            if p["name"].lower() == want.lower():
-                return p
-    return max(profiles, key=lambda p: p["modified"])
+    # Default: the profile DCS itself would use (install variant), else the one played most
+    # recently (DCS rewrites options.lua when it closes). Copies a player kept as a backup
+    # ("DCS - backup", "DCS_old", ...) are never the automatic choice (beta feedback #13);
+    # the window lists every profile found so the player can switch.
+    usual = [p for p in profiles if not looks_like_backup(p["name"])] or profiles
+    wanted = {("DCS" + ("." + i["variant"] if i.get("variant") else "")).lower() for i in info["installs"]}
+    matching = [p for p in usual if p["name"].lower() in wanted]
+    return max(matching or usual, key=lambda p: p.get("modified") or "")
+
+
+BACKUP_WORDS = re.compile(r"back|bak|old|copy|kopie|orig|save|test|\d{3,}", re.I)
+
+
+def looks_like_backup(name: str) -> bool:
+    """A Saved Games folder name a player gave a spare copy of their DCS settings."""
+    rest = name[3:] if name.upper().startswith("DCS") else name
+    return bool(BACKUP_WORDS.search(rest))
 
 
 def pick_install(info: dict) -> dict:

@@ -118,7 +118,8 @@ class Engine:
         return {"profile": self.profile["name"], "profile_dir": Path(self.profile["path"]).name,
                 "vr_tested": bool(st) and V.bench_enabled(),
                 "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
-                "profiles": [p["name"] for p in self.info["profiles"]],
+                "profile_path": self.profile["path"],
+                "profiles": [{"name": p.get("name"), "path": p.get("path")} for p in self.info["profiles"]],
                 "machine": machine,
                 "settings": fit,
                 "vr": bool(flat.get("VR.enable")), "recovered": self.recovered,
@@ -374,8 +375,9 @@ class App:
             if setup and setup["what"] == "profile":
                 return {"setup": setup, "can_browse": can_browse()}
             sc = self.engine.scorecard()
+            sc["can_browse"] = can_browse()
             if setup:
-                sc["setup"], sc["can_browse"] = setup, can_browse()
+                sc["setup"] = setup
             if sc.get("report") and sc["report"].get("before"):
                 sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}")
             sc["sharing"] = self.engine.sharing()

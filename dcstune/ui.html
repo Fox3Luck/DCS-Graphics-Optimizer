@@ -37,7 +37,9 @@
 <body>
 <main>
   <h1>DCS Graphics Optimizer</h1>
-  <p class="sub" id="profile">Reading your PC and DCS settings...</p>
+  <p class="sub"><span id="profile">Reading your PC and DCS settings...</span>
+    <select id="profile-pick" class="hidden" title="Which DCS settings folder to rate and optimize"
+      style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
   <div id="msg"></div>
   <div class="card hidden" id="setup" style="margin-bottom:14px;border-color:var(--bad)">
     <h2 id="setup-title">Show us where DCS is</h2>
@@ -173,13 +175,39 @@ async function chooseFolder(path) {
   try { const r = await api("/api/choose-folder", { what: SETUP.what, path }); if (r.message) note(r.message); $("setup-path").value = ""; await refresh(); }
   catch (e) { note(e.message, true); }
 }
+// Several Saved Games\DCS* folders (backups, an old openbeta one): let the player switch (#13).
+let CAN_BROWSE = false;
+function showProfiles(sc) {
+  CAN_BROWSE = !!sc.can_browse;
+  const sel = $("profile-pick"), list = sc.profiles || [];
+  sel.replaceChildren();
+  sel.classList.toggle("hidden", !(list.length > 1 || sc.can_browse));
+  if (sel.classList.contains("hidden")) return;
+  const opt = (value, text) => { const o = document.createElement("option"); o.value = value; o.textContent = text; return o; };
+  sel.append(opt("", list.length > 1 ? "Change (" + list.length + " found)..." : "Change..."));
+  list.filter(p => p.path !== sc.profile_path).forEach(p => sel.append(opt(p.path, p.name + "  \u2014  " + p.path)));
+  sel.append(opt("*other", "Other folder..."));
+}
+$("profile-pick").onchange = async () => {
+  const v = $("profile-pick").value;
+  $("profile-pick").value = "";
+  if (!v || RUNNING) return;
+  SETUP = { what: "profile" };
+  if (v === "*other") {
+    showSetup({ setup: { what: "profile", message: "Pick the DCS folder inside Saved Games that DCS really uses (it contains Config\\options.lua)." },
+                can_browse: CAN_BROWSE });
+    return;
+  }
+  await chooseFolder(v);
+};
 $("setup-browse").onclick = () => chooseFolder(null);
 $("setup-use").onclick = () => { const v = $("setup-path").value.trim(); if (v) chooseFolder(v); };
 async function refresh() {
   const sc = await api("/api/scorecard");
   showSetup(sc);
   if (sc.setup && sc.setup.what === "profile") { $("profile").textContent = "DCS settings not found yet"; busy(false); return; }
-  $("profile").textContent = "DCS profile: " + sc.profile;
+  $("profile").textContent = "DCS profile: " + sc.profile + (sc.profile_path ? " (" + sc.profile_path + ")" : "");
+  showProfiles(sc);
   const o = $("overall"); o.replaceChildren(el("div", "letter " + sc.overall.grade, sc.overall.grade),
     el("div", "score", sc.overall.score + " / 100 \u2014 40% PC, 60% how well your settings use it"));
   const hw = $("hardware"); hw.replaceChildren();
@@ -215,7 +243,7 @@ function showSharing(sc) {
 }
 let ASKING = false, RUNNING = false;
 async function setSharing(share) { try { note((await api("/api/sharing", { share })).message); await refresh(); } catch (e) { note(e.message, true); } }
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick"].forEach(i => $(i).disabled = on);
   if (ASKING || SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");

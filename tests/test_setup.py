@@ -86,3 +86,34 @@ def test_window_shows_setup_instead_of_failing_silently(tmp_path):
 def test_choose_folder_rejects_unknown_kind():
     with pytest.raises(KeyError):
         ui.App(lambda: None).handle("POST", "/api/choose-folder", {"what": "windows", "path": "C:\\"})
+
+
+def test_backup_copies_are_not_the_automatic_choice():
+    # Issue #13: the tool rated a backup copy instead of the folder the player flies with.
+    def prof(name, when):
+        return {"name": name, "path": "C:\\SG\\" + name, "options": "x", "modified": when}
+    profiles = [prof("DCS.openbeta", "2026-11-01T00:00:00"), prof("DCS - Backup", "2026-11-10T00:00:00"),
+                prof("DCS_old", "2026-11-12T00:00:00"), prof("DCS 20241003", "2026-11-13T00:00:00")]
+    info = dict(INFO, profiles=profiles, installs=[{"variant": ""}])
+    assert sysinfo.pick_profile(info)["name"] == "DCS.openbeta"
+    info["installs"] = [{"variant": "openbeta"}]
+    assert sysinfo.pick_profile(info)["name"] == "DCS.openbeta"
+    # Two real profiles: the one DCS itself uses wins, else the one played last.
+    profiles.append(prof("DCS", "2026-10-01T00:00:00"))
+    info["installs"] = [{"variant": ""}]
+    assert sysinfo.pick_profile(info)["name"] == "DCS"
+    info["installs"] = []
+    assert sysinfo.pick_profile(info)["name"] == "DCS.openbeta"
+    # Only backups found: still use one rather than nothing.
+    assert sysinfo.pick_profile(dict(INFO, profiles=profiles[1:2]))["name"] == "DCS - Backup"
+    for name in ("DCS", "DCS.openbeta", "DCSOpenBeta", "DCS.release_server"):
+        assert not sysinfo.looks_like_backup(name), name
+
+
+def test_player_can_switch_to_another_profile_found(tmp_path):
+    real = make_profile(tmp_path / "Saved Games" / "DCS.openbeta")
+    sysinfo.choose("profile", str(real))
+    other = {"name": "DCS", "path": str(tmp_path / "Saved Games" / "DCS"), "options": "x", "modified": "2099-01-01T00:00:00"}
+    info = sysinfo.apply_choices(dict(INFO, profiles=[other]))
+    assert sysinfo.pick_profile(info)["path"] == str(real)
+    assert {p["name"] for p in info["profiles"]} == {"DCS", "DCS.openbeta"}
