@@ -24,7 +24,7 @@ class TmpEngine(ui.Engine):
         self.profile = {"name": "DCS", "path": str(root), "options": str(cfg / "options.lua")}
         self.recovered = False
 
-    def optimize(self, full, log):
+    def optimize(self, full, log, mode="balanced"):
         from dcstune import model as M, rate
         flat = self._flat()
         pc = FakePC(flat, 70, 95, 3840, 2160)

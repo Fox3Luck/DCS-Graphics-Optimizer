@@ -71,18 +71,27 @@ def choose(mdl: M.Model, target_fps: float, vram_total_mb: float, low_ratio: flo
     return best[1], best[2], True
 
 
-FLAT_QUALITY_FLOOR = 0.65  # monitor: a goal above 60 FPS must leave at least this share of maximum quality
-VR_QUALITY_FLOOR = 0.5     # headset: smoothness matters more (a missed frame is felt, not just seen)
+# What the player asked for. A goal above the lowest step is only used if it leaves at least
+# this share of the best possible image quality; otherwise the next lower frame rate is tried.
+# In a headset smoothness matters more (a missed frame is felt, not just seen), so VR is lower.
+MODES = {
+    "smooth":   {"label": "Smoothness", "flat": 0.5,  "vr": 0.4},
+    "balanced": {"label": "Balanced",   "flat": 0.65, "vr": 0.5},
+    "quality":  {"label": "Quality",    "flat": 0.8,  "vr": 0.65},
+}
+DEFAULT_MODE = "balanced"
+FLAT_QUALITY_FLOOR = MODES[DEFAULT_MODE]["flat"]
+VR_QUALITY_FLOOR = MODES[DEFAULT_MODE]["vr"]
 
 
 def pick_target(mdl: M.Model, display_target: int, vram_total_mb: float, low_ratio: float,
-                steps: list[int] | None = None) -> int:
+                steps: list[int] | None = None, mode: str = DEFAULT_MODE) -> int:
     """Automatic goal. Prefer the display's refresh rate, but if holding it would strip
     the image too far, settle for a lower smooth rate instead.
     On a monitor the bar is high: a player on a fast screen with a mid-range card would
     otherwise be told to give up a lot of picture for a few frames (beta feedback, #12).
     steps: the rates to fall back through (a VR headset's own refresh rates)."""
-    floor = VR_QUALITY_FLOOR if steps else FLAT_QUALITY_FLOOR
+    floor = MODES[mode]["vr" if steps else "flat"]
     steps = [t for t in (steps or (display_target, 90, 72, 60)) if t <= display_target]
     top = M.max_quality(mdl.vendor)
     for t in steps:
@@ -104,7 +113,7 @@ def summarize(result: dict) -> dict:
 
 def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_mb: float,
         measure, full: bool = False, log=print, measure_fast=None, measure_batch=None,
-        steps: list[int] | None = None, extra: dict | None = None) -> dict:
+        steps: list[int] | None = None, extra: dict | None = None, mode: str = DEFAULT_MODE) -> dict:
     """current: the player's flat options. measure(changes|None) -> summarize()d result
     (None = benchmark the player's settings untouched).
     steps: goals to fall back through (VR). extra: changes that are part of every
@@ -119,9 +128,12 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     if full:
         disturbed = _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch)
     display_target = target_fps
-    target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio, steps)
+    if mode not in MODES:
+        raise ValueError(f"unknown mode {mode!r}")
+    target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio, steps, mode)
     if target_fps < display_target:
-        log(f"Holding {display_target} FPS would cost too much image quality on this PC; aiming for {target_fps}.")
+        log(f"Holding {display_target} FPS would cost too much image quality for the "
+            f"{MODES[mode]['label']} choice on this PC; aiming for {target_fps}.")
 
     cur_hits = before["p1_low_fps"] >= target_fps * HIT_MARGIN
     need = target_fps if cur_hits else target_fps * HIT_MARGIN     # what a candidate must measure
@@ -168,7 +180,7 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     return {"before": before, "recommended": recommended,
             "keep_current": keep_current, "current_quality": cur_quality,
             "max_quality": M.max_quality(vendor), "target_fps": target_fps,
-            "display_target": display_target, "history": history,
+            "display_target": display_target, "history": history, "mode": mode,
             "disturbed": disturbed,
             "learned": {"calibration": mdl.calibration, "vram_offset": mdl.vram_offset, "low_ratio": low_ratio,
                         "measured": {k: {str(i): ms for i, ms in v.items()} for k, v in mdl.measured.items()}},

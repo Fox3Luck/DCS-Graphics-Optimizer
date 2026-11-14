@@ -96,7 +96,7 @@ def cmd_optimize(args):
     # Same code path as the window, so both write the same report.
     from .ui import Engine
     engine = Engine(args.profile)
-    report = engine.optimize(args.full, print)
+    report = engine.optimize(args.full, print, args.mode)
     machine = engine.scorecard()["machine"]
     _print_card("Your PC for DCS", machine, machine["reasons"])
     _print_card("Current settings (measured)", report["before"], [f["text"] for f in report["before"]["findings"]])
@@ -146,6 +146,8 @@ def main(argv=None):
             s.add_argument("--set", help='JSON of trial settings, e.g. {"graphics.shadows": 0}')
         if name == "optimize":
             s.add_argument("--full", action="store_true", help="measure every setting (about an hour)")
+            s.add_argument("--mode", choices=["smooth", "balanced", "quality"], default="balanced",
+                           help="what matters most: frame rate, a balance (default), or picture quality")
         s.set_defaults(fn=fn)
     s = sub.add_parser("trials"); s.add_argument("file", help="JSON file with a list of trials"); s.set_defaults(fn=cmd_trials)
     sub.add_parser("apply").set_defaults(fn=cmd_apply)

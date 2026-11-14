@@ -142,12 +142,19 @@ programs closed.
 During a test, vertical sync and the frame-rate cap are switched off so the numbers
 show what the PC can really do. Your own choices for both come back afterwards.
 
-**The goal is chosen automatically:** hold your monitor's refresh rate in the worst
-moments, up to 120 FPS. If reaching that would leave less than about two thirds of the
-best possible image quality, the tool aims for 90, then 72, then 60 FPS instead, and
-tells you so. So a mid-range card on a fast monitor is not stripped down just to chase
-the screen's refresh rate. (In VR the bar is lower, because smoothness matters more in
-a headset.)
+**You choose what matters most** before the test starts:
+
+| Choice | What you get |
+|---|---|
+| **Smoothness** | The highest frame rate your monitor can show (up to 120 FPS in the worst moments), even if the picture looks plainer. |
+| **Balanced** (recommended) | Your monitor's refresh rate if that leaves about two thirds of the best possible picture, otherwise 90, 72 or 60 FPS. |
+| **Quality** | The best-looking picture that still holds at least 60 FPS in the worst moments; a higher frame rate only if it costs little. |
+
+The tool then chooses the goal automatically from your monitor and PC, and tells you if
+it settled for a lower frame rate. The report shows the goal and your choice. If the
+result looks too plain, run the test again with **Quality**; if it does not feel smooth
+enough, use **Smoothness**. (In VR every choice leans more toward smoothness, because a
+missed frame is felt in a headset.)
 
 ## The result
 

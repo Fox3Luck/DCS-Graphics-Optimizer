@@ -79,6 +79,15 @@
     <div class="card"><h2 id="fit-title">Your current settings</h2><div id="fit"></div></div>
   </div>
 
+  <fieldset class="card" id="mode-box" style="margin:0 0 10px;padding:10px 14px">
+    <legend style="font-weight:600;padding:0 4px">What matters most to you?</legend>
+    <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="smooth">
+      <b>Smoothness</b> &mdash; the highest frame rate your screen can show, even if the picture looks plainer.</label>
+    <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="balanced" checked>
+      <b>Balanced</b> &mdash; smooth, without giving up much of the picture. Recommended.</label>
+    <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="quality">
+      <b>Quality</b> &mdash; the best-looking picture that still stays smooth (at least 60 FPS in the worst moments).</label>
+  </fieldset>
   <div class="actions">
     <button class="primary" id="quick">Test and optimize (10 to 20 min)</button>
     <button id="full">Thorough test (35 to 60 min)</button>
@@ -245,7 +254,7 @@ function showSharing(sc) {
 }
 let ASKING = false, RUNNING = false;
 async function setSharing(share) { try { note((await api("/api/sharing", { share })).message); await refresh(); } catch (e) { note(e.message, true); } }
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box"].forEach(i => $(i).disabled = on);
   if (ASKING || SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");
@@ -255,8 +264,11 @@ async function poll() {
   if (j.state === "failed") note(j.error, true);
   if (j.state === "done") { $("progress").classList.add("hidden"); await refresh(); }
 }
+function chosenMode() { return (document.querySelector('input[name="mode"]:checked') || {}).value || "balanced"; }
+try { const m = localStorage.getItem("dcsgo-mode"); const r = m && document.querySelector('input[name="mode"][value="' + m + '"]'); if (r) r.checked = true; } catch (e) {}
+document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = () => { try { localStorage.setItem("dcsgo-mode", chosenMode()); } catch (e) {} });
 async function start(full) {
-  try { await api("/api/optimize", { full }); busy(true); $("msg").replaceChildren();
+  try { await api("/api/optimize", { full, mode: chosenMode() }); busy(true); $("msg").replaceChildren();
         $("result").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
   catch (e) { note(e.message, true); }
 }

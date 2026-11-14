@@ -126,7 +126,7 @@ class Engine:
                 "can_undo": bool(list_backups(self.profile["options"])),
                 "report": self._report()}
 
-    def optimize(self, full: bool, log) -> dict:
+    def optimize(self, full: bool, log, mode: str = "balanced") -> dict:
         from . import audit, feedback as F, model as M, optimize, rate, sysinfo, vr as V
         from .bench import Bench, other_vram_high
         from .optionslua import atomic_write
@@ -159,7 +159,7 @@ class Engine:
             out = optimize.run(mdl, flat, vendor, goal,
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
                                measure_fast=b.measure_fast, measure_batch=b.measure_batch,
-                               steps=st and st["steps"], extra=extra)
+                               steps=st and st["steps"], extra=extra, mode=mode)
             launches, other_vram = b.runs, b.other_vram_mb
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
@@ -170,6 +170,7 @@ class Engine:
         report = {"id": secrets.token_hex(8),       # random, per test; lets a later Apply or comment refer to it
                   "created": time.strftime("%Y-%m-%d %H:%M"), "profile": self.profile["name"],
                   "kind": "Thorough test" if full else "Test and optimize",
+                  "mode": mode, "mode_label": optimize.MODES[mode]["label"],
                   "duration_min": max(1, round((time.time() - started) / 60)),
                   "hardware": rate.hardware_summary(self.info, flat),
                   "vr": bool(st), "vr_skipped": vr_skipped,
@@ -319,17 +320,20 @@ class App:
             self._engine = self._factory()
         return self._engine
 
-    def start_optimize(self, full: bool) -> None:
+    def start_optimize(self, full: bool, mode: str = "balanced") -> None:
+        from .optimize import MODES
+        if mode not in MODES:
+            raise RuntimeError("Choose Smoothness, Balanced or Quality.")
         with self.lock:
             if self.job["state"] == "running":
                 raise RuntimeError("A test is already running.")
             self.job = {"state": "running", "log": [], "error": None, "report": None, "started": time.time()}
-        threading.Thread(target=self._work, args=(full,), daemon=True).start()
+        threading.Thread(target=self._work, args=(full, mode), daemon=True).start()
 
-    def _work(self, full):
+    def _work(self, full, mode="balanced"):
         job = self.job
         try:
-            job["report"] = self.engine.optimize(full, lambda m: job["log"].append(str(m)))
+            job["report"] = self.engine.optimize(full, lambda m: job["log"].append(str(m)), mode)
             job["state"] = "done"
         except Exception as e:
             job["error"], job["state"] = str(e), "failed"
@@ -394,7 +398,7 @@ class App:
                 raise RuntimeError(setup["message"])
             if self.engine.sharing() == {"available": True, "choice": None}:
                 raise RuntimeError("Please answer the question about anonymous results first.")
-            self.start_optimize(bool(body.get("full")))
+            self.start_optimize(bool(body.get("full")), str(body.get("mode") or "balanced"))
             return {"ok": True}
         if method == "POST" and path == "/api/apply":
             return {"message": self.engine.apply()}

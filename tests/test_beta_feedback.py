@@ -164,3 +164,43 @@ def test_interrupted_test_with_only_test_values_is_restored(tmp_path):
     o.save(p)
     assert recover(p, keep_player_edits=True) == "restored"
     assert sha256(p) == original and list_backups(p) == []
+
+
+def test_player_chooses_smoothness_balanced_or_quality():
+    # Beta feedback: "gained 60 fps but the graphics was not great" - let the player decide.
+    from dcstune import model as M, optimize
+    from test_core import FakePC, _current
+    cur = _current()
+    got = {}
+    for mode in ("smooth", "balanced", "quality"):
+        pc = FakePC(cur, 78, 100)
+        out = optimize.run(M.Model(78, 100, 2560, 1440, "nvidia"), cur, "nvidia", rate.target_fps(144), 16376,
+                           pc.measure, log=lambda *_: None, mode=mode)
+        rec = out["recommended"]
+        got[mode] = (out["target_fps"], rec["quality"] if rec else out["current_quality"])
+        assert out["mode"] == mode
+    assert got["smooth"][0] >= got["balanced"][0] >= got["quality"][0]
+    assert got["smooth"][1] <= got["balanced"][1] <= got["quality"][1]
+    assert got["smooth"][0] > got["quality"][0] and got["quality"][1] > got["smooth"][1]
+    import pytest
+    with pytest.raises(ValueError):
+        optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 120, 16376, FakePC(cur, 78, 100).measure,
+                     log=lambda *_: None, mode="ultra")
+
+
+def test_window_passes_the_choice_and_refuses_unknown_ones():
+    import pytest
+    from dcstune import ui
+    seen = []
+    eng = type("E", (), {"info": dict(INFO, installs=[{}]), "sharing": lambda self: {"available": False},
+                         "optimize": lambda self, full, log, mode="balanced": seen.append((full, mode)) or {}})()
+    app = ui.App(lambda: eng)
+    with pytest.raises(RuntimeError, match="Smoothness, Balanced or Quality"):
+        app.handle("POST", "/api/optimize", {"full": False, "mode": "ultra"})
+    app.handle("POST", "/api/optimize", {"full": True, "mode": "quality"})
+    import time
+    for _ in range(50):
+        if seen:
+            break
+        time.sleep(0.02)
+    assert seen == [(True, "quality")]
