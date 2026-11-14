@@ -275,6 +275,28 @@ class Engine:
         return "Your previous settings are back."
 
 
+def can_browse() -> bool:
+    """A folder picker exists only in the app's own window (pywebview), not in a browser."""
+    try:
+        import webview
+        return bool(webview.windows)
+    except ImportError:
+        return False
+
+
+def browse_folder(title: str) -> str | None:
+    """Windows' folder picker over the app window; None if cancelled or unavailable."""
+    if not can_browse():
+        return None
+    import webview
+    kind = getattr(getattr(webview, "FileDialog", None), "FOLDER", None) or webview.FOLDER_DIALOG
+    try:
+        picked = webview.windows[0].create_file_dialog(kind)
+    except Exception:
+        return None
+    return picked[0] if picked else None
+
+
 def _slim(summary: dict) -> dict:
     return {k: summary.get(k) for k in ("avg_fps", "p1_low_fps", "vram_peak_mb")} | {
         "scenes": [{k: s.get(k) for k in ("name", "avg_fps", "p1_low_fps", "stutters", "shot")}
@@ -311,10 +333,49 @@ class App:
         except Exception as e:
             job["error"], job["state"] = str(e), "failed"
 
+    def setup_needed(self) -> dict | None:
+        """What the player must point to before anything else works, or None."""
+        from .sysinfo import SetupNeeded
+        try:
+            eng = self.engine
+        except SetupNeeded as e:
+            return {"what": e.what, "message": str(e)}
+        if not (getattr(eng, "info", None) or {}).get("installs", [None]):
+            from .sysinfo import pick_install
+            try:
+                pick_install(eng.info)
+            except SetupNeeded as e:
+                return {"what": e.what, "message": str(e)}
+        return None
+
+    def choose_folder(self, what: str, path: str | None) -> dict:
+        """Remember a folder the player typed or picked, then look at the PC again."""
+        from . import sysinfo
+        if what not in ("install", "profile"):
+            raise KeyError(what)
+        if not path:
+            path = browse_folder("Where is DCS World installed?" if what == "install"
+                                 else "Where is your Saved Games\\DCS folder?")
+            if not path:
+                return {"message": ""}
+        msg = sysinfo.choose(what, path)
+        with self.lock:
+            if self.job["state"] == "running":
+                raise RuntimeError("A test is running; change the folder after it finishes.")
+            self._engine = None
+        return {"message": msg}
+
     def handle(self, method: str, path: str, body: dict) -> dict:
+        if method == "POST" and path == "/api/choose-folder":
+            return self.choose_folder(str(body.get("what")), body.get("path"))
         if method == "GET" and path == "/api/scorecard":
             from . import report as R
+            setup = self.setup_needed()
+            if setup and setup["what"] == "profile":
+                return {"setup": setup, "can_browse": can_browse()}
             sc = self.engine.scorecard()
+            if setup:
+                sc["setup"], sc["can_browse"] = setup, can_browse()
             if sc.get("report") and sc["report"].get("before"):
                 sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}")
             sc["sharing"] = self.engine.sharing()
@@ -326,6 +387,9 @@ class App:
         if method == "POST" and path == "/api/feedback":
             return {"message": self.engine.feedback(body.get("feel"), body.get("comment"))}
         if method == "POST" and path == "/api/optimize":
+            setup = self.setup_needed()
+            if setup:
+                raise RuntimeError(setup["message"])
             if self.engine.sharing() == {"available": True, "choice": None}:
                 raise RuntimeError("Please answer the question about anonymous results first.")
             self.start_optimize(bool(body.get("full")))

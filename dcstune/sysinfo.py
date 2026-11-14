@@ -24,29 +24,71 @@ Get-CimInstance Win32_VideoController | ForEach-Object {
               width=$_.CurrentHorizontalResolution; height=$_.CurrentVerticalResolution; refresh=$_.CurrentRefreshRate }
 }
 $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
-$installs = @()
-Get-ItemProperty 'HKCU:\Software\Eagle Dynamics\*' | ForEach-Object {
-  if ($_.Path -and (Test-Path $_.Path)) {
-    $variant = ''
-    $vf = Join-Path $_.Path 'dcs_variant.txt'
-    if (Test-Path $vf) { $variant = (Get-Content $vf -Raw).Trim() }
-    $ver = ''
-    $au = Join-Path $_.Path 'autoupdate.cfg'
-    if (Test-Path $au) { try { $ver = (Get-Content $au -Raw | ConvertFrom-Json).version } catch {} }
-    $letter = $_.Path.Substring(0,1)
-    $media = ''
-    try { $media = (Get-Partition -DriveLetter $letter | Get-Disk | Get-PhysicalDisk | Select-Object -First 1).MediaType } catch {}
-    $installs += @{ name=$_.PSChildName; path=$_.Path; variant=$variant; version=$ver; media="$media";
-                    mt=(Test-Path (Join-Path $_.Path 'bin-mt\DCS.exe')) }
+# DCS install: every place it is known to be recorded, then the usual folders on every drive.
+# Standalone writes the Eagle Dynamics key; Steam writes only its own library list.
+$cands = New-Object System.Collections.Generic.List[object]
+function Add-Cand($path, $name, $source) { if ($path) { $cands.Add(@{ path=[string]$path; name=[string]$name; source=$source }) } }
+foreach ($k in 'HKCU:\Software\Eagle Dynamics\*','HKLM:\SOFTWARE\Eagle Dynamics\*','HKLM:\SOFTWARE\WOW6432Node\Eagle Dynamics\*') {
+  Get-ItemProperty $k | ForEach-Object { Add-Cand $_.Path $_.PSChildName 'registry' }
+}
+foreach ($k in 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*') {
+  Get-ItemProperty $k | Where-Object { $_.DisplayName -like 'DCS World*' -or $_.DisplayName -like 'Digital Combat Simulator*' -or $_.PSChildName -eq 'Steam App 223750' } |
+    ForEach-Object { Add-Cand $_.InstallLocation $_.DisplayName 'installed programs' }
+}
+$libs = @()
+$steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam').SteamPath
+if (-not $steam) { $steam = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Valve\Steam').InstallPath }
+if ($steam) {
+  $libs += $steam
+  $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
+  if (Test-Path $vdf) { Select-String -Path $vdf -Pattern '"path"\s+"([^"]+)"' | ForEach-Object { $libs += $_.Matches[0].Groups[1].Value.Replace('\\','\') } }
+}
+# Local fixed disks only: network, optical and card-reader drives can stall or prompt.
+$drives = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object { $_.DeviceID + '\' })
+foreach ($d in $drives) { $libs += (Join-Path $d 'SteamLibrary'); $libs += (Join-Path $d 'Steam'); $libs += (Join-Path $d 'Program Files (x86)\Steam'); $libs += (Join-Path $d 'Games\SteamLibrary') }
+foreach ($l in $libs) { Add-Cand (Join-Path $l 'steamapps\common\DCSWorld') 'DCS World (Steam)' 'Steam' }
+foreach ($d in $drives) {
+  foreach ($pat in 'Program Files\Eagle Dynamics\DCS*','Program Files (x86)\Eagle Dynamics\DCS*','Eagle Dynamics\DCS*','DCS World*','DCS','Games\DCS World*','Games\Eagle Dynamics\DCS*') {
+    Get-Item (Join-Path $d $pat) | Where-Object { $_.PSIsContainer } | ForEach-Object { Add-Cand $_.FullName $_.Name 'folder search' }
   }
 }
-$sg = Join-Path $env:USERPROFILE 'Saved Games'
-$known = (New-Object -ComObject Shell.Application).Namespace('shell:::{4C5C32FF-BB9D-43B0-B5B4-2D72E54EAAA4}').Self.Path
-if ($known) { $sg = $known }
-$profiles = @()
-Get-ChildItem $sg -Directory -Filter 'DCS*' | ForEach-Object {
-  $o = Join-Path $_.FullName 'Config\options.lua'
-  if (Test-Path $o) { $profiles += @{ name=$_.Name; path=$_.FullName; options=$o; modified=(Get-Item $o).LastWriteTime.ToString('s') } }
+$installs = @(); $seen = @{}
+foreach ($c in $cands) {
+  $p = $c.path.TrimEnd('\')
+  if (-not (Test-Path (Join-Path $p 'bin\DCS.exe')) -and -not (Test-Path (Join-Path $p 'bin-mt\DCS.exe'))) { continue }
+  $key = (Resolve-Path $p).Path.ToLower()
+  if ($seen[$key]) { continue }; $seen[$key] = 1
+  $variant = ''
+  $vf = Join-Path $p 'dcs_variant.txt'
+  if (Test-Path $vf) { $variant = (Get-Content $vf -Raw).Trim() }
+  $ver = ''
+  $au = Join-Path $p 'autoupdate.cfg'
+  if (Test-Path $au) { try { $ver = (Get-Content $au -Raw | ConvertFrom-Json).version } catch {} }
+  $media = ''
+  try { $media = (Get-Partition -DriveLetter $p.Substring(0,1) | Get-Disk | Get-PhysicalDisk | Select-Object -First 1).MediaType } catch {}
+  $installs += @{ name=$c.name; path=$p; variant=$variant; version=$ver; media="$media"; source=$c.source;
+                  mt=(Test-Path (Join-Path $p 'bin-mt\DCS.exe')) }
+}
+# Saved Games: where Windows really keeps it (it can be moved to another drive), plus the defaults.
+$sgs = @()
+foreach ($k in 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders','HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders') {
+  $v = (Get-ItemProperty $k).'{4C5C32FF-BB9D-43B0-B5B4-2D72E54EAAA4}'
+  if ($v) { $sgs += [Environment]::ExpandEnvironmentVariables($v) }
+}
+$sgs += (Join-Path $env:USERPROFILE 'Saved Games')
+foreach ($d in $drives) { $sgs += (Join-Path $d "Users\$env:USERNAME\Saved Games"); $sgs += (Join-Path $d 'Saved Games') }
+if ($env:OneDrive) { $sgs += (Join-Path $env:OneDrive 'Saved Games') }
+$profiles = @(); $pseen = @{}
+foreach ($sg in $sgs) {
+  if (-not (Test-Path $sg)) { continue }
+  Get-ChildItem $sg -Directory -Filter 'DCS*' | ForEach-Object {
+    $o = Join-Path $_.FullName 'Config\options.lua'
+    $key = $_.FullName.ToLower()
+    if ((Test-Path $o) -and -not $pseen[$key]) {
+      $pseen[$key] = 1
+      $profiles += @{ name=$_.Name; path=$_.FullName; options=$o; modified=(Get-Item $o).LastWriteTime.ToString('s') }
+    }
+  }
 }
 $xr = 'SOFTWARE\Khronos\OpenXR\1'
 $layers = @()
@@ -111,7 +153,7 @@ def collect() -> dict:
         raise RuntimeError("could not read hardware information: " + (proc.stderr.strip()[:300] or "no output"))
     raw = json.loads(out[out.index("{"):])
     raw["display"] = primary_display()
-    return normalize(raw)
+    return apply_choices(normalize(raw))
 
 
 def normalize(raw: dict) -> dict:
@@ -141,15 +183,119 @@ def gpu_vendor(info: dict) -> str:
     return "other"
 
 
+class SetupNeeded(RuntimeError):
+    """DCS or its Saved Games folder could not be found; the player can point to it."""
+
+    def __init__(self, what: str, message: str):
+        super().__init__(message)
+        self.what = what            # "install" or "profile"
+
+
+def choices_file() -> Path:
+    base = os.environ.get("APPDATA") or str(Path.home())
+    return Path(base) / "DCS Graphics Optimizer" / "folders.json"
+
+
+def load_choices() -> dict:
+    try:
+        d = json.loads(choices_file().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def install_record(path: str, source: str = "chosen") -> dict | None:
+    """An install entry for a folder, or None when it does not contain DCS.exe."""
+    root = Path(path)
+    if root.name.lower() in ("bin", "bin-mt") and (root / "DCS.exe").is_file():
+        root = root.parent                       # the player picked the bin folder itself
+    if not any((root / sub / "DCS.exe").is_file() for sub in ("bin", "bin-mt")):
+        return None
+
+    def read(name):
+        try:
+            return (root / name).read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            return ""
+    try:
+        version = json.loads(read("autoupdate.cfg") or "{}").get("version", "")
+    except ValueError:
+        version = ""
+    return {"name": root.name, "path": str(root), "variant": read("dcs_variant.txt"), "version": version,
+            "media": "", "source": source, "mt": (root / "bin-mt" / "DCS.exe").is_file()}
+
+
+def profile_record(path: str) -> dict | None:
+    """A profile entry for a Saved Games\\DCS folder, or None when it has no Config\\options.lua.
+    Picking Saved Games itself, or the Config folder, is accepted too."""
+    p = Path(path)
+    if p.name.lower() == "config":
+        p = p.parent
+    if not (p / "Config" / "options.lua").is_file():
+        subs = [s for s in p.glob("DCS*") if (s / "Config" / "options.lua").is_file()] if p.is_dir() else []
+        if not subs:
+            return None
+        p = max(subs, key=lambda s: (s / "Config" / "options.lua").stat().st_mtime)
+    o = p / "Config" / "options.lua"
+    import datetime
+    return {"name": p.name, "path": str(p), "options": str(o), "chosen": True,
+            "modified": datetime.datetime.fromtimestamp(o.stat().st_mtime).strftime("%Y-%m-%dT%H:%M:%S")}
+
+
+def choose(what: str, path: str) -> str:
+    """Remember a folder the player picked. Returns a sentence for the window."""
+    path = (path or "").strip().strip('"')
+    if what == "install":
+        rec = install_record(path)
+        if not rec:
+            raise RuntimeError(f"DCS.exe was not found in {path}. Pick the main DCS World folder, "
+                               "the one that contains the bin folder.")
+        saved, msg = rec["path"], f"Using DCS World in {rec['path']}."
+    elif what == "profile":
+        rec = profile_record(path)
+        if not rec:
+            raise RuntimeError(f"No DCS settings were found in {path}. Pick your Saved Games\\DCS folder, "
+                               "the one that contains Config\\options.lua.")
+        saved, msg = rec["path"], f"Using the DCS settings in {rec['path']}."
+    else:
+        raise ValueError(what)
+    d = load_choices()
+    d[what] = saved
+    f = choices_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(d, indent=2), encoding="utf-8")
+    return msg
+
+
+def apply_choices(info: dict, choices: dict | None = None) -> dict:
+    """Put folders the player picked in front of the ones found automatically."""
+    choices = load_choices() if choices is None else choices
+    info = dict(info)
+    inst = install_record(choices["install"]) if choices.get("install") else None
+    if inst:
+        info["installs"] = [inst] + [i for i in info.get("installs", [])
+                                     if Path(i["path"]).resolve() != Path(inst["path"]).resolve()]
+    prof = profile_record(choices["profile"]) if choices.get("profile") else None
+    if prof:
+        info["profiles"] = [prof] + [p for p in info.get("profiles", [])
+                                     if Path(p["path"]).resolve() != Path(prof["path"]).resolve()]
+    return info
+
+
 def pick_profile(info: dict, name: str | None = None) -> dict:
     profiles = info["profiles"]
     if not profiles:
-        raise RuntimeError("No DCS profile with Config\\options.lua found under Saved Games")
+        raise SetupNeeded("profile", "Your DCS settings folder was not found (Saved Games\\DCS with "
+                                     "Config\\options.lua). If you have started DCS on this PC before, "
+                                     "use Browse to show where your Saved Games\\DCS folder is.")
     if name:
         for p in profiles:
             if p["name"].lower() == name.lower():
                 return p
         raise RuntimeError(f"profile {name!r} not found; have {[p['name'] for p in profiles]}")
+    for p in profiles:
+        if p.get("chosen"):
+            return p
     # Default: the profile DCS itself would use (install variant), else most recently used.
     for inst in info["installs"]:
         want = "DCS" + ("." + inst["variant"] if inst.get("variant") else "")
@@ -161,7 +307,9 @@ def pick_profile(info: dict, name: str | None = None) -> dict:
 
 def pick_install(info: dict) -> dict:
     if not info["installs"]:
-        raise RuntimeError("DCS World install not found in the registry")
+        raise SetupNeeded("install", "DCS World was not found on this PC (searched the registry, Steam "
+                                     "libraries and the usual folders on every drive). Use Browse to show "
+                                     "where DCS World is installed.")
     return info["installs"][0]
 
 

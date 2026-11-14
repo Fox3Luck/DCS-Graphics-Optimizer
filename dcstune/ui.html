@@ -39,6 +39,16 @@
   <h1>DCS Graphics Optimizer</h1>
   <p class="sub" id="profile">Reading your PC and DCS settings...</p>
   <div id="msg"></div>
+  <div class="card hidden" id="setup" style="margin-bottom:14px;border-color:var(--bad)">
+    <h2 id="setup-title">Show us where DCS is</h2>
+    <p id="setup-text" style="margin:0 0 10px"></p>
+    <div class="actions" style="margin:0">
+      <button class="primary" id="setup-browse">Browse...</button>
+      <input id="setup-path" style="flex:1;min-width:260px;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px">
+      <button id="setup-use">Use this folder</button>
+    </div>
+    <p class="sub" id="setup-hint" style="margin:8px 0 0"></p>
+  </div>
 
   <div class="card hidden" id="consent" style="margin-bottom:14px;border-color:var(--accent)">
     <h2 style="color:var(--text)">Help make this tool better? (optional)</h2>
@@ -145,8 +155,30 @@ function showReport(sc) {
     ? "This report and its screenshots are saved in Saved Games\\" + sc.profile_dir + "\\DCS Graphics Optimizer Reports\\" + rep.dir + ". You can keep or share that folder."
     : "";
 }
+let SETUP = null;
+function showSetup(sc) {
+  SETUP = sc.setup || null;
+  $("setup").classList.toggle("hidden", !SETUP);
+  if (!SETUP) return;
+  const inst = SETUP.what === "install";
+  $("setup-title").textContent = inst ? "Where is DCS World installed?" : "Where are your DCS settings?";
+  $("setup-text").textContent = SETUP.message;
+  $("setup-browse").classList.toggle("hidden", !sc.can_browse);
+  $("setup-path").placeholder = inst ? "for example E:\\DCS World" : "for example E:\\Saved Games\\DCS";
+  $("setup-hint").textContent = inst
+    ? "Pick the main DCS World folder, the one that contains the bin folder. Steam: ...\\steamapps\\common\\DCSWorld."
+    : "Pick the DCS folder inside Saved Games, the one that contains Config\\options.lua. If it does not exist yet, start DCS once and close it.";
+}
+async function chooseFolder(path) {
+  try { const r = await api("/api/choose-folder", { what: SETUP.what, path }); if (r.message) note(r.message); $("setup-path").value = ""; await refresh(); }
+  catch (e) { note(e.message, true); }
+}
+$("setup-browse").onclick = () => chooseFolder(null);
+$("setup-use").onclick = () => { const v = $("setup-path").value.trim(); if (v) chooseFolder(v); };
 async function refresh() {
   const sc = await api("/api/scorecard");
+  showSetup(sc);
+  if (sc.setup && sc.setup.what === "profile") { $("profile").textContent = "DCS settings not found yet"; busy(false); return; }
   $("profile").textContent = "DCS profile: " + sc.profile;
   const o = $("overall"); o.replaceChildren(el("div", "letter " + sc.overall.grade, sc.overall.grade),
     el("div", "score", sc.overall.score + " / 100 \u2014 40% PC, 60% how well your settings use it"));
@@ -184,7 +216,7 @@ function showSharing(sc) {
 let ASKING = false, RUNNING = false;
 async function setSharing(share) { try { note((await api("/api/sharing", { share })).message); await refresh(); } catch (e) { note(e.message, true); } }
 function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report"].forEach(i => $(i).disabled = on);
-  if (ASKING) ["quick", "full"].forEach(i => $(i).disabled = true); }
+  if (ASKING || SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");
   $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
