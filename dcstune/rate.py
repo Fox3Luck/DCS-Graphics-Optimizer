@@ -223,8 +223,18 @@ def _rules(info, o, machine, gpu, ratio, st=None):
         yield from V.rules(st, o, machine, ratio)
     dw, dh = gpu.get("width"), gpu.get("height")
     if not st and dw and dh and g("width") and (g("width") > dw or g("height") > dh):
-        yield "warn", 6, (f"DCS is set to {g('width')}x{g('height')} but the desktop is {dw}x{dh}. "
-                          "The extra pixels are rendered and then thrown away or pushed off-screen."), "untouched"
+        setup = g("multiMonitorSetup")
+        screens = ((info.get("display") or {}).get("count") or 1) > 1
+        if (setup and setup != "1camera") or screens:
+            # A picture bigger than the main screen on purpose: exported MFDs or several monitors
+            # (beta issue #7). It is not a mistake, and the tool never changes it.
+            yield "info", 0, (f"DCS draws a {g('width')}x{g('height')} picture across more than one screen"
+                              + (f" (monitor setup \"{setup}\")" if setup and setup != "1camera" else "")
+                              + ". That is counted in the frame-rate estimate; your resolution and monitor setup "
+                              "are kept exactly as they are."), "untouched"
+        else:
+            yield "warn", 6, (f"DCS is set to {g('width')}x{g('height')} but the desktop is {dw}x{dh}. "
+                              "The extra pixels are rendered and then thrown away or pushed off-screen."), "untouched"
     if vram_gb >= 12 and g("textures") is not None and g("textures") < 2:
         yield "warn", 5, f"Textures are not on High although the card has {vram_gb:.0f} GB of video memory to hold them."
     if vram_gb >= 12 and g("terrainTextures") == "min":

@@ -456,6 +456,9 @@ def make_server(app: App, port: int = 0) -> ThreadingHTTPServer:
 
 
 def main():
+    from . import winproc
+    if winproc.restart_through_explorer():     # opened from a browser that passes on PreferSystem32
+        return
     app = App()
     server = make_server(app)
     url = f"http://127.0.0.1:{server.server_address[1]}/?t={app.token}"

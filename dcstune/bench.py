@@ -69,10 +69,12 @@ def parse_result(raw: dict) -> dict:
 def dcs_running() -> bool:
     try:
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq DCS.exe", "/NH"],
-                             capture_output=True, text=True, creationflags=NO_WINDOW).stdout
+                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
     except FileNotFoundError:      # not Windows (the automated tests)
         return False
-    return "DCS.exe" in out
+    # errors="replace": on a non-English Windows tasklist's text can hold characters the
+    # default code page cannot decode, which used to leave out as None (beta issue #8).
+    return "DCS.exe" in (out or "")
 
 
 class GpuSampler:
@@ -88,7 +90,7 @@ class GpuSampler:
     def _sample(self):
         if self._nvidia:
             out = subprocess.run([self._nvidia, "--query-gpu=memory.used,utilization.gpu",
-                                  "--format=csv,noheader,nounits"], capture_output=True, text=True, creationflags=NO_WINDOW, timeout=10).stdout
+                                  "--format=csv,noheader,nounits"], capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=10).stdout
             rows = [r.split(",") for r in out.strip().splitlines() if "," in r]
             if rows:
                 best = max(rows, key=lambda r: float(r[0]))
@@ -101,10 +103,14 @@ class GpuSampler:
                               "$m = ($c | ? Path -like '*dedicated usage' | Measure-Object CookedValue -Maximum).Maximum / 1MB; "
                               "$u = ($c | ? Path -like '*utilization percentage' | Group-Object { ($_.InstanceName -split '_')[1] } | "
                               "% { ($_.Group | Measure-Object CookedValue -Sum).Sum } | Measure-Object -Maximum).Maximum; "
-                              "'{0:F0},{1:F1}' -f $m, $u"],
-                             capture_output=True, text=True, creationflags=NO_WINDOW, timeout=20).stdout.strip()
-        mem, _, util = out.partition(",")
-        return (float(mem), float(util) if util else None) if mem else (0.0, None)
+                              "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F0};{1:F1}', $m, $u)"],
+                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=20).stdout.strip()
+        # Invariant culture and ";": a German or French Windows writes decimals with a comma.
+        mem, _, util = out.partition(";")
+        try:
+            return (float(mem), float(util) if util else None) if mem else (0.0, None)
+        except ValueError:
+            return 0.0, None
 
     def _loop(self, interval):
         while not self._stop.wait(interval):
@@ -357,6 +363,10 @@ class Bench:
                 "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
                 "total_timeout": timeout - 30}, **directive_extra))
         self.directive.write_text(directive())
+        from . import winproc
+        if winproc.prefer_system32_on():
+            self.directive.unlink(missing_ok=True)
+            raise BenchError(winproc.ADVICE)
         args = [str(self.exe), "--no-launcher", "--force_enable_VR" if self.vr else "--force_disable_VR",
                 "-w", self.profile_name]
         started = time.time()

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,6 +12,7 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # windowed app: never f
 
 _PS = r"""
 $ErrorActionPreference='SilentlyContinue'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $gpus = @()
 $reg = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}'
 $vram = @{}
@@ -147,13 +149,20 @@ def collect() -> dict:
         script.write_text(_PS, encoding="utf-8")
         proc = subprocess.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
-            capture_output=True, text=True, timeout=90, creationflags=NO_WINDOW)
-    out = proc.stdout
+            capture_output=True, timeout=90, creationflags=NO_WINDOW)
+    # UTF-8 both ways: folder names with accents (C:\Users\José) must survive, and a byte the
+    # default code page cannot decode must never break the start (beta issue #8).
+    out = proc.stdout.decode("utf-8", errors="replace").lstrip("\ufeff")
     if "{" not in out:
-        raise RuntimeError("could not read hardware information: " + (proc.stderr.strip()[:300] or "no output"))
+        raise RuntimeError("could not read hardware information: "
+                           + (proc.stderr.decode("utf-8", errors="replace").strip()[:300] or "no output"))
     raw = json.loads(out[out.index("{"):])
     raw["display"] = primary_display()
     return apply_choices(normalize(raw))
+
+
+# Display drivers that are not a graphics card DCS could render on.
+VIRTUAL_GPU = r"Microsoft Basic|Remote Display|Virtual Display|Parsec|Meta Virtual|IddCx|Citrix|VMware|Hyper-V"
 
 
 def normalize(raw: dict) -> dict:
@@ -162,9 +171,17 @@ def normalize(raw: dict) -> dict:
         info[k] = _as_list(raw.get(k))
     if isinstance(info.get("vr"), dict):
         info["vr"] = dict(info["vr"], layers=_as_list(info["vr"].get("layers")))
-    # Primary GPU = the one driving a display with the most VRAM (skips idle iGPUs).
-    active = [g for g in info["gpus"] if g.get("width")] or info["gpus"]
-    info["gpu"] = max(active, key=lambda g: g.get("vram_mb") or 0) if active else None
+    # The GPU DCS renders on = the strongest one, whether or not it drives a display: on most
+    # gaming laptops the built-in chip drives the screen and the RTX card renders behind it
+    # (beta issue #6: an RTX 4090 laptop was rated as its integrated graphics).
+    from .model import tier_score
+    real = [g for g in info["gpus"] if not re.search(VIRTUAL_GPU, g.get("name") or "", re.I)] or info["gpus"]
+    best = max(real, key=lambda g: (tier_score("gpu", g.get("name"), 0)[0], g.get("vram_mb") or 0)) if real else None
+    if best and not best.get("width"):
+        shown = next((g for g in info["gpus"] if g.get("width")), None)
+        if shown:
+            best = dict(best, width=shown["width"], height=shown["height"], refresh=shown.get("refresh"))
+    info["gpu"] = best
     # The display DCS runs on is the Windows primary one; it replaces the card's own figures.
     d = info.get("display")
     if info["gpu"] and isinstance(d, dict) and d.get("width") and d.get("height"):
