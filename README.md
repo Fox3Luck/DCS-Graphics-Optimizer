@@ -105,8 +105,9 @@ sync, your frame-rate cap, VR, controls, sound, gameplay or module options.
 - Your original settings are restored after every DCS start, and after a crash or an
   interrupted test the next time you open the tool.
 - **Apply** keeps a dated copy of your previous settings; **Undo** restores it.
-- Nothing inside the DCS installation folder is modified, and nothing is sent over
-  the internet.
+- Nothing inside the DCS installation folder is modified. Your results are sent only if
+  you agree to share them. When it opens, the tool asks GitHub whether a newer version
+  is out (nothing about you or your PC is sent) and shows a notice if there is one.
 
 The full details, the list of files it creates and troubleshooting are in the
 **[User Guide](docs/USER-GUIDE.md)**.

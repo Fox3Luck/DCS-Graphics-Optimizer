@@ -8,3 +8,9 @@ def _never_send_to_the_real_receiver(monkeypatch):
     from dcstune import feedback
     monkeypatch.setitem(feedback._TABLE, "url", "")
     monkeypatch.delenv("DCSTUNE_FEEDBACK_URL", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_update_check(monkeypatch):
+    """Tests never ask GitHub for releases."""
+    monkeypatch.setenv("DCSTUNE_NO_UPDATE_CHECK", "1")

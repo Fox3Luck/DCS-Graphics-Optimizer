@@ -304,6 +304,11 @@ VR settings, controls, sound, gameplay or module options.
   clean and multiplayer is unaffected.
 - The tool never runs while you are flying and does nothing in multiplayer.
 - Nothing is sent over the internet unless you agree to share results (see "Anonymous results").
+  The one exception is the update check: when the window opens, the tool asks GitHub for this
+  project's list of releases, the same as opening the releases page in a browser. Nothing about
+  you, your PC or your settings goes with it. If a newer version is out, a notice with a
+  **Download** button appears at the top; the button opens the release page in your browser.
+  The version you have is shown at the bottom of the window.
 
 ## Files it creates
 

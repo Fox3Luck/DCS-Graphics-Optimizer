@@ -41,6 +41,10 @@
   <p class="sub"><span id="profile">Reading your PC and DCS settings...</span>
     <select id="profile-pick" class="hidden" title="Which DCS settings folder to rate and optimize"
       style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
+  <div class="note hidden" id="update"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+    <span id="update-text" style="flex:1;min-width:240px"></span>
+    <button class="primary" id="update-get">Download</button>
+  </div></div>
   <div id="msg"></div>
   <div class="card hidden" id="setup" style="margin-bottom:14px;border-color:var(--bad)">
     <h2 id="setup-title">Show us where DCS is</h2>
@@ -145,6 +149,7 @@
     </div>
   </div>
   <p class="sub hidden" id="share-state" style="margin-top:18px"></p>
+  <p class="sub" id="version" style="margin-top:18px;font-size:13px"></p>
 </main>
 <script>
 const TOKEN = "__TOKEN__";
@@ -320,6 +325,19 @@ $("apply").onclick = async () => {
 };
 $("open-report").onclick = async () => { try { await api("/api/open-report", {}); } catch (e) { note(e.message, true); } };
 $("undo").onclick = async () => { try { note((await api("/api/undo", {})).message); await refresh(); } catch (e) { note(e.message, true); } };
+// A newer version (players kept testing old copies). The app asks GitHub once at start.
+async function checkVersion(tries) {
+  try {
+    const v = await api("/api/version");
+    $("version").textContent = "Version " + v.version;
+    if (v.update) {
+      $("update-text").textContent = "A newer version is available: " + v.update.version + ". You have " + v.version + ". The newest one has the latest fixes.";
+      $("update").classList.remove("hidden");
+    } else if (tries > 0) setTimeout(() => checkVersion(tries - 1), 4000);
+  } catch (e) { /* no notice */ }
+}
+$("update-get").onclick = async () => { try { note((await api("/api/open-download", {})).message); } catch (e) { note(e.message, true); } };
+checkVersion(3);
 refresh().then(async () => { const j = await api("/api/job"); if (j.state === "running") { busy(true); $("progress").classList.remove("hidden"); poll(); } })
   .catch(e => note(e.message, true));
 </script>

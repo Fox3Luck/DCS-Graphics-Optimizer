@@ -320,6 +320,12 @@ class App:
         self._factory, self._engine = engine_factory, None
         self.lock = threading.Lock()
         self.job = {"state": "idle", "log": [], "error": None, "report": None}
+        self.update = None            # a newer release, once the background check has found one
+
+    def check_for_update(self) -> None:
+        """Run once at start, in the background (see updates.py)."""
+        from . import updates
+        self.update = updates.check()
 
     @property
     def engine(self):
@@ -448,6 +454,16 @@ class App:
             return {"message": self.engine.apply(body.get("vr_ok") is True)}
         if method == "POST" and path == "/api/undo":
             return {"message": self.engine.undo()}
+        if method == "GET" and path == "/api/version":
+            from . import __version__
+            return {"version": __version__, "update": self.update}
+        if method == "POST" and path == "/api/open-download":
+            from . import updates
+            url = (self.update or {}).get("url") or updates.RELEASES_PAGE
+            if not updates.is_release_page(url):
+                raise RuntimeError("Not a download page of this tool.")
+            webbrowser.open(url)
+            return {"message": "The download page is open in your browser. Close this window before running the new version."}
         if method == "POST" and path == "/api/open-report":
             return {"message": self.engine.open_report()}
         raise KeyError(path)
@@ -513,6 +529,7 @@ def main():
     server = make_server(app)
     url = f"http://127.0.0.1:{server.server_address[1]}/?t={app.token}"
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    threading.Thread(target=app.check_for_update, daemon=True).start()
     try:
         import webview  # pywebview
         webview.create_window("DCS Graphics Optimizer", url, width=980, height=860,
