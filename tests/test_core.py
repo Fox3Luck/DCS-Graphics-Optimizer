@@ -94,7 +94,7 @@ def test_recover_after_crash(tmp_path):
     s.write_trial({"graphics.shadows": 0})
     # ...process dies here; DCS may even have rewritten the file on exit
     p.write_bytes(p.read_bytes() + b"-- junk")
-    assert recover(p) is True
+    assert recover(p) == "restored"
     assert sha256(p) == original
     assert recover(p) is False
 

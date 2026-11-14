@@ -185,18 +185,31 @@ class TrialSession:
 
     def begin(self) -> None:
         if self.journal.exists():
-            recover(self.path)
+            recover(self.path, keep_player_edits=True)
         original = self.path.read_bytes()
         atomic_write(self.saved, original)
         atomic_write(self.journal, json.dumps({
             "original": self.saved.name,
             "sha256": hashlib.sha256(original).hexdigest(),
             "started": time.time(),
+            "tried": {},
         }).encode())
+
+    def note_values(self, changes: dict) -> None:
+        """Record values the tool puts into DCS (in the file or in the running game), so a
+        later recovery can tell them apart from changes the player made (#15)."""
+        info = json.loads(self.journal.read_text())
+        tried = info.setdefault("tried", {})
+        for k, v in changes.items():
+            vals = tried.setdefault(k, [])
+            if json.dumps(v) not in vals:
+                vals.append(json.dumps(v))
+        atomic_write(self.journal, json.dumps(info).encode())
 
     def write_trial(self, changes: dict) -> None:
         if not self.journal.exists():
             raise RuntimeError("TrialSession.begin() not called")
+        self.note_values(changes)
         opts = Options(self.saved.read_bytes().decode("utf-8", errors="surrogateescape"))
         opts.update(changes)
         opts.save(self.path)
@@ -213,19 +226,49 @@ class TrialSession:
         return False
 
 
-def recover(options_path) -> bool:
-    """Restore the original options.lua if a trial session was left open."""
+def _player_edits(current: bytes, original: bytes, tried: dict) -> list[str]:
+    """Graphics/VR settings in the current file that are neither the player's original
+    value nor any value the tool tried: the player changed them in DCS after the test."""
+    def flat(data):
+        o = Options(data.decode("utf-8", errors="surrogateescape"))
+        return {f"{sec}.{k}": v for sec in ("graphics", "VR") for k, v in o.section(sec).items()}
+    try:
+        cur, orig = flat(current), flat(original)
+    except Exception:           # unreadable file: treat as not edited, restore as before
+        return []
+    return sorted(k for k, v in cur.items()
+                  if k in orig and v != orig[k] and json.dumps(v) not in tried.get(k, ()))
+
+
+def recover(options_path, keep_player_edits: bool = False) -> str | bool:
+    """Close a trial session that was left open (the tool or the PC stopped mid-test).
+
+    Normally the original options.lua is put back ("restored"). With keep_player_edits,
+    if the player has changed settings in DCS since then, their current file is kept and
+    the original is saved as an Undo backup instead ("kept"). False: nothing to recover."""
     path = Path(options_path)
     journal = path.with_name(JOURNAL_NAME)
     if not journal.exists():
         return False
     info = json.loads(journal.read_text())
     saved = path.with_name(info["original"])
+    outcome = "restored"
     if saved.exists():
         data = saved.read_bytes()
         if hashlib.sha256(data).hexdigest() != info["sha256"]:
             raise RuntimeError(f"saved original {saved} does not match journal hash; not restoring")
-        atomic_write(path, data)
+        current = path.read_bytes() if path.exists() else b""
+        if keep_player_edits and current and _player_edits(current, data, info.get("tried", {})):
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            dst = path.with_name(BACKUP_PREFIX + stamp)
+            n = 1
+            while dst.exists():
+                dst = path.with_name(f"{BACKUP_PREFIX}{stamp}-{n}")
+                n += 1
+            atomic_write(dst, data)
+            outcome = "kept"
+        else:
+            atomic_write(path, data)
         saved.unlink()
     journal.unlink()
-    return True
+    return outcome

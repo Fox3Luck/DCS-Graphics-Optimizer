@@ -217,7 +217,8 @@ async function refresh() {
   $("fit-title").textContent = "Your current settings (" + sc.settings.basis + ")";
   card($("fit"), sc.settings, sc.settings.findings);
   $("undo").classList.toggle("hidden", !sc.can_undo);
-  if (sc.recovered) note("An earlier test was interrupted. Your original settings have been restored.");
+  if (sc.recovered === "kept") note("An earlier test was interrupted, and you have changed DCS settings since then. Your current settings were kept. To go back to your settings from before that test, press Undo last change.");
+  else if (sc.recovered) note("An earlier test was interrupted. Your original settings have been restored.");
   if (sc.vr && !sc.vr_tested && !sc.recovered && !$("msg").children.length)
     note("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet.");
   showReport(sc);

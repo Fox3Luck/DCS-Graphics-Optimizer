@@ -323,6 +323,8 @@ class Bench:
         trials: [{"tag": "a", "set": {"shadows": 0}}, ...] - bare graphics option names.
         Returns one {"tag", "applied", "scenes": [stats...]} per trial."""
         self.runs += 1
+        for t in trials:      # the hook applies these inside DCS; DCS may save them on exit
+            self.session.note_values({"graphics." + k: v for k, v in t.get("set", {}).items()})
         named = [dict(t, tag=f"{self.session_id}r{self.runs:02d}{t['tag']}") for t in trials]
         raw, gpu, seconds = self._launch(None, {"tag": named[0]["tag"], "trials": named,
                                                 "screenshots": screenshots}, short, 150 + 100 * len(trials))

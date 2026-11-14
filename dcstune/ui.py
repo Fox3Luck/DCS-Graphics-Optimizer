@@ -26,7 +26,7 @@ class Engine:
         from .optionslua import recover
         self.info = sysinfo.collect()
         self.profile = sysinfo.pick_profile(self.info, profile_name)
-        self.recovered = recover(self.profile["options"])
+        self.recovered = recover(self.profile["options"], keep_player_edits=True)
         if not bench.dcs_running():
             bench.remove_leftovers(self.profile["path"])     # a hook left by an interrupted test
 

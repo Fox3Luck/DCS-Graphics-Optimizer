@@ -22,7 +22,11 @@ from .optionslua import Options, backup, list_backups, recover, atomic_write
 def _context(args):
     info = sysinfo.collect()
     profile = sysinfo.pick_profile(info, args.profile)
-    if recover(profile["options"]):
+    got = recover(profile["options"], keep_player_edits=True)
+    if got == "kept":
+        print("An earlier run was interrupted and you have changed DCS settings since; they were kept. "
+              "'undo' goes back to your settings from before that run.")
+    elif got:
         print("Restored your original settings from an interrupted earlier run.")
     from . import bench
     if not bench.dcs_running():

@@ -343,6 +343,7 @@ To remove every trace, delete the files starting with `dcstune` and
 | "DCS closed without writing a benchmark result" | DCS crashed or was closed. A copy of its log is saved as `Config\dcstune-last-failure.log`. Start DCS normally once, then try again. |
 | "DCS did not finish the benchmark in time" | Start DCS normally once to check it reaches the main menu (an update or a first-time shader build may be pending), then try again. |
 | "An earlier test was interrupted. Your original settings have been restored." | Nothing to do; this is the safety net working. |
+| "An earlier test was interrupted, and you have changed DCS settings since then. Your current settings were kept." | The tool noticed you changed settings in DCS after the interrupted test and did not overwrite them. Press **Undo last change** if you want your settings from before that test instead. |
 | The window shows the wrong DCS profile | The tool uses the profile your DCS install uses. Other profiles are listed in `Saved Games`; profile choice in the window is not available yet. |
 | DCS feels worse after Apply | Press **Undo last change**. |
 

@@ -122,3 +122,45 @@ def test_fast_screen_does_not_strip_a_mid_range_pc(monkeypatch):
         rec = out["recommended"]
         after = rec["quality"] if rec else out["current_quality"]
         assert after >= out["current_quality"] - 0.05 * top, (gpu, out["target_fps"])
+
+
+def _session(tmp_path):
+    import shutil
+    from dcstune.optionslua import TrialSession
+    p = tmp_path / "options.lua"
+    shutil.copy(FIX / "options.DCS.lua", p)
+    s = TrialSession(p)
+    s.begin()
+    return p, s
+
+
+def test_interrupted_test_keeps_settings_the_player_changed_afterwards(tmp_path):
+    # Issue #15: a test was stopped, the player changed settings in DCS, and the tool's next
+    # start silently put the settings from before the test back over them.
+    from dcstune.optionslua import list_backups, recover, sha256
+    p, s = _session(tmp_path)
+    original = (tmp_path / "options.lua.dcstune-original").read_bytes()
+    s.write_trial({"graphics.shadows": 0, "graphics.sync": False})
+    s.note_values({"graphics.clouds": 0})               # applied in-game by a batch
+    o = Options.load(p)
+    o.update({"graphics.clouds": 0, "graphics.visibRange": "Low"})   # visibRange: the player's own change
+    o.save(p)
+    edited = sha256(p)
+    assert recover(p, keep_player_edits=True) == "kept"
+    assert sha256(p) == edited
+    assert [b.read_bytes() for b in list_backups(p)] == [original]   # Undo goes back to before the test
+    assert not (tmp_path / "options.lua.dcstune-original").exists()
+    assert recover(p, keep_player_edits=True) is False
+
+
+def test_interrupted_test_with_only_test_values_is_restored(tmp_path):
+    from dcstune.optionslua import list_backups, recover, sha256
+    p, s = _session(tmp_path)
+    original = sha256(tmp_path / "options.lua.dcstune-original")
+    s.write_trial({"graphics.shadows": 0})
+    s.note_values({"graphics.clouds": 0})
+    o = Options.load(p)
+    o.update({"graphics.clouds": 0})                  # DCS saved a batch value on exit: not the player
+    o.save(p)
+    assert recover(p, keep_player_edits=True) == "restored"
+    assert sha256(p) == original and list_backups(p) == []
