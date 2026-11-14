@@ -209,11 +209,16 @@ local function tryHost()
   if not ok then finish(false, "start_server failed") end
 end
 
--- Position + heading of a named AI unit from the export state. Polled a few times a
--- second only (it walks the world-object list); the camera is extrapolated in between
--- so the per-frame cost of the benchmark itself stays negligible.
-local function pollSubject(unitName)
-  local code = string.format([[
+-- Position + heading of a named AI unit. Polled a few times a second only; the camera is
+-- extrapolated in between so the per-frame cost of the benchmark itself stays negligible.
+-- Two sources: the export state (LoGetWorldObjects), and as a fallback the mission's own
+-- scripting state on this host (Unit.getByName). On some players' PCs the export state
+-- answers nothing at all - add-ons replace or break it (beta issue #3) - so the first
+-- source that answers is kept for the rest of the run. Both use the same world axes
+-- (x north, y up, z east) and a heading in radians clockwise from north.
+local SUBJECT_CODE = {
+  export = [[
+    if type(LoGetWorldObjects) ~= 'function' then return 'ERR no LoGetWorldObjects' end
     local objs = LoGetWorldObjects()
     if objs then
       for _, o in pairs(objs) do
@@ -223,12 +228,47 @@ local function pollSubject(unitName)
       end
     end
     return ''
-  ]], unitName)
-  local ok, s = pcall(function() return net.dostring_in("export", code) end)
-  if not ok or type(s) ~= "string" or s == "" then return nil end
+  ]],
+  server = [[
+    if not (Unit and Unit.getByName) then return 'ERR no Unit' end
+    local u = Unit.getByName(%q)
+    if not u or not u:isExist() then return '' end
+    local p = u:getPosition()
+    local h = math.atan2(p.x.z, p.x.x)
+    if h < 0 then h = h + 2 * math.pi end
+    return string.format('%%.2f %%.2f %%.2f %%.4f', p.p.x, p.p.y, p.p.z, h)
+  ]],
+}
+local subject_src = nil            -- the source that answered first; nil until one has
+local subject_err = {}             -- last thing each source said, for the log on failure
+
+local function askSubject(src, unitName)
+  local ok, s, ok2 = pcall(function() return net.dostring_in(src, string.format(SUBJECT_CODE[src], unitName)) end)
+  if not ok then subject_err[src] = "pcall: " .. tostring(s); return nil end
+  if type(s) ~= "string" then subject_err[src] = "no answer (" .. tostring(s) .. ", " .. tostring(ok2) .. ")"; return nil end
+  if s:sub(1, 4) == "ERR " then subject_err[src] = s; return nil end
+  subject_err[src] = (s == "" and "answers, unit not there yet") or nil
+  if s == "" then return false end
   local x, y, z, h = s:match("([-%d%.]+) ([-%d%.]+) ([-%d%.]+) ([-%d%.]+)")
-  if not x then return nil end
+  if not x then subject_err[src] = "unreadable: " .. s:sub(1, 60); return nil end
   return { x = tonumber(x), y = tonumber(y), z = tonumber(z), h = tonumber(h) }
+end
+
+local function pollSubject(unitName)
+  if subject_src then
+    local p = askSubject(subject_src, unitName)
+    return p or nil
+  end
+  local order = (D.subject_source == "server") and { "server" } or { "export", "server" }
+  for _, src in ipairs(order) do
+    local p = askSubject(src, unitName)
+    if p then
+      subject_src = src
+      L("aircraft positions come from the " .. src .. " state")
+      return p
+    end
+  end
+  return nil
 end
 
 local function updateSubject(scene, t)
@@ -375,6 +415,7 @@ function h.onSimulationFrame()
         return 'count=' .. n .. ' ' .. table.concat(t, ', ')
       ]]) end)
       L("world objects seen: " .. tostring(okd) .. " " .. tostring(names))
+      for src, why in pairs(subject_err) do L("position source " .. src .. ": " .. tostring(why)) end
       finish(false, "benchmark aircraft never appeared")
     end
     return

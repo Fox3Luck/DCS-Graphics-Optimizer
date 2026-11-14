@@ -25,7 +25,9 @@ net = {
     W.started(cfg.isPublic, cfg.password, cfg.missionList[1]); return true end,
   stop_network = function() W.netstop() end,
   dostring_in = function(state, code)
-    local name = code:match('UnitName == "([^"]+)"')
+    W.asked(state)
+    if W.dead_states[state] then return nil end          -- an export state broken by add-ons (#3)
+    local name = code:match('UnitName == "([^"]+)"') or code:match('getByName%("([^"]+)"%)')
     if not W.world_up or not name or (W.missing and name == W.missing) then return '' end
     return string.format('%.2f %.2f %.2f %.4f', 1000 + wall * 120, 300, 5000, 0.5)
   end,
@@ -60,6 +62,11 @@ class World:
         self.exit, self.server = False, None
         self.starts, self.stop_requested, self.opts, self.saves, self.netstops = 0, False, [], 0, 0
         self.no_editor = False
+        self.dead_states, self.states_asked = {}, []
+
+    def asked(self, state):
+        if not self.states_asked or self.states_asked[-1] != state:
+            self.states_asked.append(state)
 
     def logs(self, m): self.log.append(str(m))
     def cfg(self, *a): self.server_cfg = a
@@ -78,11 +85,12 @@ class World:
 KEY = "0123456789abcdef0123456789abcdef"
 
 
-def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY):
+def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY, dead=()):
     (tmp_path / "Config").mkdir()
     # the hook builds Windows paths; map them onto the temp dir
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
     w = World(tmp_path, missing)
+    w.dead_states = lua.table_from({st: True for st in dead})
     w.json2lua = lambda s: lua.eval("function(j) return j end")(_to_lua(lua, json.loads(s)))
     files = {}
     real = {w.dir + "Config\\dcstune_directive.json": tmp_path / "Config" / "dcstune_directive.json",
@@ -240,3 +248,26 @@ def test_missing_unit_name_cannot_break_result(tmp_path, monkeypatch):
     w, raw, _ = _run(tmp_path, monkeypatch, dict(DIRECTIVE, scenes=scenes), missing="X\\", max_seconds=200)
     assert raw["ok"] is False and raw["reason"].startswith("unit not found") and '"' not in raw["reason"]
     assert set(raw) == {"ok", "reason", "tag", "clock", "scenes", "trials"}
+
+
+def test_broken_export_state_falls_back_to_the_mission_state(tmp_path, monkeypatch):
+    # Issue #3: on some players' PCs DCS's export state answers nothing (add-ons replace it),
+    # so the aircraft "never appeared". The mission state on this host is asked instead.
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, dead=("export",))
+    assert w.exit and raw["ok"] is True
+    assert any("positions come from the server state" in m for m in w.log)
+    assert "server" in w.states_asked and w.states_asked[-1] == "server"
+
+
+def test_both_position_sources_dead_says_why(tmp_path, monkeypatch):
+    d = dict(DIRECTIVE, start_timeout=20, total_timeout=60)
+    w, raw, _ = _run(tmp_path, monkeypatch, d, fps=30, dead=("export", "server"))
+    assert w.exit and raw["ok"] is False and "never appeared" in raw["reason"]
+    assert any(m.startswith("position source export: no answer") for m in w.log)
+    assert any(m.startswith("position source server: no answer") for m in w.log)
+
+
+def test_working_export_state_is_still_used(tmp_path, monkeypatch):
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE)
+    assert raw["ok"] is True and any("positions come from the export state" in m for m in w.log)
+    assert set(w.states_asked) == {"export"}

@@ -363,7 +363,10 @@ class Bench:
                 "mission": str(self.mission_dst), "scenes": SCENES,
                 "scene_sec": SHORT_SCENE_SEC if short else self.scene_sec,
                 "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
-                "total_timeout": timeout - 30}, **directive_extra))
+                "total_timeout": timeout - 30},
+                # development only: force the fallback way of finding the aircraft (issue #3)
+                **({"subject_source": "server"} if os.environ.get("DCSTUNE_SUBJECT_SOURCE") == "server" else {}),
+                **directive_extra))
         self.directive.write_text(directive())
         from . import winproc
         if winproc.prefer_system32_on():
