@@ -163,8 +163,14 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
         mdl.measured = {k: {int(i): ms for i, ms in v.items()} for k, v in calibration.get("measured", {}).items()}
         low_ratio, est_basis = calibration["low_ratio"], "estimated from your last test"
     rung = M.current_rung(options, vendor)
-    target = target or (st["target"] if st else target_fps(gpu.get("refresh")))
     vram_total = gpu.get("vram_mb") or 0
+    if not target and not st:
+        # The goal a Balanced test would aim for on this PC - never choppy, and looks great - not
+        # always the screen's full refresh rate. Grading every 144 Hz screen against 120 FPS called
+        # good, smooth settings poor, most of all on wide multi-screen pictures (#7, #12).
+        from .optimize import pick_target
+        target = pick_target(mdl, target_fps(gpu.get("refresh")), vram_total, low_ratio)
+    target = target or (st["target"] if st else target_fps(gpu.get("refresh")))
 
     if not measured and calibration:
         # These exact settings were benchmarked in an earlier test: show that, not a guess.
@@ -184,10 +190,10 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
         score -= min(60, (1 - ratio) * 130)
         if ratio >= 0.9:
             findings.append(("warn", f"Frame rate dips to about {fps:.0f} FPS ({basis}), "
-                                     f"just short of the {target} your {dev} can show."))
+                                     f"just short of the {target} FPS goal for this {dev}."))
         else:
             findings.append(("bad", f"Frame rate dips to about {fps:.0f} FPS ({basis}); "
-                                    f"your {dev} wants {target}. Settings ask more than this PC can hold."))
+                                    f"the goal is {target}. Settings ask more than this PC can hold."))
     else:
         findings.append(("good", f"Holds about {fps:.0f} FPS in the worst moments ({basis}) "
                                  f"against a {target} FPS goal."))

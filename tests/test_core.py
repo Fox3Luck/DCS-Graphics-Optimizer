@@ -122,7 +122,8 @@ def test_settings_rating_on_test_box_flags_wasted_headroom():
     text = " ".join(f["text"] for f in fit["findings"])
     assert "Terrain textures" in text and "Textures are not on High" in text
     assert "3840x2160 but the desktop is 2560x1440" in text
-    assert fit["basis"] == "estimated" and fit["target_fps"] == 120
+    # the goal a Balanced test would pick on this PC (4K on an RTX 4080), not the screen's full 144 Hz
+    assert fit["basis"] == "estimated" and fit["target_fps"] == 90
 
 
 def test_settings_rating_moves_with_load():

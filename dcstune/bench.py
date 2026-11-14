@@ -27,12 +27,19 @@ SCENES = [
 ]
 BATCH_SETTLE_SEC = 10     # wait before timing in every measured no-restart trial
 QUICK_EXIT_SEC = 45       # DCS gone this fast without a result = it never really started
+HANDOFF_WAIT_SEC = 25     # after such an exit, how long to look for a DCS that Steam/the updater started instead
 SHORT_SCENE_SEC, SHORT_LEAD_SEC = 10, 2   # cost-only runs: averages repeat within 0.2% at 10 s
 STUTTER_FACTOR = 2.5     # a frame this many times the median counts as a stutter
 
 
 class BenchError(RuntimeError):
-    pass
+    fatal = False          # True: no point trying more runs in this test (the whole test stops)
+
+
+class DcsWontStart(BenchError):
+    """DCS closes as soon as it is started, every time (beta issue #17). Further runs would
+    only repeat it, so the test stops instead of looking like it loops."""
+    fatal = True
 
 
 def frame_stats(frame_ms: list[float]) -> dict:
@@ -338,6 +345,28 @@ class Bench:
         self.log(f"  {len(out)} trials in {seconds}s, VRAM peak {round(gpu.peak_mb)} MB")
         return out
 
+    def _follow_handoff(self, deadline: float) -> bool:
+        """DCS.exe can close at once because something else starts it again (Steam, the DCS
+        updater). If a DCS appears within a short while, wait for that one instead of starting
+        a second copy. True if one was followed to the end (#17)."""
+        seen = None
+        until = time.time() + HANDOFF_WAIT_SEC
+        while time.time() < until:
+            if dcs_running():
+                seen = time.time()
+                break
+            time.sleep(2)
+        if not seen:
+            return False
+        self.log("  DCS was started again by another program (for example Steam); following that one...")
+        while dcs_running():
+            if time.time() > deadline:
+                self.directive.unlink(missing_ok=True)
+                self._keep_failure_log()
+                raise BenchError("DCS did not finish the benchmark in time. Close DCS, then try again.")
+            time.sleep(2)
+        return True
+
     def _keep_failure_log(self):
         try:
             shutil.copyfile(self.profile_dir / "Logs" / "dcs.log",
@@ -392,8 +421,19 @@ class Bench:
                     self._keep_failure_log()
                     raise BenchError("DCS did not finish the benchmark in time and was closed. "
                                      "Check that DCS starts normally and is logged in.")
-            if self.result.exists() or time.time() - launched > QUICK_EXIT_SEC:
+                quick = not self.result.exists() and time.time() - launched <= QUICK_EXIT_SEC
+                if quick and self._follow_handoff(launched + timeout):
+                    quick = False
+            if not quick:
                 break
+            if attempt == 2:
+                self.directive.unlink(missing_ok=True)
+                self._keep_failure_log()
+                raise DcsWontStart(
+                    "DCS closed straight away twice when this tool started it, so the test was stopped. "
+                    "Start DCS once yourself and check it reaches the main menu without asking anything "
+                    "(log-in, update, or a message to click), close it, then try again. If you start DCS "
+                    "through Steam, start it once from Steam first.")
         time.sleep(3)      # let DCS finish releasing its files before anything else starts
         if not self.result.exists():
             self.directive.unlink(missing_ok=True)

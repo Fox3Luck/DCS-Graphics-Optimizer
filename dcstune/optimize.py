@@ -239,6 +239,8 @@ def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, m
             res = measure_batch([None] + [{s["key"]: s["levels"][i]["v"]} for s, i, _ in chunk] + [None])
             ms = [1000.0 / r["avg_fps"] for r in res]
         except Exception as e:
+            if getattr(e, "fatal", False):
+                raise
             log(f"  this run failed ({e}); using built-in estimates for these settings")
             disturbed = True
             continue
@@ -274,6 +276,8 @@ def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, m
             try:
                 now_ms = 1000.0 / measure(None)["avg_fps"]
             except Exception as e:
+                if getattr(e, "fatal", False):
+                    raise
                 log(f"  re-check failed ({e}); discarding the last measurements")
                 now_ms = None
             if now_ms is None or abs(now_ms - base_ms) / base_ms > DRIFT_LIMIT:
@@ -298,6 +302,8 @@ def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, m
                 try:
                     r = measure({s["key"]: s["levels"][i]["v"]})
                 except Exception as e:      # one failed launch must not waste the whole test
+                    if getattr(e, "fatal", False):
+                        raise
                     log(f"  skipped ({e}); using the built-in estimate for this level")
                     continue
                 ms_at[i] = 1000.0 / r["avg_fps"]

@@ -18,6 +18,7 @@ monitor; VR settings are never changed. VR testing is in development.
 - [What the tool changes, and what it never touches](#what-the-tool-changes-and-what-it-never-touches)
 - [Safety](#safety)
 - [Files it creates](#files-it-creates)
+- [Removing it](#removing-it)
 - [If something goes wrong](#if-something-goes-wrong)
 - [Current limits](#current-limits)
 
@@ -302,7 +303,7 @@ VR settings, controls, sound, gameplay or module options.
 - Nothing inside the DCS installation folder is modified, so DCS's file check stays
   clean and multiplayer is unaffected.
 - The tool never runs while you are flying and does nothing in multiplayer.
-- Nothing is sent over the internet. All results stay on your PC.
+- Nothing is sent over the internet unless you agree to share results (see "Anonymous results").
 
 ## Files it creates
 
@@ -325,14 +326,36 @@ Kept:
   VR headset and software, graphics and VR settings, results). It has no names, folder paths or
   account details, and the tool never sends it anywhere; it is there for you to share if asked
 - `Config\dcstune-calibration.json` — what the last test learned about your PC
+- `Config\dcstune-prefs.json` — your answer to the question about sharing results
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
 - `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed (only the anonymized extract described under "Anonymous results" is ever sent)
 
-Outside that folder, only if you used Browse: `%APPDATA%\DCS Graphics Optimizer\folders.json`,
-the DCS and Saved Games folders you picked.
+Outside that folder:
 
-To remove every trace, delete the files starting with `dcstune` and
-`options.lua.dcstune` from those folders, and the `DCS Graphics Optimizer Reports` folder.
+- `%APPDATA%\DCS Graphics Optimizer\folders.json` — only if you used Browse or Change: the DCS and
+  Saved Games folders you picked
+- `%TEMP%\dcsgo-restarted-by-explorer` — a tiny marker, only if the tool had to restart itself
+  through File Explorer (see "If something goes wrong")
+
+The tool writes nothing to the Windows registry and nothing inside the DCS World install folder.
+
+## Removing it
+
+There is nothing to uninstall: the tool is a single program file and is not installed, so it does
+not appear in Windows' list of apps. To remove it:
+
+1. Delete `DCSGraphicsOptimizer.exe`.
+2. Optional, to remove every trace: in `Saved Games\DCS\Config` (and `DCS.openbeta` if you have it)
+   delete the files starting with `dcstune`; delete the `DCS Graphics Optimizer Reports` folder in
+   `Saved Games\DCS`; and delete the `%APPDATA%\DCS Graphics Optimizer` folder if it exists.
+3. If you want your settings from before you first pressed Apply, use **Undo last change** before
+   deleting anything, or rename the oldest `options.lua.dcstune-bak-<date>-<time>` to `options.lua`.
+   Otherwise you can delete those backup files too.
+
+Your DCS settings stay as they are: if you applied a recommendation, it remains in `options.lua`.
+The test script and mission (`Scripts\Hooks\dcstune_bench.lua`, `Missions\dcstune_bench.miz`) are
+only there while a test runs. If a test was interrupted, the tool removes them the next time it
+starts, and the script also deletes itself the next time DCS starts; you can delete both by hand.
 
 ## If something goes wrong
 

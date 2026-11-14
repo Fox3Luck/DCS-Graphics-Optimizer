@@ -1,5 +1,6 @@
 """Fixes for problems players reported on beta 11 (GitHub issues #6, #7, #8, #1)."""
 import subprocess
+import pytest
 
 from dcstune import bench, rate, sysinfo, winproc
 from dcstune.optionslua import Options
@@ -204,3 +205,78 @@ def test_window_passes_the_choice_and_refuses_unknown_ones():
             break
         time.sleep(0.02)
     assert seen == [(True, "quality")]
+
+
+def test_dcs_closing_at_once_twice_stops_the_test_instead_of_looping(tmp_path, monkeypatch):
+    # Issue #17: "Keeps saying DCS start was interrupted and will start again in a moment... and repeats."
+    from dcstune import model as M, optimize
+    from test_core import _bench, FakePC, _current
+    bench, b = _bench(tmp_path, monkeypatch)
+    starts = []
+
+    class Proc:                                   # DCS exits at once and writes nothing
+        def __init__(self, args, cwd): starts.append(args)
+        def wait(self, timeout=None): return 0
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+    monkeypatch.setattr(bench.time, "sleep", lambda s: None)
+    monkeypatch.setattr(bench, "HANDOFF_WAIT_SEC", 0)
+    with b:
+        with pytest.raises(bench.DcsWontStart, match="closed straight away twice"):
+            b._launch(None, {"tag": "x"}, True, 100)
+    assert len(starts) == 2
+    # In a thorough test the per-setting "skip and carry on" must not swallow it.
+    cur = _current()
+    calls = []
+
+    def measure(changes):
+        calls.append(changes)
+        if len(calls) > 1:
+            raise bench.DcsWontStart("x")
+        return FakePC(cur, 78, 100).measure(changes)
+    with pytest.raises(bench.DcsWontStart):
+        optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 120, 16376, measure, full=True,
+                     log=lambda *_: None, measure_fast=measure)
+    assert len(calls) == 2
+
+
+def test_dcs_restarted_by_steam_is_followed_not_started_twice(tmp_path, monkeypatch):
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+    starts, running = [], iter([])
+
+    class Proc:                                   # our DCS.exe hands over to a copy Steam starts
+        def __init__(self, args, cwd):
+            nonlocal running
+            starts.append(args)
+            running = iter([True, True, True, False])
+        def wait(self, timeout=None): return 0
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+    monkeypatch.setattr(bench.time, "sleep", lambda s: None)
+
+    def dcs_running():
+        if not starts:
+            return False                          # before the test: no DCS
+        alive = next(running, False)
+        if not alive:
+            b.result.write_text('{"ok":true}')    # the followed DCS finished the benchmark
+        return alive
+    monkeypatch.setattr(bench, "dcs_running", dcs_running)
+    logs = []
+    b.log = logs.append
+    with b:
+        assert b._launch(None, {"tag": "x"}, True, 100)[0] == {"ok": True}
+    assert len(starts) == 1 and any("started again by another program" in m for m in logs)
+
+
+def test_wide_multi_screen_picture_is_graded_against_a_reachable_goal():
+    # #7 follow-up: 7920x1440 across three screens (main 3440x1440 at 144 Hz) on an RTX 5080.
+    # The score used to demand 120 FPS in the worst moments and called the settings poor.
+    info = dict(INFO, gpu=dict(INFO["gpu"], name="NVIDIA GeForce RTX 5080", vram_mb=16303,
+                               width=3440, height=1440, refresh=144),
+                display={"width": 3440, "height": 1440, "refresh": 144, "count": 3})
+    flat = _flat(**{"graphics.width": 7920, "graphics.height": 1440, "graphics.multiMonitorSetup": "MFD_export"})
+    fit = rate.rate_settings(info, flat, rate.rate_machine(info))
+    assert fit["target_fps"] < 120
+    assert "thrown away" not in " ".join(f["text"] for f in fit["findings"])
+    # a measured test result keeps using the goal that test aimed for
+    assert rate.rate_settings(info, flat, rate.rate_machine(info), {"p1_low_fps": 70, "avg_fps": 90}, 72)["target_fps"] == 72
