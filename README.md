@@ -9,6 +9,14 @@ settings back.
 VR settings are never changed. With VR switched on you get an estimated VR scorecard, and
 testing inside the headset is in development (#10).
 
+## Follow along
+
+What's fixed and what's next is kept up to date in the pinned issue
+[#26](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/issues/26). Each beta has a
+[milestone](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/milestones?state=all), and labels show
+where a report stands: **investigating**, **fix in next beta**, **fixed - please confirm**. New betas
+come out at most once a day. Found a problem? [Open an issue](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/issues/new).
+
 ## For players
 
 Download `DCSGraphicsOptimizer.exe` and double-click it; there is nothing to install.
