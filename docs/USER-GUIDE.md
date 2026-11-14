@@ -328,6 +328,8 @@ To remove every trace, delete the files starting with `dcstune` and
 |---|---|
 | "Where is DCS World installed?" | The tool looked in the registry, your Steam libraries and the usual folders on every drive and did not find DCS. Press **Browse** (or paste the path) and pick the main DCS World folder, the one that contains `bin`. Steam: `...\steamapps\common\DCSWorld`. The choice is remembered. |
 | "Where are your DCS settings?" | Your `Saved Games\DCS` folder was not found, for example because Saved Games is on another drive. Press **Browse** and pick the `DCS` folder inside Saved Games (the one that contains `Config\options.lua`). If there is none, start DCS once and close it. |
+| The optimizer closes and opens again right after you start it | It was started from a web browser (Firefox and browsers built on it) with a setting that would stop DCS from starting. It restarts itself once through File Explorer to drop that setting. Nothing to do. |
+| "Windows started this program with a setting from your web browser ..." | Close the optimizer and start `DCSGraphicsOptimizer.exe` by double-clicking it in File Explorer, not from the browser's download list. |
 | "DCS is running. Close it first" | Close DCS completely, then try again. |
 | DCS opens and sits at a login box | Log in once in DCS with auto-login on, close DCS, run the test again. |
 | "Another program is using your graphics card" | Close other games, video renders, AI tools and browser videos, then try again. |
