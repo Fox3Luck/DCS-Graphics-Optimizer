@@ -146,9 +146,9 @@ show what the PC can really do. Your own choices for both come back afterwards.
 
 | Choice | What you get |
 |---|---|
-| **Smoothness** | The highest frame rate your monitor can show (up to 120 FPS in the worst moments), even if the picture looks plainer. |
-| **Balanced** (recommended) | Your monitor's refresh rate if that leaves about two thirds of the best possible picture, otherwise 90, 72 or 60 FPS. |
-| **Quality** | The best-looking picture that still holds at least 60 FPS in the worst moments; a higher frame rate only if it costs little. |
+| **Smoothness** | The highest frame rate your monitor can show (up to 120 FPS in the worst moments), even if the picture looks plainer. For competitive flying. |
+| **Balanced** (recommended) | Never choppy and looks great: at least 60 FPS in the worst moments, and a higher rate (72, 90, up to your monitor's) only while about 80% of the best possible picture is kept. |
+| **Quality** | The best-looking picture your PC can show while still holding 60 FPS in the worst moments. |
 
 The tool then chooses the goal automatically from your monitor and PC, and tells you if
 it settled for a lower frame rate. The report shows the goal and your choice. If the

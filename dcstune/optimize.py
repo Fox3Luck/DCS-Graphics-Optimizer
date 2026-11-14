@@ -76,8 +76,8 @@ def choose(mdl: M.Model, target_fps: float, vram_total_mb: float, low_ratio: flo
 # In a headset smoothness matters more (a missed frame is felt, not just seen), so VR is lower.
 MODES = {
     "smooth":   {"label": "Smoothness", "flat": 0.5,  "vr": 0.4},
-    "balanced": {"label": "Balanced",   "flat": 0.65, "vr": 0.5},
-    "quality":  {"label": "Quality",    "flat": 0.8,  "vr": 0.65},
+    "balanced": {"label": "Balanced",   "flat": 0.8,  "vr": 0.5},
+    "quality":  {"label": "Quality",    "flat": 0.9,  "vr": 0.65},
 }
 DEFAULT_MODE = "balanced"
 FLAT_QUALITY_FLOOR = MODES[DEFAULT_MODE]["flat"]
