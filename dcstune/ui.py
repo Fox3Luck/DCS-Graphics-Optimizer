@@ -310,7 +310,7 @@ def can_browse() -> bool:
 
 
 def browse_folder(title: str) -> str | None:
-    """Windows' folder picker over the app window; None if cancelled or unavailable."""
+    """Windows' folder picker over the app window; None if canceled or unavailable."""
     if not can_browse():
         return None
     import webview
