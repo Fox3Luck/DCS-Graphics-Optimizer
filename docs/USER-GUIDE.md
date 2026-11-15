@@ -371,7 +371,8 @@ starts, and the script also deletes itself the next time DCS starts; you can del
 | The tool rates the wrong settings folder (for example a backup copy, or `DCS` instead of `DCS.openbeta`) | The folder in use is shown at the top of the window. Open the **Change** list next to it and pick the right one, or **Other folder...** to browse to it. The tool remembers your choice. |
 | The optimizer closes and opens again right after you start it | It was started from a web browser (Firefox and browsers built on it) with a setting that would stop DCS from starting. It restarts itself once through File Explorer to drop that setting. Nothing to do. |
 | "Windows started this program with a setting from your web browser ..." | Close the optimizer and start `DCSGraphicsOptimizer.exe` by double-clicking it in File Explorer, not from the browser's download list. |
-| Steam asks whether to launch DCS with custom arguments | Click **Continue**. The test needs those options, and they only apply to this test run. The tool waits up to 5 minutes for you to answer, then follows the DCS that Steam starts. |
+| "This is the Steam edition of DCS, and Steam is not open" | Open Steam and sign in (tick "Remember me"), then try again. DCS gets its licenses from Steam. |
+| Steam asks whether to launch DCS with custom arguments | This should no longer appear. If it does, click **Continue**: the test needs those options, and they only apply to this test run. The tool waits up to 5 minutes for you, then follows the DCS that Steam starts. |
 | "DCS is running. Close it first" | Close DCS completely, then try again. |
 | DCS opens and sits at a login box | Log in once in DCS with auto-login on, close DCS, run the test again. |
 | "Another program is using your graphics card" | Close other games, video renders, AI tools and browser videos, then try again. |

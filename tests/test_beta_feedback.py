@@ -1,5 +1,6 @@
 """Fixes for problems players reported on beta 11 (GitHub issues #6, #7, #8, #1)."""
 import subprocess
+from pathlib import Path
 import pytest
 
 from dcstune import bench, rate, sysinfo, winproc
@@ -393,3 +394,43 @@ def test_steam_restart_seen_in_the_log(tmp_path, monkeypatch):
     assert not b._steam_restart()
     _steam_log(tmp_path)
     assert b._steam_restart()
+
+
+def test_steam_edition_starts_with_the_app_id_and_needs_steam_open(tmp_path, monkeypatch):
+    # #27: with Steam's app id in its environment, DCS does not hand its start back to Steam.
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+    b.exe = Path(r"C:\Program Files (x86)\Steam\steamapps\common\DCSWorld\bin-mt\DCS.exe")
+    assert bench.is_steam_exe(b.exe) and not bench.is_steam_exe(r"D:\DCS World\bin-mt\DCS.exe")
+    env = bench.steam_launch_env({"PATH": "x", "steamappid": "1"})
+    assert env == {"PATH": "x", "SteamAppId": "223750", "SteamGameId": "223750"}
+    seen = []
+
+    class Proc:
+        def __init__(self, args, cwd, **kw): seen.append(kw.get("env")); b.result.write_text('{"ok":true}')
+        def wait(self, timeout=None): return 0
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+    monkeypatch.setattr(bench.time, "sleep", lambda s: None)
+    monkeypatch.setattr(bench, "steam_running", lambda: True)
+    with b:
+        b._launch(None, {"tag": "x"}, True, 100)
+        assert seen[0]["SteamAppId"] == "223750"
+        monkeypatch.setattr(bench, "steam_running", lambda: False)
+        with pytest.raises(bench.BenchError, match="Steam is not open"):
+            b._launch(None, {"tag": "y"}, True, 100)
+    assert len(seen) == 1
+
+
+def test_standalone_edition_keeps_its_environment(tmp_path, monkeypatch):
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+    seen = []
+
+    class Proc:
+        def __init__(self, args, cwd, **kw): seen.append(kw); b.result.write_text('{"ok":true}')
+        def wait(self, timeout=None): return 0
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+    monkeypatch.setattr(bench.time, "sleep", lambda s: None)
+    with b:
+        b._launch(None, {"tag": "x"}, True, 100)
+    assert seen == [{}]

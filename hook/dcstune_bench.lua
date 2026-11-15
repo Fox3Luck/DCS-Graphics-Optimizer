@@ -89,11 +89,17 @@ end
 
 local trials = (type(D.trials) == "table" and #D.trials > 0) and D.trials or { { tag = tostring(D.tag or "run") } }
 
+-- Hosting is refused until DCS has signed in to its multiplayer service, which it does in the
+-- background: the menu can be up before that is done (a Steam edition log from #27: refused with
+-- "login is required", signed in 0.4 s later; the hook then waited two minutes for nothing).
+-- So a refusal is retried every few seconds for up to a minute.
+local HOST_RETRY_SEC, HOST_TRIES = 3, 20
+
 local state = {
   t0 = os.time(), frames = 0, hosted = false, running = false, finished = false,
   ready_at = nil, scene_i = 0, scene_t0 = nil, last = nil, results = {},
   trial_i = 1, trial_t0 = os.time(), menu_frames = 0, stopping = false, stop_step = 0,
-  done = {}, applied = "",
+  done = {}, applied = "", host_tries = 0, host_next = nil,
   subj = nil, subj_t = 0, vel = { x = 0, y = 0, z = 0 }, fwd = { x = 1, z = 0 },
 }
 
@@ -181,8 +187,8 @@ local function applyOptions(set)
 end
 
 local function tryHost()
-  state.hosted = true
-  if type(net.start_server) ~= "function" then finish(false, "net.start_server missing"); return end
+  state.host_tries, state.host_next = state.host_tries + 1, nil
+  if type(net.start_server) ~= "function" then state.hosted = true; finish(false, "net.start_server missing"); return end
   local scfg
   if type(net.get_default_server_settings) == "function" then
     local ok1, c1 = pcall(function() return net.get_default_server_settings(D.mission) end)
@@ -208,8 +214,20 @@ local function tryHost()
   scfg["maxPlayers"]     = 1
   scfg["require_pure_clients"] = false
   local ok, ret = pcall(function() return net.start_server(scfg) end)
-  L("net.start_server ok=" .. tostring(ok) .. " ret=" .. tostring(ret))
-  if not ok then finish(false, "start_server failed") end
+  L("net.start_server ok=" .. tostring(ok) .. " ret=" .. tostring(ret) .. " try=" .. state.host_tries)
+  if not ok then state.hosted = true; finish(false, "start_server failed"); return end
+  if type(ret) == "number" and ret < 0 then          -- refused; DCS's own log says why
+    if state.host_tries >= HOST_TRIES then
+      state.hosted = true
+      finish(false, "DCS refused to host the test mission " .. state.host_tries ..
+                    " times (not logged in to DCS multiplayer?)")
+      return
+    end
+    state.host_next = os.time() + HOST_RETRY_SEC
+    L("hosting refused; trying again in " .. HOST_RETRY_SEC .. "s")
+    return
+  end
+  state.hosted = true
   -- Hosting can hold this call for minutes on a PC with many add-ons (beta 15 log: 3 minutes).
   -- The wait for the mission is counted from here, not from when DCS started.
   state.trial_t0 = os.time()
@@ -420,7 +438,10 @@ function h.onSimulationFrame()
     if state.menu_frames == 30 then
       state.applied = applyOptions(trials[state.trial_i].set)
       L("trial " .. state.trial_i .. "/" .. #trials .. " options: " .. state.applied)
+      state.host_tries = 0
       tryHost()
+    elseif state.host_next and os.time() >= state.host_next then
+      tryHost()                                    -- the options are already set; only host again
     end
     return
   end

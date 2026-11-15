@@ -22,6 +22,8 @@ net = {
   json2lua = function(s) return W.json2lua(s) end,
   get_default_server_settings = function() return { advanced = {} } end,
   start_server = function(cfg) W.cfg(cfg.port, cfg.bind_address, cfg.maxPlayers, cfg.advanced.allow_object_export)
+    W.hosts = W.hosts + 1
+    if W.hosts <= W.host_refusals then return -1 end     -- DCS not signed in to multiplayer yet (#27)
     W.started(cfg.isPublic, cfg.password, cfg.missionList[1]); wall = wall + W.host_delay; return true end,
   stop_network = function() W.netstop() end,
   dostring_in = function(state, code)
@@ -98,7 +100,7 @@ KEY = "0123456789abcdef0123456789abcdef"
 
 
 def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY, dead=(),
-         wrap_dostring=None, no_direct=True, host_delay=0):
+         wrap_dostring=None, no_direct=True, host_delay=0, host_refusals=0):
     (tmp_path / "Config").mkdir()
     # the hook builds Windows paths; map them onto the temp dir
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
@@ -117,6 +119,7 @@ def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=40
     lua.execute("io.open = function(p, m) return py_open(p, m) end; os.remove = function(p) py_remove(p) end")
     w.no_direct = no_direct
     w.host_delay = host_delay
+    w.host_refusals, w.hosts = host_refusals, 0
     load, tick = lua.execute(HARNESS, w)
     # another add-on replaces net.dostring_in with a wrapper that returns nothing (#3)
     wrap = "net.dostring_in = function(...) end"
@@ -247,6 +250,19 @@ def test_slow_hosting_still_waits_for_the_mission(tmp_path, monkeypatch):
     # mission came up 13 s later, but the wait had been counted from DCS start and gave up.
     w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, host_delay=180, max_seconds=600)
     assert w.exit and raw["ok"] is True, raw
+
+
+def test_hosting_refused_until_signed_in_is_retried(tmp_path, monkeypatch):
+    # #27 log: start_server returned -1 ("login is required"); DCS signed in a moment later.
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, host_refusals=2)
+    assert w.exit and raw["ok"] is True, raw
+    assert w.hosts == 3 and sum("hosting refused" in m for m in w.log) == 2
+
+
+def test_hosting_refused_for_good_stops_with_a_reason(tmp_path, monkeypatch):
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, host_refusals=999)
+    assert w.exit and raw["ok"] is False and "refused to host" in raw["reason"]
+    assert w.hosts == 20
 
 
 def test_several_trials_in_one_launch(tmp_path, monkeypatch):

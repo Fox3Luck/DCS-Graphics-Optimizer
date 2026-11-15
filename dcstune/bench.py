@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from .optionslua import TrialSession
 from .sysinfo import NO_WINDOW
@@ -31,6 +31,8 @@ EXIT_GRACE_SEC = 45       # result written: how long DCS gets to close itself be
 HANDOFF_WAIT_SEC = 25     # after such an exit, how long to look for a DCS that Steam/the updater started instead
 STEAM_PROMPT_WAIT_SEC = 300   # Steam asks the player to OK the launch options first; give them time to click (#27)
 STEAM_RESTART = "Steam asked for app restart"   # DCS writes this when it hands its start over to Steam
+STEAM_APP_ID = "223750"        # DCS World Steam Edition
+STEAM_ENV = ("SteamAppId", "SteamGameId")
 SHORT_SCENE_SEC, SHORT_LEAD_SEC = 10, 2   # cost-only runs: averages repeat within 0.2% at 10 s
 STUTTER_FACTOR = 2.5     # a frame this many times the median counts as a stutter
 
@@ -81,6 +83,33 @@ def _taskkill_dcs() -> None:
         subprocess.run(["taskkill", "/IM", "DCS.exe", "/F"], capture_output=True, creationflags=NO_WINDOW)
     except FileNotFoundError:
         pass
+
+
+def is_steam_exe(exe) -> bool:
+    """True for a DCS.exe inside a Steam library (...\\steamapps\\common\\DCSWorld\\bin-mt\\DCS.exe)."""
+    return "steamapps" in (part.lower() for part in PureWindowsPath(str(exe)).parts)
+
+
+def steam_launch_env(base=None) -> dict:
+    """The environment for a Steam-edition DCS.exe: this program's own, plus the app id Steam gives
+    every game it starts. With it DCS keeps running in the process the tool started instead of
+    closing and asking Steam to start it again behind a "launch with custom arguments" box (#27;
+    approach suggested with a patch by the issue's reporter). Names are case-insensitive on Windows,
+    so any existing spelling is dropped first."""
+    base = os.environ if base is None else base
+    drop = {n.upper() for n in STEAM_ENV}
+    env = {k: v for k, v in base.items() if k.upper() not in drop}
+    env.update({n: STEAM_APP_ID for n in STEAM_ENV})
+    return env
+
+
+def steam_running() -> bool:
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH"],
+                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
+    except FileNotFoundError:      # not Windows (the automated tests)
+        return True
+    return "steam.exe" in (out or "").lower()
 
 
 def dcs_running() -> bool:
@@ -456,6 +485,13 @@ class Bench:
             raise BenchError(winproc.ADVICE)
         args = [str(self.exe), "--no-launcher", "--force_enable_VR" if self.vr else "--force_disable_VR",
                 "-w", self.profile_name]
+        popen_extra = {}
+        if is_steam_exe(self.exe):
+            if not steam_running():
+                self.directive.unlink(missing_ok=True)
+                raise BenchError("This is the Steam edition of DCS, and Steam is not open. Open Steam and "
+                                 "sign in (tick \"Remember me\"), then try again.")
+            popen_extra = {"env": steam_launch_env()}
         started = time.time()
         for attempt in (1, 2):
             if attempt == 2:
@@ -470,7 +506,7 @@ class Bench:
                     # never start a second DCS next to one that is already coming up (#27)
                     quick = not self._follow_handoff(launched + timeout, wait=0)
                 else:
-                    proc = subprocess.Popen(args, cwd=str(self.exe.parent))
+                    proc = subprocess.Popen(args, cwd=str(self.exe.parent), **popen_extra)
                     if not self._wait_for(proc, launched + timeout):
                         self.directive.unlink(missing_ok=True)
                         self._keep_failure_log()
