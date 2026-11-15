@@ -26,9 +26,23 @@ class Engine:
         from .optionslua import recover
         self.info = sysinfo.collect()
         self.profile = sysinfo.pick_profile(self.info, profile_name)
+        self._use_headset_pick()
         self.recovered = recover(self.profile["options"], keep_player_edits=True)
         if not bench.dcs_running():
             bench.remove_leftovers(self.profile["path"])     # a hook left by an interrupted test
+
+    def _use_headset_pick(self):
+        """The headset the player picked earlier (used when the tool cannot tell by itself)."""
+        from . import feedback as F
+        self.info["vr"] = dict(self.info.get("vr") or {}, chosen=F.get_pref(self.profile, "headset"))
+
+    def set_headset(self, name) -> str:
+        from . import feedback as F, vr as V
+        name = name if name in V.headset_names() else None
+        F.set_pref(self.profile, "headset", name)
+        self._use_headset_pick()
+        return (f"Headset set to {name}. The scorecard is now rated for it." if name
+                else "Headset cleared. The scorecard assumes a typical headset.")
 
     def _flat(self):
         from . import rate
@@ -116,7 +130,9 @@ class Engine:
         from . import vr as V
         st = V.state(self.info, flat)
         return {"profile": self.profile["name"], "profile_dir": Path(self.profile["path"]).name,
-                "vr_tested": bool(st) and V.bench_enabled(),
+                "vr_tested": bool(st) and V.bench_enabled(), "vr_test_build": V.test_build(),
+                "headset": st and {"name": st["headset"], "detected": st["detected"],
+                                   "choices": V.headset_names()},
                 "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
                 "profile_path": self.profile["path"],
                 "profiles": [{"name": p.get("name"), "path": p.get("path")} for p in self.info["profiles"]],
@@ -452,11 +468,17 @@ class App:
             return self.send_failure_log()
         if method == "POST" and path == "/api/apply":
             return {"message": self.engine.apply(body.get("vr_ok") is True)}
+        if method == "POST" and path == "/api/headset":
+            with self.lock:
+                if self.job["state"] == "running":
+                    raise RuntimeError("A test is running; pick the headset after it finishes.")
+            return {"message": self.engine.set_headset(body.get("name"))}
         if method == "POST" and path == "/api/undo":
             return {"message": self.engine.undo()}
         if method == "GET" and path == "/api/version":
-            from . import __version__
-            return {"version": __version__, "update": self.update}
+            from . import __version__, vr as V
+            return {"version": __version__ + (" (VR test build)" if V.test_build() else ""),
+                    "update": self.update}
         if method == "POST" and path == "/api/open-download":
             from . import updates
             url = (self.update or {}).get("url") or updates.RELEASES_PAGE

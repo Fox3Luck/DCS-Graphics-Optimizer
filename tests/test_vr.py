@@ -26,7 +26,8 @@ def test_detects_pimax_headset_and_render_quality():
     assert d["render_quality"] == 0.82 and d["vendor_foveation"] and not d["quad_layer"]
     assert V.detect({"runtime": r"C:\Program Files (x86)\Steam\steamapps\common\SteamVR\steamxr_win64.json",
                      "layers": ["C:\\x\\quad-views-foveated.json"]}) | {"layers": 0} == {
-        "runtime": "SteamVR", "headset": None, "render_quality": None, "layers": 0, "quad_layer": True}
+        "runtime": "SteamVR", "headset": None, "render_quality": None, "layers": 0, "quad_layer": True,
+        "detected": False}
     assert V.detect(None)["runtime"] is None and V.detect({"pimax_profile": "not json"})["headset"] is None
     # a single API layer arrives from PowerShell as a string, not a list
     assert normalize({"vr": {"layers": "one.json"}})["vr"]["layers"] == ["one.json"]
@@ -286,3 +287,58 @@ def test_monitor_result_is_not_applied_to_a_vr_profile_without_asking(tmp_path, 
         eng.apply()
     assert Path(eng.profile["options"]).read_bytes() == before
     assert "Applied" in eng.apply(vr_ok=True)
+
+
+VD_RAW = {"runtime": r"C:\Program Files\Virtual Desktop Streamer\OpenXR\virtualdesktop-openxr.json", "layers": []}
+
+
+def test_player_picks_a_headset_the_tool_cannot_read():
+    # Virtual Desktop and Link do not say which headset is connected: the player's pick is used
+    st = V.state(dict(INFO, vr=dict(VD_RAW, chosen="Meta Quest 3")), _vr())
+    assert st["runtime"] == "Virtual Desktop" and st["headset"] == "Meta Quest 3" and st["known"]
+    assert not st["detected"] and (st["eye_w"], st["eye_h"]) == (2064, 2208)
+    assert st["target"] == 90 and st["steps"] == [90, 80, 72, 36] and not st["hires"]
+    pico = V.state(dict(INFO, vr=dict(VD_RAW, chosen="Pico 4 Ultra")), _vr())
+    assert pico["refresh"] == [72, 90] and pico["steps"] == [90, 72, 36]
+    # an unknown name is ignored, and what Pimax Play reports wins over a pick
+    assert not V.state(dict(INFO, vr=dict(VD_RAW, chosen="Made Up 9000")), _vr())["known"]
+    assert V.state(dict(INFO, vr=dict(RAW_VR, chosen="Meta Quest 3")), _vr())["headset"] == "Pimax Crystal Light"
+    assert all(h in V.headset_names() for h in ("Meta Quest 3", "Pico 4 Ultra", "Valve Index", "HP Reverb G2"))
+    for h in V.TABLE["headsets"]:
+        assert h["eye_w"] > 0 and h["eye_h"] > 0 and h["refresh"] == sorted(h["refresh"])
+
+
+def test_headset_pick_is_kept_and_shown_in_the_window(tmp_path, monkeypatch):
+    from dcstune import feedback as F
+    eng = _engine(tmp_path, monkeypatch)
+    eng.info["vr"] = dict(VD_RAW)
+    F.set_choice(eng.profile, True)
+    sc = eng.scorecard()
+    assert sc["headset"]["name"] is None and not sc["headset"]["detected"] and "Meta Quest 3" in sc["headset"]["choices"]
+    assert "Meta Quest 3" in eng.set_headset("Meta Quest 3")
+    sc = eng.scorecard()
+    assert sc["headset"]["name"] == "Meta Quest 3"
+    assert any(r["value"].startswith("Meta Quest 3 (2064 x 2208") for r in sc["hardware"])
+    # kept next to the sharing answer, neither one overwriting the other
+    assert F.get_pref(eng.profile, "headset") == "Meta Quest 3" and F.choice(eng.profile) is True
+    F.set_choice(eng.profile, False)
+    assert F.get_pref(eng.profile, "headset") == "Meta Quest 3"
+    assert "cleared" in eng.set_headset("<script>")
+    assert F.get_pref(eng.profile, "headset") is None and eng.scorecard()["headset"]["name"] is None
+    # a Pimax headset is read from Pimax Play, so no picker
+    eng.info["vr"] = dict(RAW_VR)
+    assert eng.scorecard()["headset"]["detected"]
+
+
+def test_vr_test_build_switches_on_testing_in_the_headset(tmp_path, monkeypatch):
+    monkeypatch.delenv("DCSTUNE_VR_BENCH", raising=False)
+    assert not V.test_build() and not V.bench_enabled()        # the public build never has the marker
+    marker = tmp_path / "vr_test_build"
+    marker.write_text("x")
+    monkeypatch.setattr(V, "TEST_BUILD_MARKER", marker)
+    assert V.test_build() and V.bench_enabled()
+    eng = _engine(tmp_path, monkeypatch)
+    sc = eng.scorecard()
+    assert sc["vr_test_build"] and sc["vr_tested"]
+    rep = eng.optimize(False, lambda m: None)
+    assert _FakeBench.made[-1].vr and rep["vr"] and not rep["vr_skipped"]

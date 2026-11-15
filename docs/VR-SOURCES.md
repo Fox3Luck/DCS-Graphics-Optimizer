@@ -81,6 +81,29 @@ Headset facts (pimax.com comparison pages):
 - RTX 4090 + i9-12900KF, render quality 1, no foveation: 101 FPS at 120 Hz, GPU 92%;
   with fixed foveation 119.67 FPS at GPU 80%; with quad views GPU 61%.
 
+## 3a. Other headsets (makers' spec pages, checked against reviews, 2026-11-15)
+
+Panel pixels per eye and the refresh rates the headset software offers. For headsets that
+stream from the PC (Quest, Pico through Virtual Desktop or Link), the picture DCS renders is
+set by the streaming app's quality setting, not the panel, so these sizes only seed the rough
+estimate; the in-headset test measures what really happens.
+
+| Headset | Per eye | Refresh (Hz) | Notes |
+|---|---|---|---|
+| Meta Quest 3 | 2064 × 2208 | 72, 80, 90, 120 | Meta lists 72/90/120; 80 per UploadVR and TechRadar |
+| Meta Quest 3S | 1832 × 1920 | 72, 90, 120 | Meta's page |
+| Meta Quest 2 | 1832 × 1920 | 72, 80, 90, 120 | |
+| Meta Quest Pro | 1800 × 1920 | 72, 90 | eye tracking |
+| Pico 4 Ultra | 2160 × 2160 | 72, 90 | Pico's spec page; most reviews list 90 only |
+| Pico 4 | 2160 × 2160 | 72, 90 | Pico's spec page |
+| HP Reverb G2 | 2160 × 2160 | 60, 90 | |
+| Valve Index | 1440 × 1600 | 80, 90, 120, 144 | |
+| Varjo Aero | 2880 × 2720 | 90 | eye tracking |
+| Bigscreen Beyond 2 | 2560 × 2560 | 75, 90 | at 90 Hz the PC may send 1920 × 1920 (disputed) |
+
+Only Pimax headsets can be read from the PC (Pimax Play's profile). Virtual Desktop, Link and
+SteamVR do not say which headset is connected, so the window lets the player pick theirs.
+
 ## 4. Quad-Views-Foveated by mbucchia (tool author — trust for how quad views behaves)
 
 - DCS must use OpenXR. Enable "Use Quad Views" in DCS; **turn off Bloom and Lens Effects**

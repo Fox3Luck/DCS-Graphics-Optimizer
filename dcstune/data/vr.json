@@ -8,7 +8,17 @@
  "headsets": [
   {"name": "Pimax Crystal Light", "eye_w": 2880, "eye_h": 2880, "refresh": [72, 90, 120], "eye_tracking": false},
   {"name": "Pimax Crystal Super", "eye_w": 3840, "eye_h": 3840, "refresh": [72, 90], "eye_tracking": true},
-  {"name": "Pimax Crystal", "eye_w": 2880, "eye_h": 2880, "refresh": [72, 90, 120], "eye_tracking": true}
+  {"name": "Pimax Crystal", "eye_w": 2880, "eye_h": 2880, "refresh": [72, 90, 120], "eye_tracking": true},
+  {"name": "Meta Quest 3", "eye_w": 2064, "eye_h": 2208, "refresh": [72, 80, 90, 120], "eye_tracking": false},
+  {"name": "Meta Quest 3S", "eye_w": 1832, "eye_h": 1920, "refresh": [72, 90, 120], "eye_tracking": false},
+  {"name": "Meta Quest 2", "eye_w": 1832, "eye_h": 1920, "refresh": [72, 80, 90, 120], "eye_tracking": false},
+  {"name": "Meta Quest Pro", "eye_w": 1800, "eye_h": 1920, "refresh": [72, 90], "eye_tracking": true},
+  {"name": "Pico 4 Ultra", "eye_w": 2160, "eye_h": 2160, "refresh": [72, 90], "eye_tracking": false},
+  {"name": "Pico 4", "eye_w": 2160, "eye_h": 2160, "refresh": [72, 90], "eye_tracking": false},
+  {"name": "HP Reverb G2", "eye_w": 2160, "eye_h": 2160, "refresh": [60, 90], "eye_tracking": false},
+  {"name": "Valve Index", "eye_w": 1440, "eye_h": 1600, "refresh": [80, 90, 120, 144], "eye_tracking": false},
+  {"name": "Varjo Aero", "eye_w": 2880, "eye_h": 2720, "refresh": [90], "eye_tracking": true},
+  {"name": "Bigscreen Beyond 2", "eye_w": 2560, "eye_h": 2560, "refresh": [75, 90], "eye_tracking": false}
  ],
  "unknown_headset": {"eye_w": 2160, "eye_h": 2160, "refresh": [90], "eye_tracking": false},
  "hires_eye_w": 2500,

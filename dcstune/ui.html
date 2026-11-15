@@ -37,9 +37,12 @@
 <body>
 <main>
   <h1>DCS Graphics Optimizer</h1>
-  <p class="sub" style="margin-top:-6px">For flying on a monitor (2D). VR settings are not changed.</p>
+  <p class="sub" style="margin-top:-6px" id="subtitle">For flying on a monitor (2D). VR settings are not changed.</p>
   <p class="sub"><span id="profile">Reading your PC and DCS settings...</span>
     <select id="profile-pick" class="hidden" title="Which DCS settings folder to rate and optimize"
+      style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
+  <p class="sub hidden" id="headset-line">Your headset:
+    <select id="headset-pick" title="The tool could not tell which headset you use; pick it so the scorecard uses its resolution and refresh rate"
       style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
   <div class="note hidden" id="update"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
     <span id="update-text" style="flex:1;min-width:240px"></span>
@@ -242,11 +245,30 @@ async function refresh() {
   $("undo").classList.toggle("hidden", !sc.can_undo);
   if (sc.recovered === "kept") note("An earlier test was interrupted, and you have changed DCS settings since then. Your current settings were kept. To go back to your settings from before that test, press Undo last change.");
   else if (sc.recovered) note("An earlier test was interrupted. Your original settings have been restored.");
+  if (sc.vr_test_build)
+    $("subtitle").textContent = "VR test build. With VR on in your DCS profile, the test runs in your headset.";
+  showHeadset(sc);
   if (sc.vr && !sc.vr_tested && !sc.recovered && !$("msg").children.length)
     note("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet.");
+  if (sc.vr && sc.vr_tested && !sc.recovered && !$("msg").children.length)
+    note("VR is switched on in this profile, so the test runs in your headset. Before you press start, connect the headset, open its own software (and Virtual Desktop or Link, if you use them), and put it on or keep it awake. DCS opens in the headset by itself and closes again when each part is done.");
   showReport(sc);
   showSharing(sc);
 }
+// The tool reads Pimax headsets by itself; for any other headset the player says which one it is.
+function showHeadset(sc) {
+  const h = sc.headset, line = $("headset-line"), pick = $("headset-pick");
+  line.classList.toggle("hidden", !h || h.detected);
+  if (!h || h.detected) return;
+  pick.replaceChildren(el("option", null, "Not in the list / not sure"));
+  pick.firstChild.value = "";
+  h.choices.forEach(n => { const o = el("option", null, n); o.value = n; pick.append(o); });
+  pick.value = h.name || "";
+}
+$("headset-pick").onchange = async () => {
+  try { note((await api("/api/headset", { name: $("headset-pick").value || null })).message); await refresh(); }
+  catch (e) { note(e.message, true); }
+};
 function showSharing(sc) {
   const sh = sc.sharing || {}, ask = sh.available && sh.choice == null, rep = sc.report;
   $("consent").classList.toggle("hidden", !ask);

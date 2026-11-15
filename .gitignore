@@ -8,3 +8,4 @@ dist/
 build/work/
 build/signing.json
 build/tools/
+dcstune/data/vr_test_build

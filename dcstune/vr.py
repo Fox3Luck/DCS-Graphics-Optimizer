@@ -2,7 +2,8 @@
 applies. Everything here works without the headset being connected.
 
 Measuring in VR (starting DCS in the headset) is experimental until it has been proven on
-real headsets; it is switched on with the environment variable DCSTUNE_VR_BENCH=1.
+real headsets. It is switched on in the VR test build (built with build.ps1 -VrTest, which
+bundles the marker file data/vr_test_build) or with the environment variable DCSTUNE_VR_BENCH=1.
 Where each fact comes from is recorded in docs/VR-SOURCES.md.
 """
 from __future__ import annotations
@@ -23,8 +24,21 @@ CPU_FACTOR = 1.2        # two views to prepare instead of one
 QUAD_FACTOR = 0.65      # quad views: Pimax measured GPU load 92% -> 61% on an RTX 4090
 
 
+TEST_BUILD_MARKER = Path(__file__).parent / "data" / "vr_test_build"
+
+
+def test_build() -> bool:
+    """True in the VR test build handed to VR volunteers."""
+    return TEST_BUILD_MARKER.exists()
+
+
 def bench_enabled() -> bool:
-    return os.environ.get("DCSTUNE_VR_BENCH") == "1"
+    return test_build() or os.environ.get("DCSTUNE_VR_BENCH") == "1"
+
+
+def headset_names() -> list[str]:
+    """The headsets a player can pick when the tool cannot tell which one is in use."""
+    return [h["name"] for h in TABLE["headsets"]]
 
 
 def runtime_name(path: str | None) -> str | None:
@@ -38,7 +52,9 @@ def runtime_name(path: str | None) -> str | None:
 
 def detect(raw: dict | None) -> dict:
     """raw: what sysinfo read - {"runtime": path of the active OpenXR runtime,
-    "layers": [OpenXR API layer names], "pimax_profile": text of Pimax's profile.json}."""
+    "layers": [OpenXR API layer names], "pimax_profile": text of Pimax's profile.json},
+    plus "chosen": the headset the player picked in the window, if any. What the headset's
+    own software reports wins over the player's pick."""
     raw = raw or {}
     layers = [str(x) for x in (raw.get("layers") or [])]
     out = {"runtime": runtime_name(raw.get("runtime")), "headset": None, "render_quality": None,
@@ -56,6 +72,9 @@ def detect(raw: dict | None) -> dict:
         if isinstance(rq, (int, float)) and 0.2 <= rq <= 3:
             out["render_quality"] = round(float(rq), 2)
         out["vendor_foveation"] = bool(profile.get("enable_foveated_rendering"))
+    out["detected"] = out["headset"] is not None
+    if not out["detected"] and raw.get("chosen") in headset_names():
+        out["headset"] = raw["chosen"]
     return out
 
 
@@ -73,6 +92,7 @@ def state(info: dict, options: dict) -> dict | None:
     pd = float(pd) if isinstance(pd, (int, float)) and not isinstance(pd, bool) else 1.0
     hires = known and spec["eye_w"] >= TABLE["hires_eye_w"]
     return {"runtime": found["runtime"], "headset": found["headset"], "known": known,
+            "detected": found["detected"],
             "eye_w": spec["eye_w"], "eye_h": spec["eye_h"], "refresh": refresh,
             "eye_tracking": spec["eye_tracking"], "hires": hires,
             "render_quality": found["render_quality"], "pixel_density": pd,

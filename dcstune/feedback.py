@@ -45,18 +45,35 @@ def _prefs(profile: dict) -> Path:
     return Path(profile["path"]) / "Config" / "dcstune-prefs.json"
 
 
+def get_pref(profile: dict, key: str):
+    """One of the player's answers kept in this profile (sharing, headset), or None."""
+    try:
+        prefs = json.loads(_prefs(profile).read_text())
+    except (OSError, ValueError):
+        return None
+    return prefs.get(key) if isinstance(prefs, dict) else None
+
+
+def set_pref(profile: dict, key: str, value) -> None:
+    from .optionslua import atomic_write
+    try:
+        prefs = json.loads(_prefs(profile).read_text())
+    except (OSError, ValueError):
+        prefs = {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    prefs[key] = value
+    atomic_write(_prefs(profile), json.dumps(prefs).encode())
+
+
 def choice(profile: dict):
     """True / False as the player answered, None if they have not been asked yet."""
-    try:
-        v = json.loads(_prefs(profile).read_text()).get("share")
-    except (OSError, ValueError, AttributeError):
-        return None
+    v = get_pref(profile, "share")
     return v if isinstance(v, bool) else None
 
 
 def set_choice(profile: dict, share: bool) -> None:
-    from .optionslua import atomic_write
-    atomic_write(_prefs(profile), json.dumps({"share": bool(share)}).encode())
+    set_pref(profile, "share", bool(share))
 
 
 def on(profile: dict) -> bool:
