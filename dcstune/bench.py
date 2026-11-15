@@ -342,7 +342,7 @@ class Bench:
             self.session.note_values({"graphics." + k: v for k, v in t.get("set", {}).items()})
         named = [dict(t, tag=f"{self.session_id}r{self.runs:02d}{t['tag']}") for t in trials]
         raw, gpu, seconds = self._launch(None, {"tag": named[0]["tag"], "trials": named,
-                                                "screenshots": screenshots}, short, 150 + 100 * len(trials))
+                                                "screenshots": screenshots}, short, 330 + 100 * len(trials))
         if not raw.get("ok"):
             raise BenchError("benchmark did not finish: " + (raw.get("reason") or "unknown"))
         out = []

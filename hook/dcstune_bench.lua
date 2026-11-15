@@ -210,6 +210,9 @@ local function tryHost()
   local ok, ret = pcall(function() return net.start_server(scfg) end)
   L("net.start_server ok=" .. tostring(ok) .. " ret=" .. tostring(ret))
   if not ok then finish(false, "start_server failed") end
+  -- Hosting can hold this call for minutes on a PC with many add-ons (beta 15 log: 3 minutes).
+  -- The wait for the mission is counted from here, not from when DCS started.
+  state.trial_t0 = os.time()
 end
 
 -- Position + heading of a named AI unit. Polled a few times a second only; the camera is

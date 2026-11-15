@@ -22,7 +22,7 @@ net = {
   json2lua = function(s) return W.json2lua(s) end,
   get_default_server_settings = function() return { advanced = {} } end,
   start_server = function(cfg) W.cfg(cfg.port, cfg.bind_address, cfg.maxPlayers, cfg.advanced.allow_object_export)
-    W.started(cfg.isPublic, cfg.password, cfg.missionList[1]); return true end,
+    W.started(cfg.isPublic, cfg.password, cfg.missionList[1]); wall = wall + W.host_delay; return true end,
   stop_network = function() W.netstop() end,
   dostring_in = function(state, code)
     W.asked(state)
@@ -98,7 +98,7 @@ KEY = "0123456789abcdef0123456789abcdef"
 
 
 def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY, dead=(),
-         wrap_dostring=None, no_direct=True):
+         wrap_dostring=None, no_direct=True, host_delay=0):
     (tmp_path / "Config").mkdir()
     # the hook builds Windows paths; map them onto the temp dir
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
@@ -116,6 +116,7 @@ def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=40
     lua.globals().py_remove = lambda p: (w.removed.append(p), real[p].unlink() if p in real else None)
     lua.execute("io.open = function(p, m) return py_open(p, m) end; os.remove = function(p) py_remove(p) end")
     w.no_direct = no_direct
+    w.host_delay = host_delay
     load, tick = lua.execute(HARNESS, w)
     # another add-on replaces net.dostring_in with a wrapper that returns nothing (#3)
     wrap = "net.dostring_in = function(...) end"
@@ -239,6 +240,13 @@ def test_never_starting_mission_times_out(tmp_path, monkeypatch):
     d = dict(DIRECTIVE, start_timeout=20, total_timeout=60)
     w, raw, _ = _run(tmp_path, monkeypatch, d, missing="TUNE-CITY-1", fps=30)
     assert w.exit and raw["ok"] is False
+
+
+def test_slow_hosting_still_waits_for_the_mission(tmp_path, monkeypatch):
+    # beta 15 log: hosting held the game for 3 minutes on a PC with many add-ons, then the
+    # mission came up 13 s later, but the wait had been counted from DCS start and gave up.
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, host_delay=180, max_seconds=600)
+    assert w.exit and raw["ok"] is True, raw
 
 
 def test_several_trials_in_one_launch(tmp_path, monkeypatch):
