@@ -25,6 +25,7 @@ Remove-Item $marker -ErrorAction SilentlyContinue
 if ($VrTest) { Set-Content $marker "VR test build: in-headset testing is switched on." }
 try {
 & .buildenv\Scripts\pyinstaller --noconfirm --clean --onefile --windowed --name DCSGraphicsOptimizer `
+    --icon "$PWD\dcstune\data\icon.ico" `
     --add-data "$PWD\dcstune\data;dcstune\data" --add-data "$PWD\dcstune\ui.html;dcstune" `
     --add-data "$PWD\hook;hook" --add-data "$PWD\mission\dcstune_bench.miz;mission" `
     --distpath dist --workpath build\work --specpath build\work app.py

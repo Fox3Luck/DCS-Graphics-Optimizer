@@ -105,7 +105,7 @@ $pimax = ''
 $pp = Join-Path $env:LOCALAPPDATA 'Pimax\runtime\profile.json'
 if (Test-Path $pp) { $pimax = [string](Get-Content $pp -Raw) }
 $vr = @{ runtime=[string](Get-ItemProperty "HKLM:\$xr").ActiveRuntime; layers=$layers; pimax_profile=$pimax }
-@{ cpu=$cpu.Name.Trim(); cores=$cpu.NumberOfCores; vr=$vr;
+@{ cpu=$cpu.Name.Trim(); cores=$cpu.NumberOfCores; cpu_mhz=[int]$cpu.MaxClockSpeed; vr=$vr;
    ram_gb=[math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB);
    gpus=$gpus; installs=$installs; profiles=$profiles;
    dcs_running=[bool](Get-Process DCS,DCS_server -ErrorAction SilentlyContinue) } | ConvertTo-Json -Depth 5 -Compress
@@ -350,3 +350,127 @@ def dcs_exe(install: dict) -> Path:
         if exe.exists():
             return exe
     raise RuntimeError(f"DCS.exe not found under {root}")
+
+
+_CPU_TIMES: tuple[int, int, int] | None = None
+_BG_TELEMETRY: dict = {"ts": 0.0, "busy": False, "cpu_mhz": 0, "gpu_pct": 0.0, "vram_mb": 0.0, "dcs": False}
+
+
+def _win32_cpu_and_ram(fallback_ram_gb: float = 0) -> tuple[float, float, float, int]:
+    """Instant (<0.1 ms) CPU utilization % and RAM used/total via Win32 kernel32."""
+    global _CPU_TIMES
+    cpu_pct = 0.0
+    ram_used_gb, ram_total_gb, ram_pct = 0.0, float(fallback_ram_gb or 0), 0
+    if os.name != "nt":
+        return cpu_pct, ram_used_gb, ram_total_gb, ram_pct
+    try:
+        import ctypes
+        from ctypes import wintypes as w
+
+        class FILETIME(ctypes.Structure):
+            _fields_ = [("low", w.DWORD), ("high", w.DWORD)]
+
+        idle, kernel, user = FILETIME(), FILETIME(), FILETIME()
+        if ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+            i = (idle.high << 32) | idle.low
+            k = (kernel.high << 32) | kernel.low
+            u = (user.high << 32) | user.low
+            if _CPU_TIMES is not None:
+                di = i - _CPU_TIMES[0]
+                dt = (k + u) - (_CPU_TIMES[1] + _CPU_TIMES[2])
+                if dt > 0:
+                    cpu_pct = max(0.0, min(100.0, (1.0 - di / dt) * 100.0))
+            _CPU_TIMES = (i, k, u)
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [("length", w.DWORD), ("load", w.DWORD), ("total_phys", ctypes.c_uint64),
+                        ("avail_phys", ctypes.c_uint64), ("total_page", ctypes.c_uint64),
+                        ("avail_page", ctypes.c_uint64), ("total_virt", ctypes.c_uint64),
+                        ("avail_virt", ctypes.c_uint64), ("avail_ext", ctypes.c_uint64)]
+
+        ms = MEMORYSTATUSEX()
+        ms.length = ctypes.sizeof(MEMORYSTATUSEX)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms)) and ms.total_phys:
+            ram_total_gb = round(ms.total_phys / (1024 ** 3), 1)
+            ram_used_gb = round((ms.total_phys - ms.avail_phys) / (1024 ** 3), 1)
+            ram_pct = int(ms.load)
+    except Exception:
+        pass
+    return round(cpu_pct, 1), ram_used_gb, ram_total_gb, ram_pct
+
+
+def _refresh_bg_telemetry() -> None:
+    import time
+    from .bench import GpuSampler, dcs_running
+    try:
+        mem, util = GpuSampler.latest
+        if mem == 0.0 and util is None:
+            mem, util = GpuSampler()._sample()
+        _BG_TELEMETRY["vram_mb"] = round(mem or 0.0)
+        _BG_TELEMETRY["gpu_pct"] = round(util or 0.0, 1)
+    except Exception:
+        pass
+    try:
+        _BG_TELEMETRY["dcs"] = bool(dcs_running())
+    except Exception:
+        pass
+    if os.name == "nt" and not _BG_TELEMETRY["cpu_mhz"]:
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as k:
+                mhz, _ = winreg.QueryValueEx(k, "~MHz")
+                _BG_TELEMETRY["cpu_mhz"] = int(mhz)
+        except Exception:
+            pass
+    _BG_TELEMETRY["ts"] = time.time()
+    _BG_TELEMETRY["busy"] = False
+
+
+def live_telemetry(info: dict | None = None, profile_dir: str | Path | None = None) -> dict:
+    """Fast hardware and DCS status snapshot for the window's live HUD gauges."""
+    import threading
+    import time
+    from .bench import GpuSampler, dcs_running
+    info = info or {}
+    gpu = info.get("gpu") or {}
+    cpu_pct, ram_used_gb, ram_total_gb, ram_pct = _win32_cpu_and_ram(info.get("ram_gb") or 0)
+    now = time.time()
+    if os.environ.get("DCSTUNE_NO_UPDATE_CHECK"):
+        dcs_on = bool(dcs_running())
+        mem, util = GpuSampler.latest
+        vram_used = round(mem)
+        gpu_pct = round(util or 0.0, 1)
+    else:
+        if not _BG_TELEMETRY["busy"] and now - _BG_TELEMETRY["ts"] > 2.5:
+            _BG_TELEMETRY["busy"] = True
+            threading.Thread(target=_refresh_bg_telemetry, daemon=True).start()
+        mem, util = GpuSampler.latest
+        vram_used = round(mem) if mem else int(_BG_TELEMETRY["vram_mb"])
+        gpu_pct = round(util, 1) if util is not None else float(_BG_TELEMETRY["gpu_pct"])
+        dcs_on = bool(_BG_TELEMETRY["dcs"])
+    mhz = info.get("cpu_mhz") or _BG_TELEMETRY["cpu_mhz"] or 0
+    cpu_ghz = round(mhz / 1000.0, 2) if mhz else None
+    vram_total = int(gpu.get("vram_mb") or 0)
+    vram_pct = min(100, round(vram_used / vram_total * 100)) if vram_total and vram_used else 0
+    bench_status = None
+    if profile_dir:
+        sp = Path(profile_dir) / "Config" / "dcstune_status.json"
+        try:
+            if sp.is_file() and now - sp.stat().st_mtime < 30:
+                bench_status = json.loads(sp.read_text(encoding="utf-8"))
+        except Exception:
+            bench_status = None
+    return {
+        "cpu_pct": cpu_pct,
+        "cpu_ghz": cpu_ghz,
+        "cores": info.get("cores"),
+        "gpu_pct": gpu_pct,
+        "vram_used_mb": vram_used,
+        "vram_total_mb": vram_total,
+        "vram_pct": vram_pct,
+        "ram_used_gb": ram_used_gb,
+        "ram_total_gb": ram_total_gb,
+        "ram_pct": ram_pct,
+        "dcs_running": dcs_on,
+        "bench": bench_status,
+    }

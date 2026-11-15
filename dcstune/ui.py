@@ -14,7 +14,12 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from . import i18n
+
 PAGE = Path(__file__).parent / "ui.html"
+ICON = Path(__file__).parent / "data" / "icon.ico"
+WINDOW_TITLE = "DCS Graphics Optimizer"
+APP_ID = "Fox3.DCSGraphicsOptimizer"
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".bmp": "image/bmp"}
 
 
@@ -121,7 +126,7 @@ class Engine:
             pass
 
     def scorecard(self) -> dict:
-        from . import rate
+        from . import rate, sysinfo
         from .optionslua import list_backups
         machine = rate.rate_machine(self.info)
         flat = self._flat()
@@ -134,13 +139,20 @@ class Engine:
                 "headset": st and {"name": st["headset"], "detected": st["detected"],
                                    "choices": V.headset_names()},
                 "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
+                "radar": rate.radar(self.info, machine, fit),
+                "telemetry": sysinfo.live_telemetry(self.info, self.profile["path"]),
                 "profile_path": self.profile["path"],
+                "install_path": ((self.info.get("installs") or [{}])[0] or {}).get("path") or "",
                 "profiles": [{"name": p.get("name"), "path": p.get("path")} for p in self.info["profiles"]],
                 "machine": machine,
                 "settings": fit,
                 "vr": bool(flat.get("VR.enable")), "recovered": self.recovered,
                 "can_undo": bool(list_backups(self.profile["options"])),
                 "report": self._report()}
+
+    def telemetry(self) -> dict:
+        from . import sysinfo
+        return sysinfo.live_telemetry(self.info, self.profile["path"])
 
     def optimize(self, full: bool, log, mode: str = "balanced") -> dict:
         from . import audit, feedback as F, model as M, optimize, rate, sysinfo, vr as V
@@ -329,6 +341,106 @@ def _slim(summary: dict) -> dict:
 
 
 
+def taskbar_identity() -> None:
+    """Tell Windows this is a program of its own. Without it the taskbar button belongs to
+    whatever started us (python.exe) and shows that program's icon, whatever the window says.
+    Must run before the window is created."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    except Exception:
+        pass
+
+
+def _icon_through_dotnet(native) -> bool:
+    """pywebview's Windows window is a .NET form; giving it an Icon is the way it is meant
+    to be done, and it covers the window, the taskbar and Alt+Tab at once."""
+    try:
+        from System.Drawing import Icon
+        form = native
+        try:                      # pywebview may hand us the browser control, not the window
+            form = native.FindForm() or native
+        except Exception:
+            pass
+        form.Icon = Icon(str(ICON))
+        return True
+    except Exception:
+        return False
+
+
+def _icon_through_win32(native) -> bool:
+    """Any other window: hand Windows the icon for the title bar and the taskbar button."""
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        hwnd, handle = 0, getattr(native, "Handle", None)
+        if handle is not None:
+            try:
+                hwnd = int(handle)
+            except Exception:
+                hwnd = int(handle.ToInt64())
+        if hwnd:
+            hwnd = user32.GetAncestor(hwnd, 2) or hwnd     # GA_ROOT: the window, not the control
+        hwnd = hwnd or user32.FindWindowW(None, WINDOW_TITLE)
+        if not hwnd:
+            return False
+        done = False
+        for px, which in ((32, 1), (16, 0)):                            # ICON_BIG, ICON_SMALL
+            icon = user32.LoadImageW(None, str(ICON), 1, px, px, 0x10)  # IMAGE_ICON, from file
+            if icon:
+                user32.SendMessageW(hwnd, 0x80, which, icon)            # WM_SETICON
+                done = True
+        return done
+    except Exception:
+        return False
+
+
+def set_window_icon(window=None) -> None:
+    """Put the program's own icon on the window and its taskbar button. The packaged exe
+    carries the icon itself; run from source the window would show Python's icon. Windows
+    only, and never worth an error: the program works the same without it."""
+    if os.name != "nt" or not ICON.is_file():
+        return
+    for _ in range(30):                       # the native window appears a moment after start
+        native = getattr(window, "native", None)
+        if native is not None and _icon_through_dotnet(native):
+            return
+        if _icon_through_win32(native):
+            return
+        time.sleep(0.1)
+
+
+def set_hud_mode(mini: bool) -> bool:
+    """Compact always-on-top cockpit HUD mode for watching telemetry alongside DCS."""
+    try:
+        import webview
+        if webview.windows:
+            w = webview.windows[0]
+            try:
+                w.on_top = bool(mini)
+            except Exception:
+                pass
+            try:
+                w.resize(480, 350) if mini else w.resize(1180, 880)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    if os.name == "nt":
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            hwnd = user32.FindWindowW(None, WINDOW_TITLE)
+            if hwnd:
+                # HWND_TOPMOST = -1, HWND_NOTOPMOST = -2, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE = 0x13
+                user32.SetWindowPos(hwnd, -1 if mini else -2, 0, 0, 0, 0, 0x0013)
+        except Exception:
+            pass
+    return bool(mini)
+
+
 def chime(event: str) -> None:
     """A Windows sound when a test starts and when it ends (VR beta feedback, #30: with the
     headset on, the player cannot see the window). Silent where there is no sound."""
@@ -353,6 +465,15 @@ class App:
         """Run once at start, in the background (see updates.py)."""
         from . import updates
         self.update = updates.check()
+
+    def _safe_telemetry(self) -> dict:
+        from . import sysinfo
+        try:
+            if self._engine is not None:
+                return self._engine.telemetry()
+        except Exception:
+            pass
+        return sysinfo.live_telemetry()
 
     @property
     def engine(self):
@@ -465,7 +586,11 @@ class App:
             sc["sharing"] = self.engine.sharing()
             return sc
         if method == "GET" and path == "/api/job":
-            return self.job
+            return dict(self.job, telemetry=self._safe_telemetry())
+        if method == "GET" and path == "/api/telemetry":
+            return self._safe_telemetry()
+        if method == "POST" and path == "/api/hud-mode":
+            return {"mini": set_hud_mode(bool(body.get("mini")))}
         if method == "POST" and path == "/api/sharing":
             return {"message": self.engine.set_sharing(body.get("share") is True)}
         if method == "POST" and path == "/api/feedback":
@@ -500,6 +625,10 @@ class App:
                 raise RuntimeError("Not a download page of this tool.")
             webbrowser.open(url)
             return {"message": "The download page is open in your browser. Close this window before running the new version."}
+        if method == "POST" and path == "/api/language":
+            if body.get("lang") not in i18n.NAMES:
+                raise RuntimeError("Unknown language.")
+            return {"lang": i18n.set_lang(body["lang"]), "message": "The language was changed."}
         if method == "POST" and path == "/api/open-report":
             return {"message": self.engine.open_report()}
         raise KeyError(path)
@@ -511,7 +640,8 @@ def make_server(app: App, port: int = 0) -> ThreadingHTTPServer:
             pass
 
         def _send(self, code, payload, ctype="application/json"):
-            data = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+            # Sentences are written in English everywhere else and translated here, on the way out.
+            data = payload if isinstance(payload, bytes) else json.dumps(i18n.tr_deep(payload)).encode()
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(data)))
@@ -526,7 +656,11 @@ def make_server(app: App, port: int = 0) -> ThreadingHTTPServer:
                     return self._send(403, {"error": "forbidden"})
                 from . import report as R
                 html = PAGE.read_bytes().replace(b"__TOKEN__", app.token.encode())
-                return self._send(200, html.replace(b"/*__REPORT_CSS__*/", R.CSS.encode()),
+                html = html.replace(b"__LANG__", i18n.lang().encode())
+                html = html.replace(b"<!--__LOGO__-->", R.MARK.encode())
+                html = html.replace(b"/*__STRINGS__*/{}", i18n.page_strings().encode("utf-8"))
+                # R.DARK last: the window keeps the cockpit look even in a light-mode Windows.
+                return self._send(200, html.replace(b"/*__REPORT_CSS__*/", (R.CSS + R.DARK).encode()),
                                   "text/html; charset=utf-8")
             if method == "GET" and path.startswith("/report-file/"):
                 # <img> cannot send the header, so screenshots take the token in the URL.
@@ -561,16 +695,23 @@ def main():
     from . import winproc
     if winproc.restart_through_explorer():     # opened from a browser that passes on PreferSystem32
         return
+    taskbar_identity()
     app = App()
     server = make_server(app)
     url = f"http://127.0.0.1:{server.server_address[1]}/?t={app.token}"
     threading.Thread(target=server.serve_forever, daemon=True).start()
     threading.Thread(target=app.check_for_update, daemon=True).start()
     try:
+        import inspect
+
         import webview  # pywebview
-        webview.create_window("DCS Graphics Optimizer", url, width=980, height=860,
-                              maximized=bool(os.environ.get("DCSTUNE_MAXIMIZED")))
-        webview.start()
+        window = webview.create_window(WINDOW_TITLE, url, width=1180, height=880,
+                                       maximized=bool(os.environ.get("DCSTUNE_MAXIMIZED")))
+        # Told nothing, pywebview gives its window the icon of the program that started it
+        # (python.exe). Recent versions take the icon here; set_window_icon covers the rest.
+        chosen = ({"icon": str(ICON)} if ICON.is_file()
+                  and "icon" in inspect.signature(webview.start).parameters else {})
+        webview.start(lambda: set_window_icon(window), **chosen)
     except ImportError:
         webbrowser.open(url)
         print("DCS Graphics Optimizer is open in your browser. Close this window to quit.")

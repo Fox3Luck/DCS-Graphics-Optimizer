@@ -86,6 +86,10 @@ def hardware_summary(info: dict, options: dict | None = None) -> list[dict]:
             ("Video memory", f"{(gpu.get('vram_mb') or 0) / 1024:.0f} GB" if gpu.get("vram_mb") else "unknown"),
             ("Processor", (info.get("cpu") or "unknown")
              + (f" ({info['cores']} cores)" if info.get("cores") else "")),
+            ]
+    if info.get("cpu_mhz"):
+        rows.append(("Processor speed", f"{info['cpu_mhz'] / 1000:.2f} GHz"))
+    rows += [
             ("Memory", f"{info.get('ram_gb')} GB" if info.get("ram_gb") else "unknown"),
             ("Display", f"{gpu['width']} x {gpu['height']} at {gpu.get('refresh') or '?'} Hz" if gpu.get("width") else "unknown")]
     st = V.state(info, options or {})
@@ -108,6 +112,34 @@ def overall(machine: dict, settings: dict) -> dict:
     """One headline number: 40% what the PC can do, 60% how well the settings use it."""
     score = OVERALL_PC_WEIGHT * machine["score"] + (1 - OVERALL_PC_WEIGHT) * settings["score"]
     return {"score": round(score), "grade": grade(score), "basis": settings["basis"]}
+
+
+def radar(info: dict, machine: dict, settings: dict) -> list[dict]:
+    """Six 0-100 axes for the scorecard's cockpit radar and capability bars."""
+    gpu = info.get("gpu") or {}
+    vram_gb = (gpu.get("vram_mb") or 0) / 1024
+    vram_score = round(min(100, vram_gb / 16 * 100)) if vram_gb else 0
+    ram = info.get("ram_gb") or 0
+    ram_score = 100 if ram >= 60 else 85 if ram >= 32 else 55 if ram >= 16 else (20 if ram else 0)
+    fps = float(settings.get("fps") or 0)
+    target = float(settings.get("target_fps") or 60)
+    ratio = fps / target if target > 0 else 0
+    smooth_score = round(max(0, min(100, ratio * 85 if ratio < 1 else 85 + min(15, (ratio - 1) * 40))))
+    q_score = round((settings.get("quality_share") or 0) * 100)
+    return [
+        {"label": "Graphics card", "score": round(machine.get("gpu_score") or 0),
+         "detail": f"{round(machine.get('gpu_score') or 0)} / 100"},
+        {"label": "Processor", "score": round(machine.get("cpu_score") or 0),
+         "detail": f"{round(machine.get('cpu_score') or 0)} / 100"},
+        {"label": "Video memory", "score": vram_score,
+         "detail": f"{vram_gb:.0f} GB" if vram_gb else "unknown"},
+        {"label": "Memory", "score": ram_score,
+         "detail": f"{ram} GB" if ram else "unknown"},
+        {"label": "Smoothness", "score": smooth_score,
+         "detail": f"{fps:.0f} / {target:.0f} FPS"},
+        {"label": "Image quality", "score": q_score,
+         "detail": f"{q_score}%"},
+    ]
 
 
 def flat_options(opts) -> dict:

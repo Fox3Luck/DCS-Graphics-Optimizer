@@ -132,6 +132,8 @@ class GpuSampler:
     """Peak GPU memory during a run. nvidia-smi when present, otherwise the
     vendor-neutral Windows 'GPU Adapter Memory' counter."""
 
+    latest: tuple[float, float | None] = (0.0, None)
+
     def __init__(self, interval: float = 1.0):
         self.peak_mb, self.util, self._stop = 0.0, [], threading.Event()
         self._thread = threading.Thread(target=self._loop, args=(interval,), daemon=True)
@@ -167,6 +169,7 @@ class GpuSampler:
         while not self._stop.wait(interval):
             try:
                 mem, util = self._sample()
+                GpuSampler.latest = (mem, util)
                 self.peak_mb = max(self.peak_mb, mem)
                 if util is not None:
                     self.util.append(util)
@@ -246,6 +249,10 @@ def remove_leftovers(profile_dir) -> list[str]:
             pass
         except OSError:
             pass          # locked by a running DCS; the hook also removes itself when it has no directive
+    try:
+        (d / "Config" / "dcstune_status.json").unlink(missing_ok=True)
+    except OSError:
+        pass
     return gone
 
 

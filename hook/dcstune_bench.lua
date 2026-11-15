@@ -26,6 +26,7 @@ local DOSTRING_IN = net and net.dostring_in
 
 local DIRECTIVE = lfs.writedir() .. "Config\\dcstune_directive.json"
 local RESULT    = lfs.writedir() .. "Config\\dcstune_result.json"
+local STATUS    = lfs.writedir() .. "Config\\dcstune_status.json"
 
 local SELF      = lfs.writedir() .. "Scripts\\Hooks\\dcstune_bench.lua"
 local MISSION   = lfs.writedir() .. "Missions\\dcstune_bench.miz"
@@ -112,9 +113,19 @@ local state = {
   t0 = os.time(), frames = 0, hosted = false, running = false, finished = false,
   ready_at = nil, scene_i = 0, scene_t0 = nil, last = nil, results = {},
   trial_i = 1, trial_t0 = os.time(), menu_frames = 0, stopping = false, stop_step = 0,
-  done = {}, applied = "", host_tries = 0, host_next = nil,
+  done = {}, applied = "", host_tries = 0, host_next = nil, status_wall = nil,
   subj = nil, subj_t = 0, vel = { x = 0, y = 0, z = 0 }, fwd = { x = 1, z = 0 },
 }
+
+local function writeStatus(phase, sceneName, pct, fps, ms)
+  local f = io.open(STATUS, "w")
+  if not f then return end
+  f:write(string.format(
+    '{"phase":"%s","trial":%d,"trials":%d,"scene":"%s","scene_i":%d,"scenes":%d,"pct":%d,"fps":%.1f,"frame_ms":%.2f}',
+    plain(phase), state.trial_i, #trials, plain(sceneName or ""), state.scene_i, #D.scenes,
+    math.max(0, math.min(100, math.floor((pct or 0) + 0.5))), fps or 0, ms or 0))
+  f:close()
+end
 
 local function scenesJson(results)
   local parts = {}
@@ -500,6 +511,12 @@ function h.onSimulationFrame()
   end
   if state.scene_i == 0 then
     setCamera(D.scenes[1], t)
+    if wall ~= state.status_wall then
+      state.status_wall = wall
+      local settle = tonumber(trials[state.trial_i].settle_sec) or cfg.settle_sec
+      local spct = settle > 0 and ((settle - math.max(0, state.ready_at - t)) / settle * 100) or 100
+      writeStatus("settling", D.scenes[1].name, spct, 0, 0)
+    end
     if t >= state.ready_at then startScene(1, t) end
     return
   end
@@ -508,12 +525,21 @@ function h.onSimulationFrame()
   if state.frames % 12 == 0 then updateSubject(scene, t) end
   setCamera(scene, t)
   local since = t - state.scene_t0
+  local cur_fps, cur_ms = 0, 0
   if since >= cfg.scene_lead then
     if state.last then
+      local dt_ms = (t - state.last) * 1000
       local ms = state.results[state.scene_i].ms
-      ms[#ms + 1] = string.format("%.3f", (t - state.last) * 1000)
+      ms[#ms + 1] = string.format("%.3f", dt_ms)
+      cur_ms = dt_ms
+      cur_fps = dt_ms > 0.1 and (1000.0 / dt_ms) or 0
     end
     state.last = t
+  end
+  if wall ~= state.status_wall then
+    state.status_wall = wall
+    local spct = (since / (cfg.scene_lead + cfg.scene_sec)) * 100
+    writeStatus("scene", scene.name, spct, cur_fps, cur_ms)
   end
   if since >= cfg.scene_lead + cfg.scene_sec then endScene(t) end
 end

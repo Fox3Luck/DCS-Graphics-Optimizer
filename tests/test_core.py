@@ -323,6 +323,7 @@ def test_fast_cost_runs_use_their_own_baseline_and_skip_cheap_settings():
 def test_session_screenshots_are_cleaned_up(tmp_path, monkeypatch):
     from dcstune import bench
     monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (0.0, 0.0))
     cfg = tmp_path / "Config"; cfg.mkdir()
     shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
     shots = tmp_path / "ScreenShots"; shots.mkdir()

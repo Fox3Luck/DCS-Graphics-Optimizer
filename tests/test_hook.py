@@ -360,3 +360,43 @@ def test_same_folder_spelled_differently_still_runs(tmp_path, monkeypatch):
         (tmp_path / f"bad{i}").mkdir()
         w, raw, _ = _run(tmp_path / f"bad{i}", monkeypatch, dict(DIRECTIVE, mission=bad))
         assert raw is None and any("not the bundled mission" in m for m in w.log)
+
+
+def test_hook_writes_live_status_during_scenes(tmp_path, monkeypatch):
+    (tmp_path / "Config").mkdir()
+    lua = lupa.LuaRuntime(unpack_returned_tuples=True)
+    w = World(tmp_path)
+    w.dead_states = lua.table_from({})
+    w.json2lua = lambda s: lua.eval("function(j) return j end")(_to_lua(lua, json.loads(s)))
+    real = {
+        w.dir + "Config\\dcstune_directive.json": tmp_path / "Config" / "dcstune_directive.json",
+        w.dir + "Config\\dcstune_result.json": tmp_path / "Config" / "dcstune_result.json",
+        w.dir + "Config\\dcstune_status.json": tmp_path / "Config" / "dcstune_status.json",
+    }
+    directive = dict(DIRECTIVE, mission=w.dir + "Missions\\dcstune_bench.miz")
+    real[w.dir + "Config\\dcstune_directive.json"].write_text(json.dumps(directive))
+    lua.globals().py_open = lambda p, mode: _open(lua, real, p, mode)
+    lua.globals().py_remove = lambda p: real[p].unlink() if p in real and real[p].exists() else None
+    lua.execute("io.open = function(p, m) return py_open(p, m) end; os.remove = function(p) py_remove(p) end")
+    w.no_direct, w.host_delay, w.host_refusals, w.hosts = True, 0, 0, 0
+    load, tick = lua.execute(HARNESS, w)
+    cb = load(HOOK.read_text().replace(KEY_MARK, KEY))
+    dt, t, start_at = 0.01, 0.0, None
+    seen_scene = None
+    status_path = tmp_path / "Config" / "dcstune_status.json"
+    while not w.exit and t < 60:
+        tick(dt); t += dt
+        if getattr(w, "pending_start", False):
+            w.pending_start, start_at = False, t + 1
+        if start_at and t >= start_at:
+            start_at = None
+            cb.onSimulationStart()
+            w.world_up = True
+        cb.onSimulationFrame()
+        if status_path.exists():
+            st = json.loads(status_path.read_text())
+            if st.get("phase") == "scene" and st.get("fps", 0) > 0:
+                seen_scene = st
+                break
+    assert seen_scene is not None
+    assert seen_scene["scene"] == "city" and seen_scene["fps"] == pytest.approx(100.0, rel=0.05)

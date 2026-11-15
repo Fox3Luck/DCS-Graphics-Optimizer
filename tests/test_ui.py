@@ -187,3 +187,23 @@ def test_report_folder_apply_keeps_report_and_files_are_guarded(served):
     assert "already applied" in json.loads(call("/api/apply", {})[1])["error"]
     assert call("/api/undo", {})[0] == 200
     assert "applied" not in json.loads(call("/api/scorecard")[1])["report"]
+
+
+def test_telemetry_radar_and_hud_mode(served):
+    app, call, _ = served
+    sc = json.loads(call("/api/scorecard")[1])
+    assert len(sc["radar"]) == 6
+    assert [r["label"] for r in sc["radar"]] == [
+        "Graphics card", "Processor", "Video memory", "Memory", "Smoothness", "Image quality"]
+    assert all(0 <= r["score"] <= 100 for r in sc["radar"])
+    assert "telemetry" in sc and sc["telemetry"]["vram_total_mb"] == 16376
+
+    # Live status written by the benchmark hook inside DCS is surfaced in /api/telemetry
+    status_file = Path(app.engine.profile["path"]) / "Config" / "dcstune_status.json"
+    status_file.write_text(json.dumps({"phase": "scene", "trial": 1, "trials": 2, "scene": "city",
+                                       "scene_i": 1, "scenes": 3, "pct": 55, "fps": 138.4, "frame_ms": 7.22}))
+    status, raw = call("/api/telemetry")
+    tel = json.loads(raw)
+    assert status == 200 and tel["bench"]["scene"] == "city" and tel["bench"]["fps"] == 138.4
+    assert json.loads(call("/api/hud-mode", {"mini": True})[1]) == {"mini": True}
+    assert json.loads(call("/api/hud-mode", {"mini": False})[1]) == {"mini": False}

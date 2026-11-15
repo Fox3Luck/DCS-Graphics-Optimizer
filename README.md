@@ -24,10 +24,23 @@ You need Windows 10 or 11, DCS World 2.9 with the free Caucasus map, DCS set to 
 automatically, and DCS closed. Until the program is code-signed, Windows shows a
 "Windows protected your PC" box the first time: click **More info**, then **Run anyway**.
 
+### The window
+
+The window has four tabs: **Scorecard**, **Test**, **Report** and **Settings**. A test that starts
+moves you to Test, and a test that finishes moves you to Report, so the tab you need is already
+open. Settings holds the DCS folders, the language, anonymous sharing and the version.
+
+Above the tabs sits a **Live system telemetry** bar showing processor speed (GHz) and load,
+graphics card load, video memory (VRAM), system memory (RAM), and whether DCS is running (including
+live scene progress and in-game FPS during a test). Clicking **Mini HUD** in the header switches
+the window into a compact, always-on-top cockpit instrument panel you can keep on screen while
+DCS runs.
+
 ### The scorecard
 
-The window opens with a summary of your hardware and three grades from A to F. DCS is
-not started for this.
+The Scorecard tab opens with a summary of your hardware, three grades from A to F, and a
+6-axis **Cockpit capability radar & balance** chart (Graphics card, Processor, Video memory,
+Memory, Smoothness, Image quality). DCS is not started for this.
 
 - **Overall** — one headline score: 40% what your PC can do, 60% how well your settings use it.
 - **Your PC for DCS** — graphics card, video memory, processor (single-thread speed,
@@ -112,6 +125,13 @@ sync, your frame-rate cap, VR, controls, sound, gameplay or module options.
 The full details, the list of files it creates and troubleshooting are in the
 **[User Guide](docs/USER-GUIDE.md)**.
 
+### Languages
+
+The window and the saved report are available in English and Turkish (Türkçe). It starts in
+English; the flag button at the top right switches language at any time, and Settings lists both.
+The choice is remembered. DCS has no Turkish menus, so DCS setting names keep their English name
+in brackets, for example "Gölgeler (Shadows)".
+
 ## For developers
 
     python -m dcstune rate              scorecard, DCS is not started
@@ -123,6 +143,24 @@ Layout: `dcstune/optionslua.py` (byte-preserving options.lua edits, backup, cras
 recovery), `sysinfo.py` (hardware + DCS discovery), `model.py` + `data/` (setting levels,
 quality weights, frame-time model), `rate.py` (scorecard), `optimize.py` (search),
 `bench.py` + `hook/dcstune_bench.lua` + `mission/` (benchmark), `ui.py` + `ui.html` (window).
+
+The Windows icon is `dcstune/data/icon.ico`, built from `build/icon.svg` (and
+`build/icon-small.svg`, the same mark without the sight's ticks, for the 16 and 24 pixel sizes).
+`build.ps1` passes it to PyInstaller, so the exe and a shortcut to it carry the mark; it ships
+inside the program as well, and `ui.set_window_icon` puts it on the window when the program is
+run from source, where the window would otherwise show Python's icon.
+
+Look and feel: `report.py` holds the one palette both the window and the saved report use
+(`DARK`, the cockpit scheme; `CSS`, which adds a light scheme for reading and printing a saved
+report; `MARK`, the logo). `ui.py` appends `DARK` after `CSS` so the window stays dark whatever
+Windows is set to, and puts `MARK` into the page. Change a colour in `report.py` and both change.
+
+Languages: the program writes English everywhere; `i18n.py` translates text where it leaves the
+program (answers to the window, the progress log, error messages, the report). A language is one
+table from the English sentence to its translation (`lang_tr.py`); a sentence without a translation
+is shown in English. To add a language, copy `lang_tr.py`, translate the values, and list it in
+`i18n.py` (`NAMES`, `_table`, `_WINDOWS_LANGS`) and in the switch at the end of `ui.html`.
+`tests/test_i18n.py` checks that the table and the page agree.
 
 Tests: `.venv/bin/python -m pytest tests` (needs `pytest`, `lupa`; `pydcs` only to
 rebuild the mission with `mission/generate.py`).

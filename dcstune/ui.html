@@ -1,168 +1,348 @@
 <!doctype html>
-<html lang="en">
+<html lang="__LANG__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DCS Graphics Optimizer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='1' y='1' width='62' height='62' rx='13' fill='%23111a16'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%23ffb224' stroke-width='3.8'/%3E%3Cpath d='M32 6v7.5M32 50.5v7.5M6 32h7.5M50.5 32h7.5' stroke='%23ffb224' stroke-width='3.8' stroke-linecap='round'/%3E%3Cpath d='M22 38.5l7.5-7.5 5.5 4.5 9-11.5' fill='none' stroke='%233fd98b' stroke-width='5.6' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   /*__REPORT_CSS__*/
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
-  main { max-width:900px; margin:0 auto; padding:20px 16px 40px; }
-  h1 { font-size:22px; margin:0 0 2px; } h2 { font-size:15px; margin:0 0 10px; color:var(--dim); font-weight:600; }
-  .sub { color:var(--dim); margin:0 0 18px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
-  .grade { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
-  .score { font-size:13px; color:var(--dim); }
-  ul { margin:0; padding:0; list-style:none; } li { padding:5px 0 5px 16px; position:relative; }
-  li::before { content:""; position:absolute; left:0; top:13px; width:7px; height:7px; border-radius:50%; background:var(--dim); }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.42 "Segoe UI",system-ui,sans-serif; }
+  main { max-width:1140px; margin:0 auto; padding:0 14px 16px; }
+
+  /* Header: the mark, the name, the language switch. */
+  header { display:flex; align-items:center; gap:12px; padding:10px 0 8px; }
+  header svg { flex:none; }
+  header .titles { flex:1; min-width:0; }
+  h1 { font-size:17px; margin:0; letter-spacing:.02em; }
+  h2 { font-size:11.5px; margin:0 0 8px; color:var(--dim); font-weight:600;
+       text-transform:uppercase; letter-spacing:.09em; }
+  .sub { color:var(--dim); margin:0 0 8px; font-size:12.5px; }
+  header .sub { margin:1px 0 0; font-size:12.5px; }
+
+  /* Tabs. */
+  .tabs { display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid var(--line); margin-bottom:10px; }
+  .tabs button { background:none; border:0; border-bottom:2px solid transparent; border-radius:0;
+                 padding:6px 14px; color:var(--dim); font:600 12px/1.5 inherit;
+                 text-transform:uppercase; letter-spacing:.09em; cursor:pointer; }
+  .tabs button:hover { color:var(--text); }
+  .tabs button[aria-selected="true"] { color:var(--accent); border-bottom-color:var(--accent); }
+  .panel[hidden] { display:none; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:10px; }
+  .score-top { display:grid; grid-template-columns:minmax(360px,1fr) minmax(420px,1.25fr); gap:10px; align-items:stretch; }
+  @media (max-width:860px) { .score-top { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:11px 14px; }
+  .card + .card, .grid + .card, .card + .grid { margin-top:10px; }
+  .score-top > .card { margin-top:0 !important; }
+  .grade { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  .score { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
+  ul { margin:0; padding:0; list-style:none; } li { padding:3px 0 3px 16px; position:relative; font-size:13px; }
+  li::before { content:""; position:absolute; left:0; top:9px; width:7px; height:7px; background:var(--dim);
+               clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); }
   li.good::before { background:var(--good); } li.warn::before { background:var(--warn); } li.bad::before { background:var(--bad); }
-  .actions { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }
-  button { font:inherit; padding:10px 18px; border-radius:8px; border:1px solid var(--line);
-           background:var(--panel); color:var(--text); cursor:pointer; }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#06121c; font-weight:600; }
-  button:disabled { opacity:.45; cursor:default; }
-  .note { border-left:3px solid var(--accent); padding:8px 12px; background:var(--panel); border-radius:0 8px 8px 0; margin:12px 0; }
-  .note.err { border-color:var(--bad); }
-  #log { font:13px/1.5 Consolas,monospace; color:var(--dim); max-height:170px; overflow:auto; white-space:pre-wrap; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:18px 0; }
+  button { font:inherit; padding:10px 18px; border-radius:8px; border:1px solid var(--line-hi);
+           background:var(--panel-2); color:var(--text); cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:var(--on-grade); font-weight:600; }
+  button:disabled { opacity:.4; cursor:default; }
+  .small { padding:5px 12px; font-size:13px; }
+  button, .flagname { display:inline-flex; align-items:center; gap:7px; }
+  .flag { width:19px; height:13px; border-radius:2px; flex:none;
+          box-shadow:0 0 0 1px rgba(255,255,255,.22); }
+  button.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); cursor:default; }
+  select, input, textarea { font:inherit; background:var(--panel-2); color:var(--text);
+                            border:1px solid var(--line-hi); border-radius:8px; padding:6px 9px; }
+  .note { border-left:3px solid var(--accent); padding:9px 12px; background:var(--accent-soft);
+          border-radius:0 8px 8px 0; margin:12px 0; }
+  .note.err { border-color:var(--bad); background:var(--panel); }
+  #log { font:13px/1.55 var(--mono); color:var(--dim); max-height:210px; overflow:auto; white-space:pre-wrap; }
   .hidden { display:none; }
   .card .rep li { padding-left:0; } .card .rep li::before { display:none; } .card .rep ul { list-style:disc; padding-left:18px; }
-  .overall { display:flex; flex-wrap:wrap; gap:20px; align-items:center; margin-bottom:14px; }
-  .overall .letter { width:84px; height:84px; font-size:46px; border-radius:16px; }
-  .hw { display:grid; grid-template-columns:auto 1fr; gap:2px 14px; font-size:14px; flex:1; min-width:260px; }
+  .overall { display:flex; flex-wrap:wrap; gap:14px; align-items:center; border-top:2px solid var(--accent); }
+  .overall .letter { width:64px; height:64px; font-size:36px; border-radius:12px; }
+  .hw { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; font-size:12.5px; flex:1; min-width:220px; }
   .hw span:nth-child(odd) { color:var(--dim); }
+  .hw span:nth-child(even) { font-variant-numeric:tabular-nums; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .row + .row { margin-top:12px; }
+  .row .label { color:var(--dim); font-size:13px; min-width:150px; }
+  .row .path { flex:1; min-width:180px; font-size:13px; }
+  fieldset { border:1px solid var(--line); border-radius:10px; }
+  legend { padding:0 6px; color:var(--dim); font-size:12px; font-weight:600;
+           text-transform:uppercase; letter-spacing:.09em; }
+
+  /* Live Telemetry HUD & Graduated Graph Scales */
+  .tel-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-bottom:7px; }
+  .dcs-badge { display:inline-flex; align-items:center; gap:7px; font:600 11.5px/1.3 var(--mono);
+               padding:3px 10px; border-radius:999px; background:var(--panel-2); border:1px solid var(--line-hi); }
+  .dcs-dot { width:8px; height:8px; border-radius:50%; background:var(--dim); }
+  .dcs-dot.on { background:var(--good); box-shadow:0 0 8px var(--good); }
+  .dcs-dot.bench { background:var(--accent); box-shadow:0 0 8px var(--accent); }
+  .dcs-fps { color:var(--good); margin-left:4px; }
+  .tel-grid { display:grid; grid-template-columns:repeat(4,minmax(160px,1fr)); gap:8px; }
+  @media (max-width:780px) { .tel-grid { grid-template-columns:1fr 1fr; } }
+  .tel-box { background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:7px 10px; position:relative; }
+  .tel-top { display:flex; justify-content:space-between; align-items:baseline; gap:6px; font-size:11.5px; margin-bottom:4px; }
+  .tel-top .lbl { color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+  .tel-top .val { font:600 11.5px/1.2 var(--mono); color:var(--text); }
+  .spark { width:100%; height:26px; display:block; margin-bottom:4px; border:1px solid var(--line);
+           border-radius:4px; background:rgba(7,12,10,.65); }
+  .hud-track { position:relative; height:9px; background:var(--bg); border:1px solid var(--line-hi); border-radius:3px; overflow:hidden; }
+  .hud-track::after { content:""; position:absolute; inset:0; pointer-events:none;
+                      background:repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), rgba(220,232,226,.22) calc(10% - 1px), rgba(220,232,226,.22) 10%); }
+  .hud-fill { height:100%; width:0%; background:linear-gradient(90deg, rgba(63,217,139,.35), var(--good));
+              border-right:2px solid #fff; transition:width .3s ease; }
+  .hud-fill.warn { background:linear-gradient(90deg, rgba(255,178,36,.35), var(--warn)); }
+  .hud-fill.bad { background:linear-gradient(90deg, rgba(255,95,86,.35), var(--bad)); }
+  .scale-ticks { display:flex; justify-content:space-between; font:9.5px/1 var(--mono); color:var(--dim); margin-top:3px; opacity:.8; }
+  .radar-wrap { display:grid; grid-template-columns:205px 1fr; gap:12px; align-items:center; }
+  .radar-bars { display:grid; gap:6px; }
+  .rbar-row { display:grid; gap:2px; font-size:12px; }
+  .rbar-top { display:flex; justify-content:space-between; font-variant-numeric:tabular-nums; }
+  .rbar-top .detail { color:var(--dim); font:11.5px/1.2 var(--mono); }
+  @media (max-width:600px) { .radar-wrap { grid-template-columns:1fr; } }
+  body.mini-hud main { max-width:480px; padding:0 10px 10px; }
+  body.mini-hud header { padding:6px 0; }
+  body.mini-hud header .sub, body.mini-hud #tabs, body.mini-hud .panel, body.mini-hud #consent, body.mini-hud #setup, body.mini-hud #update { display:none !important; }
+  body.mini-hud #telemetry-card { display:block !important; margin:0; }
+  body.mini-hud .tel-grid { grid-template-columns:1fr 1fr; gap:8px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>DCS Graphics Optimizer</h1>
-  <p class="sub" style="margin-top:-6px" id="subtitle">For flying on a monitor (2D). VR settings are not changed.</p>
-  <p class="sub"><span id="profile">Reading your PC and DCS settings...</span>
-    <select id="profile-pick" class="hidden" title="Which DCS settings folder to rate and optimize"
-      style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
-  <p class="sub hidden" id="headset-line">Your headset:
-    <select id="headset-pick" title="The tool could not tell which headset you use; pick it so the scorecard uses its resolution and refresh rate"
-      style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
-  <div class="note hidden" id="update"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+  <header>
+    <!--__LOGO__-->
+    <div class="titles">
+      <h1>DCS Graphics Optimizer</h1>
+      <p class="sub" id="subtitle" data-t="subtitle">For flying on a monitor (2D). VR settings are not changed.</p>
+    </div>
+    <button id="hud-toggle" class="small" data-t="hud-toggle" data-t-title="hud-toggle-title" title="Compact always-on-top telemetry HUD for flying or watching a test">Mini HUD</button>
+    <button id="lang-switch" class="small"></button>
+  </header>
+
+  <!-- Always visible, whichever tab is open: nothing else works until these are answered. -->
+  <div class="note hidden" id="update"><div class="row">
     <span id="update-text" style="flex:1;min-width:240px"></span>
-    <button class="primary" id="update-get">Download</button>
+    <button class="primary" id="update-get" data-t="download">Download</button>
   </div></div>
-  <div id="msg"></div>
   <div class="card hidden" id="setup" style="margin-bottom:14px;border-color:var(--bad)">
-    <h2 id="setup-title">Show us where DCS is</h2>
+    <h2 id="setup-title" data-t="setup-title">Show us where DCS is</h2>
     <p id="setup-text" style="margin:0 0 10px"></p>
     <div class="actions" style="margin:0">
-      <button class="primary" id="setup-browse">Browse...</button>
-      <input id="setup-path" style="flex:1;min-width:260px;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px">
-      <button id="setup-use">Use this folder</button>
+      <button class="primary" id="setup-browse" data-t="browse">Browse...</button>
+      <input id="setup-path" style="flex:1;min-width:240px">
+      <button id="setup-use" data-t="use-folder">Use this folder</button>
+      <button id="setup-cancel" class="hidden" data-t="cancel">Cancel</button>
     </div>
     <p class="sub" id="setup-hint" style="margin:8px 0 0"></p>
   </div>
 
-  <div class="card hidden" id="consent" style="margin-bottom:14px;border-color:var(--accent)">
-    <h2 style="color:var(--text)">Help make this tool better? (optional)</h2>
-    <p style="margin:0 0 8px">May the tool send the result of each test to Fox3, the makers of this tool? It is <b>anonymous</b>.</p>
+  <div class="card hidden" id="consent" style="margin-bottom:14px;border-top:2px solid var(--accent)">
+    <h2 data-t="consent-title">Help make this tool better? (optional)</h2>
+    <p style="margin:0 0 8px" data-t="consent-ask">May the tool send the result of each test to Fox3, the makers of this tool? It is <b>anonymous</b>.</p>
     <ul>
-      <li><b>What is sent:</b> your processor, graphics card and driver, memory, monitor resolution, DCS version, VR headset model and VR software if you have one, your DCS graphics and VR settings, the measured frame rates, and whether you applied or undid the recommendation.</li>
-      <li><b>What is not sent:</b> your name, Windows or DCS account, pilot name, folder names, serial numbers, screenshots or controls. Each test only gets a random number; there is no number for you or your PC. Results are stored without your internet address.</li>
-      <li><b>What it is for:</b> the tool estimates what each setting costs on your hardware. Real results from many different PCs and headsets make those estimates and the recommendations better for everyone.</li>
-      <li>After every test the same information is saved as <b>audit.json</b> in the report folder, so you can read exactly what was sent. You can add a comment to a result if you want to tell us more.</li>
-      <li>If you say no, nothing is ever sent and the tool works exactly the same. You can change your answer at any time at the bottom of this window.</li>
+      <li data-t="consent-sent"><b>What is sent:</b> your processor, graphics card and driver, memory, monitor resolution, DCS version, VR headset model and VR software if you have one, your DCS graphics and VR settings, the measured frame rates, and whether you applied or undid the recommendation.</li>
+      <li data-t="consent-notsent"><b>What is not sent:</b> your name, Windows or DCS account, pilot name, folder names, serial numbers, screenshots or controls. Each test only gets a random number; there is no number for you or your PC. Results are stored without your internet address.</li>
+      <li data-t="consent-why"><b>What it is for:</b> the tool estimates what each setting costs on your hardware. Real results from many different PCs and headsets make those estimates and the recommendations better for everyone.</li>
+      <li data-t="consent-audit">After every test the same information is saved as <b>audit.json</b> in the report folder, so you can read exactly what was sent. You can add a comment to a result if you want to tell us more.</li>
+      <li data-t="consent-no">If you say no, nothing is ever sent and the tool works exactly the same. You can change your answer at any time in Settings.</li>
     </ul>
     <div class="actions" style="margin-bottom:0">
-      <button class="primary" id="share-yes">Yes, send anonymous results</button>
-      <button id="share-no">No, send nothing</button>
+      <button class="primary" id="share-yes" data-t="share-yes">Yes, send anonymous results</button>
+      <button id="share-no" data-t="share-no">No, send nothing</button>
     </div>
   </div>
 
-  <div class="card overall">
-    <div><h2 style="margin-bottom:6px">Overall</h2><div class="grade" style="margin:0" id="overall"></div></div>
-    <div class="hw" id="hardware"></div>
-  </div>
-
-  <div class="grid">
-    <div class="card"><h2>Your PC for DCS</h2><div id="machine"></div></div>
-    <div class="card"><h2 id="fit-title">Your current settings</h2><div id="fit"></div></div>
-  </div>
-
-  <fieldset class="card" id="mode-box" style="margin:0 0 10px;padding:10px 14px">
-    <legend style="font-weight:600;padding:0 4px">What matters most to you?</legend>
-    <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="smooth">
-      <b>Smoothness</b> &mdash; the highest frame rate your screen can show (for competitive flying), even if the picture looks plainer.</label>
-    <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="balanced" checked>
-      <b>Balanced</b> &mdash; never choppy, and looks great: at least 60 FPS in the worst moments, with most of the best possible picture. Recommended.</label>
-    <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="quality">
-      <b>Quality</b> &mdash; the best-looking picture your PC can show while still holding 60 FPS in the worst moments.</label>
-  </fieldset>
-  <div class="actions">
-    <button class="primary" id="quick">Test and optimize (10 to 20 min)</button>
-    <button id="full">Thorough test (35 to 60 min)</button>
-    <button id="undo" class="hidden">Undo last change</button>
-  </div>
-  <p class="sub">The test starts DCS several times by itself and closes it again. Leave the PC alone while it runs.
-     Your settings are put back after every test; nothing is changed until you press Apply.</p>
-
-  <details class="card" style="margin-bottom:14px">
-    <summary style="cursor:pointer;font-weight:600">What do the tests do, and how long do they take?</summary>
-    <ul style="margin-top:10px">
-      <li>Each test starts DCS by itself several times and closes it again. Close other programs that use the graphics card first (games, video renders, AI tools); the test refuses to start if the card is busy.</li>
-      <li>Each time, the computer flies three short scenes on the Caucasus map (a city pass, an airfield ramp, a cloud layer) while every frame is timed.</li>
-      <li><b>Test and optimize</b>: 2 to 5 starts, usually 10 to 20 minutes. Measures your settings, then tests and corrects a recommendation.</li>
-      <li><b>Thorough test</b>: about 10 starts, usually 35 to 60 minutes. Also measures what each expensive setting costs on your PC; most of them are measured inside one long DCS session that restarts only the mission.</li>
-      <li>The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60.</li>
-      <li>Resolution, vertical sync, VR, controls and sound are never changed. Your settings file is restored after every start.</li>
-      <li id="sent-line">Nothing is sent over the internet. The full guide is in the project's User Guide.</li>
-    </ul>
-  </details>
-
-  <div class="card hidden" id="progress"><h2>Testing</h2><div id="log"></div></div>
-  <div class="card hidden" id="faillog" style="margin-bottom:14px">
-    <h2>Help us fix this</h2>
-    <p id="faillog-text" style="margin:0 0 10px"></p>
-    <div class="actions" style="margin:0">
-      <button class="primary" id="faillog-send">Send this failure log to the developer</button>
-      <button id="faillog-show">Show what will be sent</button>
+  <div class="card" id="telemetry-card" style="margin-bottom:10px;padding:9px 12px">
+    <div class="tel-head">
+      <h2 style="margin:0" data-t="telemetry-title">Live system telemetry</h2>
+      <div class="dcs-badge" id="dcs-badge">
+        <span class="dcs-dot" id="dcs-dot"></span>
+        <span id="dcs-state-text">DCS: Standby</span>
+        <span class="dcs-fps hidden" id="dcs-live-fps"></span>
+      </div>
     </div>
-    <pre id="faillog-lines" class="hidden" style="max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;margin:10px 0 0"></pre>
+    <div class="hud-track hidden" id="bench-bar-wrap" style="margin-bottom:8px;height:8px">
+      <div class="hud-fill" id="bench-bar" style="background:var(--accent)"></div>
+    </div>
+    <div class="tel-grid">
+      <div class="tel-box">
+        <div class="tel-top"><span class="lbl" data-t="tel-cpu">Processor</span><span class="val" id="tel-cpu-val">&mdash;</span></div>
+        <svg class="spark" id="tel-cpu-spark" viewBox="0 0 120 26" preserveAspectRatio="none"></svg>
+        <div class="hud-track"><div class="hud-fill" id="tel-cpu-bar"></div></div>
+        <div class="scale-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100%</span></div>
+      </div>
+      <div class="tel-box">
+        <div class="tel-top"><span class="lbl" data-t="tel-gpu">Graphics card</span><span class="val" id="tel-gpu-val">&mdash;</span></div>
+        <svg class="spark" id="tel-gpu-spark" viewBox="0 0 120 26" preserveAspectRatio="none"></svg>
+        <div class="hud-track"><div class="hud-fill" id="tel-gpu-bar"></div></div>
+        <div class="scale-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100%</span></div>
+      </div>
+      <div class="tel-box">
+        <div class="tel-top"><span class="lbl" data-t="tel-vram">Video memory</span><span class="val" id="tel-vram-val">&mdash;</span></div>
+        <svg class="spark" id="tel-vram-spark" viewBox="0 0 120 26" preserveAspectRatio="none"></svg>
+        <div class="hud-track"><div class="hud-fill" id="tel-vram-bar"></div></div>
+        <div class="scale-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100%</span></div>
+      </div>
+      <div class="tel-box">
+        <div class="tel-top"><span class="lbl" data-t="tel-ram">System memory</span><span class="val" id="tel-ram-val">&mdash;</span></div>
+        <svg class="spark" id="tel-ram-spark" viewBox="0 0 120 26" preserveAspectRatio="none"></svg>
+        <div class="hud-track"><div class="hud-fill" id="tel-ram-bar"></div></div>
+        <div class="scale-ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100%</span></div>
+      </div>
+    </div>
   </div>
 
-  <div class="hidden" id="result">
+  <nav class="tabs" id="tabs">
+    <button id="tab-score" data-tab="score" aria-selected="true" data-t="tab-score">Scorecard</button>
+    <button id="tab-test" data-tab="test" aria-selected="false" data-t="tab-test">Test</button>
+    <button id="tab-report" data-tab="report" aria-selected="false" data-t="tab-report">Report</button>
+    <button id="tab-settings" data-tab="settings" aria-selected="false" data-t="tab-settings">Settings</button>
+  </nav>
+  <div id="msg"></div>
+
+  <!-- Scorecard: what this PC is, and how well the current settings use it. -->
+  <section class="panel" id="panel-score">
+    <p class="sub"><span id="profile" data-t="reading">Reading your PC and DCS settings...</span></p>
+    <p class="sub hidden" id="headset-line"><span data-t="headset">Your headset:</span>
+      <select id="headset-pick" data-t-title="headset-pick-title" title="The tool could not tell which headset you use; pick it so the scorecard uses its resolution and refresh rate"
+        style="margin-left:6px"></select></p>
+    <div class="score-top">
+      <div class="card overall">
+        <div><h2 data-t="overall">Overall</h2><div class="grade" style="margin:0" id="overall"></div></div>
+        <div class="hw" id="hardware"></div>
+      </div>
+      <div class="card hidden" id="radar-card">
+        <h2 data-t="radar-title">Cockpit capability radar &amp; balance</h2>
+        <div class="radar-wrap">
+          <div id="radar-svg" style="display:grid;place-items:center"></div>
+          <div class="radar-bars" id="radar-bars"></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid" style="margin-top:10px">
+      <div class="card"><h2 data-t="machine">Your PC for DCS</h2><div id="machine"></div></div>
+      <div class="card"><h2 id="fit-title" data-t="fit">Your current settings</h2><div id="fit"></div></div>
+    </div>
+  </section>
+
+  <!-- Test: what matters to the player, the two tests, and the live log. -->
+  <section class="panel" id="panel-test" hidden>
+    <fieldset class="card" id="mode-box" style="padding:10px 14px">
+      <legend data-t="mode-legend">What matters most to you?</legend>
+      <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="smooth">
+        <span data-t="mode-smooth"><b>Smoothness</b> &mdash; the highest frame rate your screen can show (for competitive flying), even if the picture looks plainer.</span></label>
+      <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="balanced" checked>
+        <span data-t="mode-balanced"><b>Balanced</b> &mdash; never choppy, and looks great: at least 60 FPS in the worst moments, with most of the best possible picture. Recommended.</span></label>
+      <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="quality">
+        <span data-t="mode-quality"><b>Quality</b> &mdash; the best-looking picture your PC can show while still holding 60 FPS in the worst moments.</span></label>
+    </fieldset>
+    <div class="actions">
+      <button class="primary" id="quick" data-t="quick">Test and optimize (10 to 20 min)</button>
+      <button id="full" data-t="full">Thorough test (35 to 60 min)</button>
+      <button id="undo" class="hidden" data-t="undo">Undo last change</button>
+    </div>
+    <p class="sub" data-t="leave-alone">The test starts DCS several times by itself and closes it again. Leave the PC alone while it runs.
+       Your settings are put back after every test; nothing is changed until you press Apply.</p>
+
+    <div class="card hidden" id="progress"><h2 data-t="testing">Testing</h2><div id="log"></div></div>
+    <div class="card hidden" id="faillog">
+      <h2 data-t="faillog-title">Help us fix this</h2>
+      <p id="faillog-text" style="margin:0 0 10px"></p>
+      <div class="actions" style="margin:0">
+        <button class="primary" id="faillog-send" data-t="faillog-send">Send this failure log to the developer</button>
+        <button id="faillog-show" data-t="faillog-show">Show what will be sent</button>
+      </div>
+      <pre id="faillog-lines" class="hidden" style="max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;margin:10px 0 0"></pre>
+    </div>
+
+    <details class="card" style="margin-top:14px">
+      <summary style="cursor:pointer;font-weight:600" data-t="about-title">What do the tests do, and how long do they take?</summary>
+      <ul style="margin-top:10px">
+        <li data-t="about-1">Each test starts DCS by itself several times and closes it again. Close other programs that use the graphics card first (games, video renders, AI tools); the test refuses to start if the card is busy.</li>
+        <li data-t="about-2">Each time, the computer flies three short scenes on the Caucasus map (a city pass, an airfield ramp, a cloud layer) while every frame is timed.</li>
+        <li data-t="about-3"><b>Test and optimize</b>: 2 to 5 starts, usually 10 to 20 minutes. Measures your settings, then tests and corrects a recommendation.</li>
+        <li data-t="about-4"><b>Thorough test</b>: about 10 starts, usually 35 to 60 minutes. Also measures what each expensive setting costs on your PC; most of them are measured inside one long DCS session that restarts only the mission.</li>
+        <li data-t="about-5">The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60.</li>
+        <li data-t="about-6">Resolution, vertical sync, VR, controls and sound are never changed. Your settings file is restored after every start.</li>
+        <li id="sent-line">Nothing is sent over the internet. The full guide is in the project's User Guide.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- Report: the result of the last test, and what the player thought of it. -->
+  <section class="panel" id="panel-report" hidden>
+    <p class="sub" id="no-report" data-t="no-report">No test result yet. Start a test on the Test tab.</p>
+    <div class="hidden" id="result">
+      <div class="card">
+        <h2 data-t="result">Test result</h2>
+        <div id="report-body"></div>
+        <div class="actions" style="margin-bottom:0">
+          <button class="primary" id="apply" data-t="apply">Apply these settings</button>
+          <button id="open-report" data-t="open-report">Open the saved report</button>
+        </div>
+        <p class="sub" id="report-where" style="margin:10px 0 0"></p>
+      </div>
+      <div class="card hidden" id="fb">
+        <h2 data-t="fb-title">Tell us more about this result (optional, anonymous)</h2>
+        <p class="sub" style="margin-bottom:8px" data-t="fb-ask">After flying with the recommended settings, how do they feel compared with your old ones?</p>
+        <div class="actions" style="margin:0 0 10px">
+          <label><input type="radio" name="feel" value="better"> <span data-t="feel-better">Better</span></label>
+          <label><input type="radio" name="feel" value="same"> <span data-t="feel-same">The same</span></label>
+          <label><input type="radio" name="feel" value="worse"> <span data-t="feel-worse">Worse</span></label>
+        </div>
+        <textarea id="fb-text" maxlength="1000" rows="3" style="width:100%"
+          data-t-placeholder="fb-placeholder" placeholder="Anything else: what went wrong, what looked odd, which aircraft or map you fly. Please leave out names and other personal details."></textarea>
+        <div class="actions" style="margin:10px 0 0"><button id="fb-send" data-t="fb-send">Send feedback</button></div>
+        <p class="sub hidden" id="fb-done" style="margin:8px 0 0"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings: the folders, the language, what leaves this PC, and which version this is. -->
+  <section class="panel" id="panel-settings" hidden>
     <div class="card">
-      <h2>Test result</h2>
-      <div id="report-body"></div>
-      <div class="actions" style="margin-bottom:0">
-        <button class="primary" id="apply">Apply these settings</button>
-        <button id="open-report">Open the saved report</button>
-      </div>
-      <p class="sub" id="report-where" style="margin:10px 0 0"></p>
+      <h2 data-t="settings-folders">DCS folders</h2>
+      <div class="row"><span class="label" data-t="folder-profile">Your DCS settings</span>
+        <span class="path" id="profile-path"></span>
+        <select id="profile-pick" class="hidden" data-t-title="profile-pick-title" title="Which DCS settings folder to rate and optimize"></select></div>
+      <div class="row"><span class="label" data-t="folder-install">DCS World</span>
+        <span class="path" id="install-path"></span>
+        <button id="pick-install" class="small" data-t="change-install">Change...</button></div>
     </div>
-    <div class="card hidden" id="fb" style="margin-top:14px">
-      <h2>Tell us more about this result (optional, anonymous)</h2>
-      <p class="sub" style="margin-bottom:8px">After flying with the recommended settings, how do they feel compared with your old ones?</p>
-      <div class="actions" style="margin:0 0 10px">
-        <label><input type="radio" name="feel" value="better"> Better</label>
-        <label><input type="radio" name="feel" value="same"> The same</label>
-        <label><input type="radio" name="feel" value="worse"> Worse</label>
-      </div>
-      <textarea id="fb-text" maxlength="1000" rows="3" style="width:100%;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px"
-        placeholder="Anything else: what went wrong, what looked odd, which aircraft or map you fly. Please leave out names and other personal details."></textarea>
-      <div class="actions" style="margin:10px 0 0"><button id="fb-send">Send feedback</button></div>
-      <p class="sub hidden" id="fb-done" style="margin:8px 0 0"></p>
+    <div class="card">
+      <h2 data-t="settings-lang">Language</h2>
+      <div class="row" id="lang-row"></div>
     </div>
-  </div>
-  <p class="sub hidden" id="share-state" style="margin-top:18px"></p>
-  <p class="sub" id="version" style="margin-top:18px;font-size:13px"></p>
+    <div class="card">
+      <h2 data-t="settings-sharing">Anonymous results</h2>
+      <p class="sub" id="share-state" style="margin:0"></p>
+    </div>
+    <div class="card">
+      <h2 data-t="settings-about">About</h2>
+      <p class="sub" id="version" style="margin:0"></p>
+    </div>
+  </section>
 </main>
 <script>
 const TOKEN = "__TOKEN__";
+// Languages: English is written in this page; any other language arrives as a table from the
+// English text to its translation (dcstune/i18n.py). Answers from the app are already translated.
+const LANG = document.documentElement.lang, STRINGS = /*__STRINGS__*/{};
+function T(text, ...args) { return (STRINGS[text] || text).replace(/\{(\d)\}/g, (m, i) => args[i]); }
+document.querySelectorAll("[data-t]").forEach(e => { const v = STRINGS["ui." + e.dataset.t]; if (v) e.innerHTML = v; });
+document.querySelectorAll("[data-t-title]").forEach(e => { const v = STRINGS["ui." + e.dataset.tTitle]; if (v) e.title = v; });
+document.querySelectorAll("[data-t-placeholder]").forEach(e => { const v = STRINGS["ui." + e.dataset.tPlaceholder]; if (v) e.placeholder = v; });
 const $ = id => document.getElementById(id);
 async function api(path, body) {
   const r = await fetch(path, { method: body ? "POST" : "GET",
     headers: { "X-DCSGO-Token": TOKEN, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined });
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error || "Something went wrong");
+  if (!r.ok) throw new Error(j.error || T("Something went wrong"));
   return j;
 }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -173,15 +353,26 @@ function card(target, c, items) {
   const ul = el("ul"); items.forEach(i => ul.append(el("li", i.severity || "", i.text || i)));
   target.replaceChildren(g, ul);
 }
+// Tabs. The page stays one document; only which section is shown changes, and a test that
+// starts or finishes moves the player to the section that is about to matter.
+const TABS = ["score", "test", "report", "settings"];
+function tab(name) {
+  TABS.forEach(t => { $("tab-" + t).setAttribute("aria-selected", String(t === name));
+                      $("panel-" + t).hidden = t !== name; });
+  try { localStorage.setItem("dcsgo-tab", name); } catch (e) {}
+}
+TABS.forEach(t => $("tab-" + t).onclick = () => tab(t));
+try { const saved = localStorage.getItem("dcsgo-tab"); if (TABS.includes(saved)) tab(saved); } catch (e) {}
 function showReport(sc) {
-  const rep = sc.report;
-  if (!rep || !rep.before) { $("result").classList.add("hidden"); return; }
-  $("result").classList.remove("hidden");
+  const rep = sc.report, has = !!(rep && rep.before);
+  $("result").classList.toggle("hidden", !has);
+  $("no-report").classList.toggle("hidden", has);
+  if (!has) return;
   $("report-body").innerHTML = sc.report_html || "";   // built by the app itself, already escaped
   $("apply").classList.toggle("hidden", !rep.changes || !!rep.applied);
   $("open-report").classList.toggle("hidden", !rep.dir);
   $("report-where").textContent = rep.dir
-    ? "This report and its screenshots are saved in Saved Games\\" + sc.profile_dir + "\\DCS Graphics Optimizer Reports\\" + rep.dir + ". You can keep or share that folder."
+    ? T("This report and its screenshots are saved in Saved Games\\{0}\\DCS Graphics Optimizer Reports\\{1}. You can keep or share that folder.", sc.profile_dir, rep.dir)
     : "";
 }
 let SETUP = null;
@@ -190,13 +381,14 @@ function showSetup(sc) {
   $("setup").classList.toggle("hidden", !SETUP);
   if (!SETUP) return;
   const inst = SETUP.what === "install";
-  $("setup-title").textContent = inst ? "Where is DCS World installed?" : "Where are your DCS settings?";
+  $("setup-title").textContent = T(inst ? "Where is DCS World installed?" : "Where are your DCS settings?");
   $("setup-text").textContent = SETUP.message;
   $("setup-browse").classList.toggle("hidden", !sc.can_browse);
-  $("setup-path").placeholder = inst ? "for example E:\\DCS World" : "for example E:\\Saved Games\\DCS";
-  $("setup-hint").textContent = inst
+  $("setup-cancel").classList.toggle("hidden", !sc.optional);
+  $("setup-path").placeholder = T(inst ? "for example E:\\DCS World" : "for example E:\\Saved Games\\DCS");
+  $("setup-hint").textContent = T(inst
     ? "Pick the main DCS World folder, the one that contains the bin folder. Steam: ...\\steamapps\\common\\DCSWorld."
-    : "Pick the DCS folder inside Saved Games, the one that contains Config\\options.lua. If it does not exist yet, start DCS once and close it.";
+    : "Pick the DCS folder inside Saved Games, the one that contains Config\\options.lua. If it does not exist yet, start DCS once and close it.");
 }
 async function chooseFolder(path) {
   try { const r = await api("/api/choose-folder", { what: SETUP.what, path }); if (r.message) note(r.message); $("setup-path").value = ""; await refresh(); }
@@ -211,9 +403,9 @@ function showProfiles(sc) {
   sel.classList.toggle("hidden", !(list.length > 1 || sc.can_browse));
   if (sel.classList.contains("hidden")) return;
   const opt = (value, text) => { const o = document.createElement("option"); o.value = value; o.textContent = text; return o; };
-  sel.append(opt("", list.length > 1 ? "Change (" + list.length + " found)..." : "Change..."));
+  sel.append(opt("", list.length > 1 ? T("Change ({0} found)...", list.length) : T("Change...")));
   list.filter(p => p.path !== sc.profile_path).forEach(p => sel.append(opt(p.path, p.name + "  \u2014  " + p.path)));
-  sel.append(opt("*other", "Other folder..."));
+  sel.append(opt("*other", T("Other folder...")));
 }
 $("profile-pick").onchange = async () => {
   const v = $("profile-pick").value;
@@ -221,37 +413,47 @@ $("profile-pick").onchange = async () => {
   if (!v || RUNNING) return;
   SETUP = { what: "profile" };
   if (v === "*other") {
-    showSetup({ setup: { what: "profile", message: "Pick the DCS folder inside Saved Games that DCS really uses (it contains Config\\options.lua)." },
-                can_browse: CAN_BROWSE });
+    showSetup({ setup: { what: "profile", message: T("Pick the DCS folder inside Saved Games that DCS really uses (it contains Config\\options.lua).") },
+                can_browse: CAN_BROWSE, optional: true });
     return;
   }
   await chooseFolder(v);
 };
+$("pick-install").onclick = () => {
+  if (RUNNING) return;
+  showSetup({ setup: { what: "install", message: T("Pick the main DCS World folder, the one that contains the bin folder. Steam: ...\\steamapps\\common\\DCSWorld.") },
+              can_browse: CAN_BROWSE, optional: true });
+};
+$("setup-cancel").onclick = () => { SETUP = null; $("setup").classList.add("hidden"); busy(RUNNING); };
 $("setup-browse").onclick = () => chooseFolder(null);
 $("setup-use").onclick = () => { const v = $("setup-path").value.trim(); if (v) chooseFolder(v); };
 async function refresh() {
   const sc = await api("/api/scorecard");
   showSetup(sc);
-  if (sc.setup && sc.setup.what === "profile") { $("profile").textContent = "DCS settings not found yet"; busy(false); return; }
-  $("profile").textContent = "DCS profile: " + sc.profile + (sc.profile_path ? " (" + sc.profile_path + ")" : "");
+  if (sc.setup && sc.setup.what === "profile") { $("profile").textContent = T("DCS settings not found yet"); busy(false); return; }
+  $("profile").textContent = T("DCS profile: ") + sc.profile + (sc.profile_path ? " (" + sc.profile_path + ")" : "");
+  $("profile-path").textContent = sc.profile_path || "";
+  $("install-path").textContent = sc.install_path || "";
   showProfiles(sc);
   const o = $("overall"); o.replaceChildren(el("div", "letter " + sc.overall.grade, sc.overall.grade),
-    el("div", "score", sc.overall.score + " / 100 \u2014 40% PC, 60% how well your settings use it"));
+    el("div", "score", sc.overall.score + T(" / 100 \u2014 40% PC, 60% how well your settings use it")));
   const hw = $("hardware"); hw.replaceChildren();
   sc.hardware.forEach(r => hw.append(el("span", null, r.label), el("span", null, r.value)));
   card($("machine"), sc.machine, sc.machine.reasons);
-  $("fit-title").textContent = "Your current settings (" + sc.settings.basis + ")";
+  $("fit-title").textContent = T("Your current settings ({0})", sc.settings.basis);
   card($("fit"), sc.settings, sc.settings.findings);
+  showRadar(sc.radar);
+  if (sc.telemetry) showTelemetry(sc.telemetry);
   $("undo").classList.toggle("hidden", !sc.can_undo);
-  if (sc.recovered === "kept") note("An earlier test was interrupted, and you have changed DCS settings since then. Your current settings were kept. To go back to your settings from before that test, press Undo last change.");
-  else if (sc.recovered) note("An earlier test was interrupted. Your original settings have been restored.");
+  if (sc.recovered === "kept") note(T("An earlier test was interrupted, and you have changed DCS settings since then. Your current settings were kept. To go back to your settings from before that test, press Undo last change."));
+  else if (sc.recovered) note(T("An earlier test was interrupted. Your original settings have been restored."));
   if (sc.vr_test_build)
-    $("subtitle").textContent = "VR test build. With VR on in your DCS profile, the test runs in your headset.";
+    $("subtitle").textContent = T("VR test build. With VR on in your DCS profile, the test runs in your headset.");
   showHeadset(sc);
   if (sc.vr && !sc.vr_tested && !sc.recovered && !$("msg").children.length)
-    note("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet.");
+    note(T("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet."));
   if (sc.vr && sc.vr_tested && !sc.recovered && !$("msg").children.length)
-    note("VR is switched on in this profile, so the test runs in your headset. Before you press start, connect the headset, open its own software (and Virtual Desktop or Link, if you use them), and put it on or keep it awake. DCS opens in the headset by itself and closes again when each part is done.");
+    note(T("VR is switched on in this profile, so the test runs in your headset. Before you press start, connect the headset, open its own software (and Virtual Desktop or Link, if you use them), and put it on or keep it awake. DCS opens in the headset by itself and closes again when each part is done."));
   showReport(sc);
   showSharing(sc);
 }
@@ -260,7 +462,7 @@ function showHeadset(sc) {
   const h = sc.headset, line = $("headset-line"), pick = $("headset-pick");
   line.classList.toggle("hidden", !h || h.detected);
   if (!h || h.detected) return;
-  pick.replaceChildren(el("option", null, "Not in the list / not sure"));
+  pick.replaceChildren(el("option", null, T("Not in the list / not sure")));
   pick.firstChild.value = "";
   h.choices.forEach(n => { const o = el("option", null, n); o.value = n; pick.append(o); });
   pick.value = h.name || "";
@@ -274,31 +476,167 @@ function showSharing(sc) {
   $("consent").classList.toggle("hidden", !ask);
   ASKING = ask; if (!RUNNING) busy(false);
   $("sent-line").textContent = (sh.available && sh.choice === true
-    ? "After each test the anonymous result is sent to Fox3, because you agreed to that; nothing else is sent."
-    : "Nothing is sent over the internet.") + " The full guide is in the project's User Guide.";
-  const st = $("share-state"); st.classList.toggle("hidden", !sh.available || sh.choice == null);
-  if (sh.available && sh.choice != null) {
-    const b = el("button", null, sh.choice ? "Stop sending" : "Start sending anonymous results");
-    b.style.padding = "4px 10px"; b.style.marginLeft = "10px";
+    ? T("After each test the anonymous result is sent to Fox3, because you agreed to that; nothing else is sent.")
+    : T("Nothing is sent over the internet.")) + T(" The full guide is in the project's User Guide.");
+  const st = $("share-state");
+  if (!sh.available) { st.textContent = T("Nothing is sent over the internet."); }
+  else if (sh.choice == null) { st.textContent = T("Please answer the question about anonymous results first."); }
+  else {
+    const b = el("button", "small", T(sh.choice ? "Stop sending" : "Start sending anonymous results"));
+    b.style.marginLeft = "10px";
     b.onclick = () => setSharing(!sh.choice);
-    st.replaceChildren(document.createTextNode("Anonymous results: " + (sh.choice ? "sent after each test." : "not sent.")), b);
+    st.replaceChildren(document.createTextNode(T("Anonymous results: ") + T(sh.choice ? "sent after each test." : "not sent.")), b);
   }
   const fb = sh.available && sh.choice === true && rep && rep.id;
   $("fb").classList.toggle("hidden", !fb);
   if (fb && rep.feedback) { $("fb-done").classList.remove("hidden");
-    $("fb-done").textContent = "You already sent feedback for this result. You can send more."; }
+    $("fb-done").textContent = T("You already sent feedback for this result. You can send more."); }
 }
 let ASKING = false, RUNNING = false;
 async function setSharing(share) { try { note((await api("/api/sharing", { share })).message); await refresh(); } catch (e) { note(e.message, true); } }
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "pick-install"].forEach(i => $(i).disabled = on);
   if (ASKING || SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");
+  if (j.telemetry) showTelemetry(j.telemetry);
+  $("log").style.color = "";
   $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
   if (j.state === "running") return setTimeout(poll, 1500);
   busy(false);
-  if (j.state === "failed") { note(j.error, true); showFailureLog(j.failure_log); }
-  if (j.state === "done") { $("progress").classList.add("hidden"); await refresh(); }
+  if (j.state === "failed") {
+    $("log").style.color = "var(--bad)";
+    $("log").textContent = (j.log.length ? j.log.join("\n") + "\n\n" : "") + j.error;
+    note(j.error, true);
+    showFailureLog(j.failure_log);
+  }
+  if (j.state === "done") { $("progress").classList.add("hidden"); await refresh(); tab("report"); }
+}
+
+const SCENE_NAMES = { city: () => T("City pass"), airfield: () => T("Airfield ramp"), clouds: () => T("Cloud layer") };
+const HIST = { cpu: [], gpu: [], vram: [], ram: [] };
+function setBar(key, id, pct) {
+  const b = $(id), p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+  b.style.width = p + "%";
+  b.className = "hud-fill" + (p >= 90 ? " bad" : p >= 75 ? " warn" : "");
+  const arr = HIST[key];
+  if (arr) {
+    arr.push(p);
+    if (arr.length > 28) arr.shift();
+    drawSpark("tel-" + key + "-spark", arr, p >= 90 ? "var(--bad)" : p >= 75 ? "var(--warn)" : "var(--good)");
+  }
+}
+function drawSpark(id, arr, color) {
+  const svg = $(id);
+  if (!svg) return;
+  const W = 120, H = 26, pts = (arr.length === 1 ? [arr[0], arr[0]] : arr).map((v, i, a) => {
+    const x = (i / (a.length - 1)) * W;
+    const y = H - 2 - (Math.max(0, Math.min(100, v)) / 100) * (H - 4);
+    return x.toFixed(1) + "," + y.toFixed(1);
+  });
+  const grid = '<line x1="0" y1="7" x2="120" y2="7" stroke="var(--line)" stroke-dasharray="2,2" stroke-width="0.8"/>'
+    + '<line x1="0" y1="13" x2="120" y2="13" stroke="var(--line)" stroke-dasharray="2,2" stroke-width="0.8"/>'
+    + '<line x1="0" y1="19" x2="120" y2="19" stroke="var(--line)" stroke-dasharray="2,2" stroke-width="0.8"/>';
+  const line = pts.join(" ");
+  const area = "0," + H + " " + line + " " + W + "," + H;
+  svg.innerHTML = grid
+    + '<polygon points="' + area + '" fill="' + color + '" fill-opacity="0.16"/>'
+    + '<polyline points="' + line + '" fill="none" stroke="' + color + '" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
+}
+function showTelemetry(tel) {
+  if (!tel) return;
+  const cpuPct = Math.round(tel.cpu_pct || 0);
+  $("tel-cpu-val").textContent = (tel.cpu_ghz ? tel.cpu_ghz.toFixed(2) + " GHz \u00b7 " : "") + cpuPct + "%";
+  setBar("cpu", "tel-cpu-bar", cpuPct);
+  const gpuPct = Math.round(tel.gpu_pct || 0);
+  $("tel-gpu-val").textContent = gpuPct + "%";
+  setBar("gpu", "tel-gpu-bar", gpuPct);
+  const vramUsed = ((tel.vram_used_mb || 0) / 1024).toFixed(1);
+  const vramTot = tel.vram_total_mb ? (tel.vram_total_mb / 1024).toFixed(0) : "?";
+  $("tel-vram-val").textContent = vramUsed + " / " + vramTot + " GB (" + (tel.vram_pct || 0) + "%)";
+  setBar("vram", "tel-vram-bar", tel.vram_pct || 0);
+  $("tel-ram-val").textContent = (tel.ram_used_gb || 0).toFixed(1) + " / " + (tel.ram_total_gb || 0).toFixed(0) + " GB (" + (tel.ram_pct || 0) + "%)";
+  setBar("ram", "tel-ram-bar", tel.ram_pct || 0);
+
+  const b = tel.bench, dot = $("dcs-dot"), txt = $("dcs-state-text"), fpsEl = $("dcs-live-fps"), bw = $("bench-bar-wrap");
+  if (b && b.phase) {
+    dot.className = "dcs-dot bench";
+    bw.classList.remove("hidden");
+    $("bench-bar").style.width = Math.max(2, Math.min(100, b.pct || 0)) + "%";
+    const sname = SCENE_NAMES[b.scene] ? SCENE_NAMES[b.scene]() : (b.scene || "");
+    if (b.phase === "scene") {
+      txt.textContent = T("DCS: Scene {0}/{1} ({2}) \u2014 {3}%", b.scene_i || 1, b.scenes || 3, sname, b.pct || 0);
+    } else if (b.phase === "settling") {
+      txt.textContent = T("DCS: Settling textures ({0}%)...", b.pct || 0);
+    } else {
+      txt.textContent = T("DCS: Loading mission (trial {0}/{1})...", b.trial || 1, b.trials || 1);
+    }
+    if (b.fps && b.fps > 0) {
+      fpsEl.textContent = T("Live in DCS: {0} FPS ({1} ms)", Math.round(b.fps), (b.frame_ms || 0).toFixed(1));
+      fpsEl.classList.remove("hidden");
+    } else {
+      fpsEl.classList.add("hidden");
+    }
+  } else {
+    bw.classList.add("hidden");
+    fpsEl.classList.add("hidden");
+    dot.className = "dcs-dot" + (tel.dcs_running ? " on" : "");
+    txt.textContent = T(tel.dcs_running ? "DCS: Running" : "DCS: Standby");
+  }
+}
+function showRadar(list) {
+  const cardEl = $("radar-card"), svgWrap = $("radar-svg"), barsWrap = $("radar-bars");
+  cardEl.classList.toggle("hidden", !list || !list.length);
+  if (!list || !list.length) return;
+  const cx = 102, cy = 88, R = 60, n = list.length;
+  const pt = (i, r) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+  let rings = "", spokes = "", labels = "", dots = "";
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    const p = list.map((_, i) => pt(i, R * f).map(v => v.toFixed(1)).join(",")).join(" ");
+    rings += '<polygon points="' + p + '" fill="none" stroke="var(--line-hi)" stroke-dasharray="' + (f < 1 ? "2,2" : "none") + '" stroke-width="1"/>';
+    rings += '<text x="' + (cx + 3) + '" y="' + (cy - R * f + 7).toFixed(1) + '" fill="var(--dim)" font-size="8" opacity="0.75">' + Math.round(f * 100) + '</text>';
+  });
+  const polyPts = list.map((it, i) => {
+    const [x, y] = pt(i, R * Math.max(0.06, Math.min(1, (it.score || 0) / 100)));
+    const [lx, ly] = pt(i, R + 16);
+    const [sx, sy] = pt(i, R);
+    spokes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + sx.toFixed(1) + '" y2="' + sy.toFixed(1) + '" stroke="var(--line)" stroke-width="1"/>';
+    const anchor = Math.abs(lx - cx) < 10 ? "middle" : (lx > cx ? "start" : "end");
+    labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + 3).toFixed(1) + '" text-anchor="' + anchor + '" fill="var(--dim)" font-size="9.5" font-weight="600"></text>';
+    const col = it.score >= 85 ? "var(--good)" : it.score >= 70 ? "var(--ok)" : it.score >= 50 ? "var(--warn)" : "var(--bad)";
+    dots += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3.5" fill="' + col + '"/>';
+    return x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
+  svgWrap.innerHTML = '<svg viewBox="0 0 204 176" width="100%" style="max-width:204px">'
+    + rings + spokes
+    + '<polygon points="' + polyPts + '" fill="rgba(63,217,139,.18)" stroke="var(--good)" stroke-width="2"/>'
+    + dots + labels + '</svg>';
+  svgWrap.querySelectorAll("text:not([opacity])").forEach((t, i) => { if (list[i]) t.textContent = list[i].label; });
+  barsWrap.replaceChildren();
+  list.forEach(it => {
+    const row = el("div", "rbar-row"), top = el("div", "rbar-top");
+    top.append(el("span", null, it.label), el("span", "detail", it.detail + " (" + it.score + ")"));
+    const trk = el("div", "hud-track"), fill = el("div", "hud-fill");
+    fill.style.width = Math.max(3, Math.min(100, it.score || 0)) + "%";
+    if (it.score < 50) fill.classList.add("bad");
+    else if (it.score < 70) fill.classList.add("warn");
+    trk.append(fill);
+    row.append(top, trk);
+    barsWrap.append(row);
+  });
+}
+$("hud-toggle").onclick = async () => {
+  const mini = document.body.classList.toggle("mini-hud");
+  $("hud-toggle").classList.toggle("on", mini);
+  try { await api("/api/hud-mode", { mini }); } catch (e) {}
+};
+async function pollTelemetry() {
+  if (!RUNNING) {
+    try { showTelemetry(await api("/api/telemetry")); } catch (e) {}
+  }
+  setTimeout(pollTelemetry, 2500);
 }
 function chosenMode() { return (document.querySelector('input[name="mode"]:checked') || {}).value || "balanced"; }
 try { const m = localStorage.getItem("dcsgo-mode"); const r = m && document.querySelector('input[name="mode"][value="' + m + '"]'); if (r) r.checked = true; } catch (e) {}
@@ -310,9 +648,9 @@ function showFailureLog(fl) {
   if (!fl) return;
   $("faillog-lines").textContent = fl.lines.join("\n");
   $("faillog-send").classList.toggle("hidden", !!fl.sent);
-  $("faillog-text").textContent = fl.sent
+  $("faillog-text").textContent = T(fl.sent
     ? "Because you share test results, a short extract of DCS's log for this failure was sent to the developer (no names or folder paths). You can see it below."
-    : "A short extract of DCS's log would show us why this failed. Your Windows user name and folder paths are removed. Nothing is sent unless you press the button.";
+    : "A short extract of DCS's log would show us why this failed. Your Windows user name and folder paths are removed. Nothing is sent unless you press the button.");
 }
 $("faillog-show").onclick = () => $("faillog-lines").classList.toggle("hidden");
 $("faillog-send").onclick = async () => {
@@ -321,7 +659,8 @@ $("faillog-send").onclick = async () => {
 };
 async function start(full) {
   try { await api("/api/optimize", { full, mode: chosenMode() }); busy(true); $("msg").replaceChildren();
-        $("result").classList.add("hidden"); $("faillog").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
+        $("result").classList.add("hidden"); $("faillog").classList.add("hidden"); $("progress").classList.remove("hidden");
+        tab("test"); poll(); }
   catch (e) { note(e.message, true); }
 }
 $("share-yes").onclick = () => setSharing(true);
@@ -338,7 +677,7 @@ $("apply").onclick = async () => {
   catch (e) {
     // VR profile, monitor test (beta feedback: VR frame rate halved after Apply): ask first.
     if (e.message.startsWith("[vr] ")) {
-      if (!confirm(e.message.slice(5))) { note("Nothing was changed."); return; }
+      if (!confirm(e.message.slice(5))) { note(T("Nothing was changed.")); return; }
       try { note((await api("/api/apply", { vr_ok: true })).message); await refresh(); } catch (e2) { note(e2.message, true); }
       return;
     }
@@ -351,16 +690,43 @@ $("undo").onclick = async () => { try { note((await api("/api/undo", {})).messag
 async function checkVersion(tries) {
   try {
     const v = await api("/api/version");
-    $("version").textContent = "Version " + v.version;
+    $("version").textContent = T("Version ") + v.version;
     if (v.update) {
-      $("update-text").textContent = "A newer version is available: " + v.update.version + ". You have " + v.version + ". The newest one has the latest fixes.";
+      $("update-text").textContent = T("A newer version is available: {0}. You have {1}. The newest one has the latest fixes.", v.update.version, v.version);
       $("update").classList.remove("hidden");
     } else if (tries > 0) setTimeout(() => checkVersion(tries - 1), 4000);
   } catch (e) { /* no notice */ }
 }
 $("update-get").onclick = async () => { try { note((await api("/api/open-download", {})).message); } catch (e) { note(e.message, true); } };
+// The language switch shows the flag as well as the name, so it is clear without reading.
+// The flags are drawn here: Windows does not draw the flag emoji, it writes the letters instead.
+const FLAGS = {
+  tr: '<svg class="flag" viewBox="0 0 21 14" aria-hidden="true"><rect width="21" height="14" fill="#E30A17"/>'
+    + '<circle cx="7.6" cy="7" r="3.6" fill="#fff"/><circle cx="9" cy="7" r="2.9" fill="#E30A17"/>'
+    + '<path d="M15.4 7 14 7.5 13.95 9 13.04 7.81 11.6 8.23 12.45 7 11.6 5.77 13.04 6.19 13.95 5 14 6.5Z" fill="#fff"/></svg>',
+  en: '<svg class="flag" viewBox="0 0 21 14" aria-hidden="true"><rect width="21" height="14" fill="#012169"/>'
+    + '<path d="M0 0 21 14M21 0 0 14" stroke="#fff" stroke-width="3"/>'
+    + '<path d="M0 0 21 14M21 0 0 14" stroke="#C8102E" stroke-width="1.6"/>'
+    + '<path d="M10.5 0v14M0 7h21" stroke="#fff" stroke-width="4.6"/>'
+    + '<path d="M10.5 0v14M0 7h21" stroke="#C8102E" stroke-width="2.6"/></svg>',
+};
+const LANG_NAMES = { tr: "T\u00fcrk\u00e7e", en: "English" };
+const OTHER = LANG === "tr" ? "en" : "tr";
+function flagLabel(code) { return FLAGS[code] + "<span>" + LANG_NAMES[code] + "</span>"; }
+async function setLanguage(code) { try { await api("/api/language", { lang: code }); location.reload(); } catch (e) { note(e.message, true); } }
+$("lang-switch").innerHTML = flagLabel(OTHER);
+$("lang-switch").onclick = () => setLanguage(OTHER);
+// In Settings both languages are there to click; the one in use is marked and does nothing.
+for (const code of ["tr", "en"]) {
+  const b = el("button", "small" + (code === LANG ? " on" : ""));
+  b.innerHTML = flagLabel(code);
+  b.setAttribute("aria-pressed", String(code === LANG));
+  if (code !== LANG) b.onclick = () => setLanguage(code);
+  $("lang-row").append(b);
+}
 checkVersion(3);
-refresh().then(async () => { const j = await api("/api/job"); if (j.state === "running") { busy(true); $("progress").classList.remove("hidden"); poll(); } })
+pollTelemetry();
+refresh().then(async () => { const j = await api("/api/job"); if (j.state === "running") { busy(true); $("progress").classList.remove("hidden"); tab("test"); poll(); } })
   .catch(e => note(e.message, true));
 </script>
 </body>
