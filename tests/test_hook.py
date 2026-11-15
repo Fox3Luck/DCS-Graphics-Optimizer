@@ -336,3 +336,17 @@ def test_all_sources_dead_logs_each_reason(tmp_path, monkeypatch):
     assert raw["ok"] is False and "never appeared" in raw["reason"]
     assert any(m.startswith("position source direct: no") for m in w.log)
     assert any(m == "net.dostring_in replaced by another script: false" for m in w.log)
+
+
+def test_same_folder_spelled_differently_still_runs(tmp_path, monkeypatch):
+    """Beta 18 logs: "directive ignored: not the bundled mission" when the tool and DCS spelled the
+    same Saved Games folder differently (moved or linked folder, forward slashes). The hook found the
+    directive in its own Config folder, so it runs, and always hosts its own copy of the mission."""
+    d = dict(DIRECTIVE, mission="D:/Games/Saved Games/DCS/Missions/DCSTUNE_BENCH.miz")
+    w, raw, _ = _run(tmp_path, monkeypatch, d)
+    assert raw["ok"] is True and w.server[2] == w.dir + "Missions\\dcstune_bench.miz"
+    assert any("mission path as DCS spells it" in m for m in w.log)
+    for i, bad in enumerate(("C:\\evil\\other.miz", "C:\\evil\\dcstune_bench.miz", "C:\\x\\Missions\\dcstune_bench.miz.lua")):
+        (tmp_path / f"bad{i}").mkdir()
+        w, raw, _ = _run(tmp_path / f"bad{i}", monkeypatch, dict(DIRECTIVE, mission=bad))
+        assert raw is None and any("not the bundled mission" in m for m in w.log)

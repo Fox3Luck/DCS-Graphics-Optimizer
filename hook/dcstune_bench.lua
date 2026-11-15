@@ -36,7 +36,12 @@ local function refuse(tbl)
   if #KEY < 32 or KEY:find("@", 1, true) then return "this copy has no key" end
   if type(tbl.key) ~= "string" or tbl.key ~= KEY then return "wrong key" end
   if type(tbl.not_after) ~= "number" or os.time() > tbl.not_after then return "out of date" end
-  if type(tbl.mission) ~= "string" or tbl.mission:lower() ~= MISSION:lower() then return "not the bundled mission" end
+  -- The tool and DCS can spell the same Saved Games folder differently (a moved or linked folder,
+  -- slashes; beta 18 logs), so only the file name is compared. The directive was found in this
+  -- profile's own Config folder, and the mission loaded is always this profile's copy (MISSION).
+  if type(tbl.mission) ~= "string" or not tbl.mission:gsub("/", "\\"):lower():find("\\missions\\dcstune_bench%.miz$") then
+    return "not the bundled mission"
+  end
   if type(tbl.password) ~= "string" or #tbl.password < 32 or tbl.password:find("[^%w]") then return "no strong password" end
   local port = tonumber(tbl.port)
   if not port or port < 1024 or port > 65535 or port == 10308 then return "no port" end
@@ -69,6 +74,8 @@ for _, sc in ipairs(D.scenes) do if type(sc) == "table" and sc.name then sc.name
 if type(D.trials) == "table" then
   for i, t in ipairs(D.trials) do if type(t) == "table" then t.tag = plain(t.tag or i) end end
 end
+if D.mission:lower() ~= MISSION:lower() then L("mission path as DCS spells it: " .. MISSION) end
+D.mission = MISSION
 L("directive loaded: mission=" .. tostring(D.mission) .. " scenes=" .. #D.scenes)
 
 local cfg = {
