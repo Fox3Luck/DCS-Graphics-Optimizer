@@ -328,6 +328,17 @@ def _slim(summary: dict) -> dict:
                    for s in (summary.get("raw") or summary).get("scenes", [])]}
 
 
+
+def chime(event: str) -> None:
+    """A Windows sound when a test starts and when it ends (VR beta feedback, #30: with the
+    headset on, the player cannot see the window). Silent where there is no sound."""
+    try:
+        import winsound
+        winsound.MessageBeep({"start": winsound.MB_OK, "done": winsound.MB_ICONASTERISK,
+                              "failed": winsound.MB_ICONHAND}[event])
+    except Exception:
+        pass
+
 class App:
     """Holds the single background job (optimize) and its progress log."""
 
@@ -361,13 +372,16 @@ class App:
 
     def _work(self, full, mode="balanced"):
         job = self.job
+        chime("start")
         try:
             job["report"] = self.engine.optimize(full, lambda m: job["log"].append(str(m)), mode)
             job["state"] = "done"
+            chime("done")
         except Exception as e:
             job["error"] = str(e)
             self._failure_log(job)
             job["state"] = "failed"
+            chime("failed")
 
     def _failure_log(self, job: dict) -> None:
         """Attach an anonymized extract of DCS's log to a failed test. Sent at once if the player

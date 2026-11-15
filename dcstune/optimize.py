@@ -85,20 +85,42 @@ VR_QUALITY_FLOOR = MODES[DEFAULT_MODE]["vr"]
 
 
 def pick_target(mdl: M.Model, display_target: int, vram_total_mb: float, low_ratio: float,
-                steps: list[int] | None = None, mode: str = DEFAULT_MODE) -> int:
+                steps: list[int] | None = None, mode: str = DEFAULT_MODE, current_low: float = 0) -> int:
     """Automatic goal. Prefer the display's refresh rate, but if holding it would strip
     the image too far, settle for a lower smooth rate instead.
     On a monitor the bar is high: a player on a fast screen with a mid-range card would
     otherwise be told to give up a lot of picture for a few frames (beta feedback, #12).
-    steps: the rates to fall back through (a VR headset's own refresh rates)."""
+    steps: the rates to fall back through (a VR headset's own refresh rates, then half the
+    lowest one). In a headset frame rate comes first (VR beta feedback, #30: a player holding
+    72 of 90 was given settings for 45 and lost over 20 FPS). So in VR the goal is never below
+    the rate the player's settings already hold, and half rate is only the goal when not even
+    the lowest settings can hold one of the headset's real refresh rates."""
     floor = MODES[mode]["vr" if steps else "flat"]
-    steps = [t for t in (steps or (display_target, 90, 72, 60)) if t <= display_target]
     top = M.max_quality(mdl.vendor)
-    for t in steps:
+    if not steps:
+        steps = [t for t in (display_target, 90, 72, 60) if t <= display_target]
+        for t in steps:
+            config, rung, feasible = choose(mdl, t, vram_total_mb, low_ratio)
+            if feasible and mdl.quality(config, rung) >= floor * top:
+                return t
+        return steps[-1]
+    steps = [t for t in steps if t <= display_target] or [display_target]
+    full, half = (steps[:-1], steps[-1]) if len(steps) > 1 else (steps, None)
+    held = max((t for t in full if current_low >= t * HIT_MARGIN), default=None)
+    if held is not None:
+        full = [t for t in full if t >= held]
+    feasible_full = []
+    for t in full:
         config, rung, feasible = choose(mdl, t, vram_total_mb, low_ratio)
         if feasible and mdl.quality(config, rung) >= floor * top:
             return t
-    return steps[-1]
+        if feasible:
+            feasible_full.append(t)
+    if feasible_full:
+        return feasible_full[-1]          # the lowest real refresh rate the headset can hold
+    if held is not None:
+        return held
+    return half if half is not None else full[-1]
 
 
 def summarize(result: dict) -> dict:
@@ -130,7 +152,8 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     display_target = target_fps
     if mode not in MODES:
         raise ValueError(f"unknown mode {mode!r}")
-    target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio, steps, mode)
+    target_fps = pick_target(mdl, display_target, vram_total_mb, low_ratio, steps, mode,
+                             current_low=before["p1_low_fps"])
     if target_fps < display_target:
         log(f"Holding {display_target} FPS would cost too much image quality for the "
             f"{MODES[mode]['label']} choice on this PC; aiming for {target_fps}.")

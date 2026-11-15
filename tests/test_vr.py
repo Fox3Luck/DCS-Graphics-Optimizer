@@ -342,3 +342,28 @@ def test_vr_test_build_switches_on_testing_in_the_headset(tmp_path, monkeypatch)
     assert sc["vr_test_build"] and sc["vr_tested"]
     rep = eng.optimize(False, lambda m: None)
     assert _FakeBench.made[-1].vr and rep["vr"] and not rep["vr_skipped"]
+
+
+def test_vr_goal_never_trades_frame_rate_for_picture(monkeypatch):
+    """VR beta feedback (#30): a 90 Hz headset holding 72 was given settings for 45 (half rate)
+    and dropped to 58 FPS. In VR the half rate is a last resort, never a way to gain picture."""
+    top = M.max_quality("nvidia")
+    # quality the search could reach at each goal; 90 and 72 only with a heavily cut picture
+    reach = {90: (0.3, True), 80: (0.35, True), 72: (0.45, True), 45: (0.9, True), 36: (0.95, True)}
+    monkeypatch.setattr(optimize, "choose", lambda mdl, t, *a: ({"q": reach[t][0]}, 0, reach[t][1]))
+
+    class Mdl:
+        vendor = "nvidia"
+        def quality(self, cfg, rung):
+            return cfg["q"] * top
+    pick = lambda steps, low, **k: optimize.pick_target(Mdl(), 90, 16376, 0.8, steps, current_low=low, **k)
+    assert pick(V.goal_steps([90], 90), 72) == 90                 # Varjo Aero: stay at the headset's rate
+    assert pick(V.goal_steps([72, 80, 90, 120], 90), 85) == 80    # holds 80 already: never aim lower
+    assert pick(V.goal_steps([72, 80, 90, 120], 90), 50) == 72    # lowest real refresh rate, not 36
+    reach[90] = (0.6, True)
+    assert pick(V.goal_steps([90], 90), 72) == 90                 # good enough picture at full rate
+    reach.update({90: (0.1, False), 80: (0.1, False), 72: (0.1, False)})
+    assert pick(V.goal_steps([72, 80, 90, 120], 90), 30) == 36    # nothing holds a real rate: half rate
+    # on a monitor nothing changes
+    reach[60] = (0.9, True)
+    assert optimize.pick_target(Mdl(), 90, 16376, 0.8) == 60
