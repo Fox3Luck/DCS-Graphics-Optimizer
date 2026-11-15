@@ -28,6 +28,11 @@ SCENES = [
 BATCH_SETTLE_SEC = 10     # wait before timing in every measured no-restart trial
 QUICK_EXIT_SEC = 45       # DCS gone this fast without a result = it never really started
 EXIT_GRACE_SEC = 45       # result written: how long DCS gets to close itself before the tool closes it
+# Past the deadline, DCS still gets more time while its log keeps growing: an add-on can hold the
+# game for minutes doing one-time work (a beta 20 log: Tacview exporting its terrain files froze
+# the mission for six and a half minutes, and the test ran out of time with the aircraft in place).
+LOG_ACTIVE_SEC = 120
+BUSY_EXTRA_SEC = 900
 HANDOFF_WAIT_SEC = 25     # after such an exit, how long to look for a DCS that Steam/the updater started instead
 STEAM_PROMPT_WAIT_SEC = 300   # Steam asks the player to OK the launch options first; give them time to click (#27)
 STEAM_RESTART = "Steam asked for app restart"   # DCS writes this when it hands its start over to Steam
@@ -431,7 +436,7 @@ class Bench:
                     _taskkill_dcs()
                     time.sleep(5)
                     return True
-            elif time.time() > deadline:
+            elif time.time() > deadline and not self._still_working(deadline):
                 self.directive.unlink(missing_ok=True)
                 self._keep_failure_log()
                 raise BenchError("DCS did not finish the benchmark in time. Close DCS, then try again.")
@@ -456,10 +461,24 @@ class Bench:
                     proc.kill()
                     proc.wait(timeout=30)
                     return True
-            elif time.time() > deadline:
+            elif time.time() > deadline and not self._still_working(deadline):
                 proc.kill()
                 proc.wait(timeout=30)
                 return False
+
+    def _still_working(self, deadline: float) -> bool:
+        """Past the deadline: is DCS still writing to its log (busy, not stuck), within the extra time?"""
+        if time.time() > deadline + BUSY_EXTRA_SEC:
+            return False
+        try:
+            active = time.time() - (self.profile_dir / "Logs" / "dcs.log").stat().st_mtime < LOG_ACTIVE_SEC
+        except OSError:
+            return False
+        if active and not getattr(self, "_busy_noted", False):
+            self._busy_noted = True
+            self.log("  DCS is taking longer than usual but is still working (an add-on may be doing "
+                     "one-time setup); waiting a bit more...")
+        return active
 
     def _keep_failure_log(self):
         try:

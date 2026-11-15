@@ -102,6 +102,12 @@ local trials = (type(D.trials) == "table" and #D.trials > 0) and D.trials or { {
 -- So a refusal is retried every few seconds for up to a minute.
 local HOST_RETRY_SEC, HOST_TRIES = 3, 20
 
+-- A gap this long between two frames means DCS was held up, not that the test is stuck: an add-on
+-- can freeze the game for minutes doing one-time work (a beta 20 log: Tacview exporting its terrain
+-- files for six and a half minutes right after the mission started). That time is not counted
+-- against the waits below.
+local FROZEN_GAP_SEC = 10
+
 local state = {
   t0 = os.time(), frames = 0, hosted = false, running = false, finished = false,
   ready_at = nil, scene_i = 0, scene_t0 = nil, last = nil, results = {},
@@ -437,6 +443,13 @@ end
 function h.onSimulationFrame()
   if state.finished then return end
   state.frames = state.frames + 1
+  local wall = os.time()
+  if state.last_wall and wall - state.last_wall >= FROZEN_GAP_SEC then
+    local gap = wall - state.last_wall
+    state.t0, state.trial_t0 = state.t0 + gap, state.trial_t0 + gap
+    L("DCS was held up for " .. gap .. "s (an add-on doing one-time work?); not counted against the test")
+  end
+  state.last_wall = wall
   if os.time() - state.t0 > cfg.total_timeout then finish(false, "total timeout"); return end
   local elapsed = os.time() - state.trial_t0
   if state.stopping then driveStop(); return end

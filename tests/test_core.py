@@ -688,3 +688,18 @@ def test_headset_software_is_not_counted_as_another_program(tmp_path, monkeypatc
         with bench.Bench(prof, tmp_path / "DCS.exe", log=said.append, vr=vr, vram_total_mb=16376):
             pass
         assert any("other programs are using" in m for m in said) is (not vr)
+
+
+def test_busy_dcs_gets_more_time_but_not_forever(tmp_path):
+    # past the deadline, DCS keeps going only while its log is still being written
+    import os, time, types
+    from dcstune import bench
+    (tmp_path / "Logs").mkdir()
+    log = tmp_path / "Logs" / "dcs.log"
+    log.write_text("x")
+    me = types.SimpleNamespace(profile_dir=tmp_path, log=lambda *a: None)
+    now = time.time()
+    assert bench.Bench._still_working(me, deadline=now - 10)
+    assert not bench.Bench._still_working(me, deadline=now - bench.BUSY_EXTRA_SEC - 10)
+    os.utime(log, (now - 600, now - 600))
+    assert not bench.Bench._still_working(me, deadline=now - 10)

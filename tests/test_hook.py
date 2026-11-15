@@ -100,7 +100,7 @@ KEY = "0123456789abcdef0123456789abcdef"
 
 
 def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=400, hook_key=KEY, dead=(),
-         wrap_dostring=None, no_direct=True, host_delay=0, host_refusals=0):
+         wrap_dostring=None, no_direct=True, host_delay=0, host_refusals=0, freeze_after_start=0):
     (tmp_path / "Config").mkdir()
     # the hook builds Windows paths; map them onto the temp dir
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
@@ -140,6 +140,8 @@ def _run(tmp_path, monkeypatch, directive, missing=None, fps=100, max_seconds=40
             start_at = None
             cb.onSimulationStart()
             w.world_up = True
+            if freeze_after_start:                       # an add-on holds the game right after the start
+                tick(freeze_after_start)
         if w.stop_requested:                             # DCS.stopMission ends the mission
             w.stop_requested, w.world_up = False, False
             cb.onSimulationStop()
@@ -250,6 +252,14 @@ def test_slow_hosting_still_waits_for_the_mission(tmp_path, monkeypatch):
     # mission came up 13 s later, but the wait had been counted from DCS start and gave up.
     w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, host_delay=180, max_seconds=600)
     assert w.exit and raw["ok"] is True, raw
+
+
+def test_addon_freezing_the_game_after_start_is_not_a_failure(tmp_path, monkeypatch):
+    # beta 20 log: Tacview exported its terrain files right after the mission started and held
+    # the game for six and a half minutes; the aircraft were there, but the wait had run out.
+    w, raw, _ = _run(tmp_path, monkeypatch, DIRECTIVE, freeze_after_start=390, max_seconds=900)
+    assert w.exit and raw["ok"] is True, raw
+    assert any("held up for 390s" in m for m in w.log)
 
 
 def test_hosting_refused_until_signed_in_is_retried(tmp_path, monkeypatch):
