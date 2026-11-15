@@ -309,3 +309,87 @@ def test_finished_benchmark_is_kept_when_dcs_stays_open(tmp_path, monkeypatch):
         assert b._launch(None, {"tag": "x"}, True, 600)[0] == {"ok": True}
     assert killed and killed[0] - 1060 <= bench.EXIT_GRACE_SEC + 5
     assert any("did not close by itself" in m for m in logs)
+
+
+class _Clock:
+    """Fake time for the launch code: sleeping moves the clock, so long waits run instantly."""
+    def __init__(self, real):
+        self._real, self.now = real, 1_000_000.0
+    def time(self): return self.now
+    def sleep(self, s): self.now += s
+    def __getattr__(self, name): return getattr(self._real, name)
+
+
+def _steam_log(tmp_path):
+    (tmp_path / "Logs").mkdir(exist_ok=True)
+    (tmp_path / "Logs" / "dcs.log").write_text(
+        "=== Log opened UTC 2026-11-15 01:32:24\n"
+        "2026-11-15 01:32:24.493 ALERT   SECURITYCONTROL (Main): Can't run Steam!\n"
+        "2026-11-15 01:32:26.464 INFO    APP (Main): Steam asked for app restart.\n")
+
+
+def test_steam_prompt_answered_late_is_waited_for(tmp_path, monkeypatch):
+    # Issue #27: Steam asks the player to OK the launch options; clicking Continue after more
+    # than the usual short wait made the tool start a second DCS.
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+    clock = _Clock(bench.time)
+    monkeypatch.setattr(bench, "time", clock)
+    _steam_log(tmp_path)
+    starts = []
+
+    class Proc:                                   # DCS hands its start over to Steam and closes
+        def __init__(self, args, cwd): starts.append(clock.now)
+        def wait(self, timeout=None): return 0
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+
+    def dcs_running():                            # the player clicks Continue after 2 minutes
+        if not starts or clock.now < starts[0] + 120:
+            return False
+        if clock.now < starts[0] + 400:
+            return True
+        b.result.write_text('{"ok":true}')
+        return False
+    monkeypatch.setattr(bench, "dcs_running", dcs_running)
+    logs = []
+    b.log = logs.append
+    with b:
+        assert b._launch(None, {"tag": "x"}, True, 600)[0] == {"ok": True}
+    assert len(starts) == 1
+    assert any("click Continue" in m for m in logs)
+
+
+def test_no_second_dcs_next_to_one_that_came_up_late(tmp_path, monkeypatch):
+    # No Steam line in the log (short wait), but a DCS appears during the pause before the
+    # second start: follow it, never start another copy (#27).
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+    clock = _Clock(bench.time)
+    monkeypatch.setattr(bench, "time", clock)
+    starts = []
+
+    class Proc:
+        def __init__(self, args, cwd): starts.append(clock.now)
+        def wait(self, timeout=None): return 0
+    monkeypatch.setattr(bench.subprocess, "Popen", Proc)
+
+    def dcs_running():
+        t = clock.now - starts[0] if starts else -1
+        if t < bench.HANDOFF_WAIT_SEC + 5:
+            return False
+        if t < 300:
+            return True
+        b.result.write_text('{"ok":true}')
+        return False
+    monkeypatch.setattr(bench, "dcs_running", dcs_running)
+    with b:
+        assert b._launch(None, {"tag": "x"}, True, 600)[0] == {"ok": True}
+    assert len(starts) == 1
+
+
+def test_steam_restart_seen_in_the_log(tmp_path, monkeypatch):
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+    assert not b._steam_restart()
+    _steam_log(tmp_path)
+    assert b._steam_restart()

@@ -29,6 +29,8 @@ BATCH_SETTLE_SEC = 10     # wait before timing in every measured no-restart tria
 QUICK_EXIT_SEC = 45       # DCS gone this fast without a result = it never really started
 EXIT_GRACE_SEC = 45       # result written: how long DCS gets to close itself before the tool closes it
 HANDOFF_WAIT_SEC = 25     # after such an exit, how long to look for a DCS that Steam/the updater started instead
+STEAM_PROMPT_WAIT_SEC = 300   # Steam asks the player to OK the launch options first; give them time to click (#27)
+STEAM_RESTART = "Steam asked for app restart"   # DCS writes this when it hands its start over to Steam
 SHORT_SCENE_SEC, SHORT_LEAD_SEC = 10, 2   # cost-only runs: averages repeat within 0.2% at 10 s
 STUTTER_FACTOR = 2.5     # a frame this many times the median counts as a stutter
 
@@ -353,15 +355,26 @@ class Bench:
         self.log(f"  {len(out)} trials in {seconds}s, VRAM peak {round(gpu.peak_mb)} MB")
         return out
 
-    def _follow_handoff(self, deadline: float) -> bool:
+    def _steam_restart(self) -> bool:
+        """True when the DCS that just closed handed its start over to Steam. Steam then asks
+        the player to OK the launch options before it starts DCS again (#27)."""
+        try:
+            head = (self.profile_dir / "Logs" / "dcs.log").read_text(encoding="utf-8", errors="ignore")[:20000]
+        except OSError:
+            return False
+        return STEAM_RESTART in head
+
+    def _follow_handoff(self, deadline: float, wait: float = HANDOFF_WAIT_SEC) -> bool:
         """DCS.exe can close at once because something else starts it again (Steam, the DCS
-        updater). If a DCS appears within a short while, wait for that one instead of starting
-        a second copy. True if one was followed to the end (#17)."""
+        updater). If a DCS appears within a while, wait for that one instead of starting
+        a second copy. True if one was followed to the end (#17, #27)."""
         seen = None
-        until = time.time() + HANDOFF_WAIT_SEC
-        while time.time() < until:
+        until = time.time() + wait
+        while True:
             if dcs_running():
                 seen = time.time()
+                break
+            if time.time() >= until:
                 break
             time.sleep(2)
         if not seen:
@@ -448,18 +461,30 @@ class Bench:
             if attempt == 2:
                 self.log("  DCS closed straight away; waiting a moment and starting it again...")
                 time.sleep(15)
-                self.directive.write_text(directive())
+                late = dcs_running()            # a DCS came up late (Steam, after the player clicked)
+                if not late:                    # its hook may already be reading the current directive
+                    self.directive.write_text(directive())
             launched = time.time()
             with GpuSampler() as gpu:
-                proc = subprocess.Popen(args, cwd=str(self.exe.parent))
-                if not self._wait_for(proc, launched + timeout):
-                    self.directive.unlink(missing_ok=True)
-                    self._keep_failure_log()
-                    raise BenchError("DCS did not finish the benchmark in time and was closed. "
-                                     "Check that DCS starts normally and is logged in.")
-                quick = not self.result.exists() and time.time() - launched <= QUICK_EXIT_SEC
-                if quick and self._follow_handoff(launched + timeout):
-                    quick = False
+                if attempt == 2 and late:
+                    # never start a second DCS next to one that is already coming up (#27)
+                    quick = not self._follow_handoff(launched + timeout, wait=0)
+                else:
+                    proc = subprocess.Popen(args, cwd=str(self.exe.parent))
+                    if not self._wait_for(proc, launched + timeout):
+                        self.directive.unlink(missing_ok=True)
+                        self._keep_failure_log()
+                        raise BenchError("DCS did not finish the benchmark in time and was closed. "
+                                         "Check that DCS starts normally and is logged in.")
+                    quick = not self.result.exists() and time.time() - launched <= QUICK_EXIT_SEC
+                if quick:
+                    wait = HANDOFF_WAIT_SEC
+                    if self._steam_restart():
+                        wait = STEAM_PROMPT_WAIT_SEC
+                        self.log("  Steam is starting DCS. If Steam asks about launch options, click Continue "
+                                 "(the test needs them); the test waits for you.")
+                    if self._follow_handoff(launched + timeout + wait, wait=wait):
+                        quick = False
             if not quick:
                 break
             if attempt == 2:
