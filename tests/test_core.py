@@ -414,6 +414,25 @@ def test_busy_gpu_refuses_to_start(tmp_path, monkeypatch):
         assert b.other_vram_mb == 8089.0
 
 
+def test_headset_software_load_does_not_block_a_vr_test(tmp_path, monkeypatch):
+    """A VR tester's Mixed Reality portal alone kept the card 38% busy and the test refused to run."""
+    from dcstune import bench
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (38.0, 1500.0))
+    cfg = tmp_path / "Config"; cfg.mkdir()
+    shutil.copy(FIX / "options.DCS.lua", cfg / "options.lua")
+    prof = {"path": str(tmp_path), "name": "DCS", "options": str(cfg / "options.lua")}
+    with pytest.raises(bench.BenchError):
+        bench.Bench(prof, tmp_path / "DCS.exe").__enter__()          # on a monitor 38% is still too busy
+    lines = []
+    with bench.Bench(prof, tmp_path / "DCS.exe", vr=True, log=lines.append):
+        pass
+    assert any("headset software" in l for l in lines)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (97.0, 1500.0))  # a game running alongside the headset
+    with pytest.raises(bench.BenchError, match="Another program is using your graphics card"):
+        bench.Bench(prof, tmp_path / "DCS.exe", vr=True).__enter__()
+
+
 def test_video_memory_held_by_other_programs_is_warned_about(tmp_path, monkeypatch):
     """A local AI model holding video memory does not stop the test, but the player is told."""
     from dcstune import bench, report as R

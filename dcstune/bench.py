@@ -178,6 +178,15 @@ class GpuSampler:
 
 
 BUSY_GPU_PERCENT = 25     # refuse to test above this while DCS is not even running
+# In VR the headset software (Mixed Reality portal, SteamVR, Virtual Desktop, Link, Pimax Play) draws
+# its home screen until DCS takes over the headset; a VR tester saw 38% from that alone. Only a
+# game or a render running at the same time pushes the card near full load.
+VR_BUSY_GPU_PERCENT = 85
+
+
+def busy_limit(vr: bool = False) -> int:
+    """How busy the graphics card may be before DCS starts without the test refusing to run."""
+    return VR_BUSY_GPU_PERCENT if vr else BUSY_GPU_PERCENT
 # Video memory in use before DCS starts. A desktop with a browser and two 4K monitors sits near
 # 2 GB; more than this means another program (a game, an AI tool, a video editor) is holding it.
 OTHER_VRAM_MB, OTHER_VRAM_SHARE = 2500, 0.20
@@ -278,12 +287,16 @@ class Bench:
         if dcs_running():
             raise BenchError("DCS is running. Close it first; DCS Graphics Optimizer never touches a running game.")
         load, self.other_vram_mb = gpu_idle_check()
-        if load > BUSY_GPU_PERCENT and not self.allow_busy:
+        limit = busy_limit(self.vr)
+        if load > limit and not self.allow_busy:
             raise BenchError(f"Another program is using your graphics card ({load:.0f}% busy before DCS has even "
                              "started). Close games, video renders, AI tools and browser videos, then try again; "
                              "otherwise the results would be wrong.")
-        if load > BUSY_GPU_PERCENT:
+        if load > limit:
             self.log(f"WARNING: graphics card is {load:.0f}% busy before DCS starts; results will be unreliable.")
+        elif self.vr and load > BUSY_GPU_PERCENT:
+            self.log(f"The graphics card is {load:.0f}% busy before DCS starts, most likely the headset software's "
+                     "home screen. That's expected in VR; DCS takes over the headset when it starts.")
         if other_vram_high(self.other_vram_mb, self.vram_total_mb, self.vr):
             of = f" of {self.vram_total_mb / 1024:.0f} GB" if self.vram_total_mb else ""
             self.log(f"WARNING: other programs are using {self.other_vram_mb / 1024:.1f} GB{of} of video memory "
