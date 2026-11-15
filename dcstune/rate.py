@@ -130,7 +130,7 @@ def rate_machine(info: dict) -> dict:
     reasons = [
         f"Graphics card: {gpu.get('name', 'unknown')} ({vram:.0f} GB) - {_word(g)}"
         + ("" if g_known else " (not in our table yet, estimated)"),
-        f"Processor: {info.get('cpu', 'unknown')} - {_word(c)} single-thread speed, which is what limits DCS"
+        f"Processor: {info.get('cpu', 'unknown')} - {_word(c)} speed per core, which is what limits DCS, multithreaded version included"
         + ("" if c_known else " (not in our table yet, estimated)"),
         f"Memory: {ram} GB - " + ("plenty" if ram >= 60 else "good" if ram >= 32 else
                                   "tight for DCS; 32 GB or more avoids stutter" if ram >= 16 else "too little for DCS"),
