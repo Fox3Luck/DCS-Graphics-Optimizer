@@ -100,6 +100,10 @@ estimate; the in-headset test measures what really happens.
 | Valve Index | 1440 × 1600 | 80, 90, 120, 144 | |
 | Varjo Aero | 2880 × 2720 | 90 | eye tracking |
 | Bigscreen Beyond 2 | 2560 × 2560 | 75, 90 | at 90 Hz the PC may send 1920 × 1920 (disputed) |
+| Pimax Dream Air | 3840 × 3552 | 72, 90 | Pimax FAQ and product page; eye tracking. Not the Dream Air SE (2560 × 2560) |
+
+A headset that is not in this table can still pick 72, 80, 90 or 120 Hz in the window; only the
+rate picked is used as a goal, since we do not know which others it has.
 
 Only Pimax headsets can be read from the PC (Pimax Play's profile). Virtual Desktop, Link and
 SteamVR do not say which headset is connected, so the window lets the player pick theirs.

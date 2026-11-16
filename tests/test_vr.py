@@ -439,3 +439,17 @@ def test_own_frame_rate_goal_for_monitor_tests(tmp_path, monkeypatch):
     assert quality(rep) >= quality(auto)
     assert "automatic" in eng.set_goal(33)                       # not one of the choices: back to automatic
     assert eng.scorecard()["goal"]["chosen"] is None
+
+
+def test_dream_air_and_unlisted_headsets_can_pick_their_rate():
+    """A Dream Air owner runs 72 Hz; it was not in the list, and an unlisted headset could only get 90."""
+    from dcstune import vr as V
+    opts = {"VR.enable": True}
+    dream = V.state({"vr": {"runtime": "Pimax", "chosen": "Pimax Dream Air", "hz": 72}}, opts)
+    assert dream["known"] and dream["target"] == 72 and dream["steps"] == [72, 36] and dream["refresh"] == [72, 90]
+    unknown = V.state({"vr": {"runtime": "VirtualDesktop", "hz": 72}}, opts)
+    assert unknown["known"] is False and unknown["hz_chosen"] and unknown["target"] == 72
+    assert unknown["refresh"] == [72, 80, 90, 120] and unknown["steps"] == [72, 36]
+    auto = V.state({"vr": {"runtime": "VirtualDesktop"}}, opts)
+    assert auto["target"] == 90 and auto["steps"] == [90, 45] and not auto["hz_chosen"]
+    assert any(h["name"] == "Pimax Dream Air" and h["refresh"] == [72, 90] for h in V.TABLE["headsets"])

@@ -101,19 +101,23 @@ def state(info: dict, options: dict) -> dict | None:
     # The rate the player says they run the headset at (beta issue #40: a Quest 3 flown at 72 Hz was
     # tested against 90). Only a rate this headset really has counts.
     picked = (info.get("vr") or {}).get("hz")
-    hz_chosen = isinstance(picked, int) and not isinstance(picked, bool) and picked in refresh
+    # A headset that is not in the list (a new model) can still pick the usual rates, but since
+    # we don't know which ones it really has, only the picked one is used as a goal.
+    offer = sorted(spec.get("offer") or refresh)
+    hz_chosen = isinstance(picked, int) and not isinstance(picked, bool) and picked in offer
     target = picked if hz_chosen else (90 if 90 in refresh else refresh[-1])
+    steps_from = refresh if known or not hz_chosen else [picked]
     pd = options.get("VR.pixel_density")
     pd = float(pd) if isinstance(pd, (int, float)) and not isinstance(pd, bool) else 1.0
     hires = known and spec["eye_w"] >= TABLE["hires_eye_w"]
     return {"runtime": found["runtime"], "headset": found["headset"], "known": known,
             "detected": found["detected"],
-            "eye_w": spec["eye_w"], "eye_h": spec["eye_h"], "refresh": refresh,
+            "eye_w": spec["eye_w"], "eye_h": spec["eye_h"], "refresh": offer,
             "eye_tracking": spec["eye_tracking"], "hires": hires,
             "render_quality": found["render_quality"], "pixel_density": pd,
             "quad_view": bool(options.get("VR.openxr_quadView")),
             "quad_layer": found["quad_layer"], "vendor_foveation": found.get("vendor_foveation", False),
-            "target": target, "hz_chosen": hz_chosen, "steps": goal_steps(refresh, target),
+            "target": target, "hz_chosen": hz_chosen, "steps": goal_steps(steps_from, target),
             "model": {"eye_px": spec["eye_w"] * spec["eye_h"],
                       "render_quality": found["render_quality"] or 1.0, "pd": pd,
                       "quad": bool(options.get("VR.openxr_quadView"))}}
@@ -208,6 +212,9 @@ def rules(st: dict, o: dict, machine: dict, ratio: float):
         if st.get("hz_chosen"):
             yield ("info", 0, f"The goal is the {st['target']} Hz you picked for your headset. Keep the headset "
                               f"itself on {st['target']} Hz ({soft}).", "untouched")
+        elif not st["known"]:
+            yield ("info", 0, f"The goal assumes the headset runs at {st['target']} Hz. If you play at another "
+                              "rate, pick it under the profile name at the top.", "untouched")
         else:
             yield ("info", 0, f"The goal assumes the headset runs at {st['target']} Hz. It can also run at "
                               f"{others} Hz ({soft}). If you play at another rate, pick it under the profile "
