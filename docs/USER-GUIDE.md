@@ -214,6 +214,14 @@ measured and says the goal was not reached.
 Press **Apply these settings** to use the recommendation (DCS must be closed). Press
 **Undo last change** at any later time to go back.
 
+Each change has a tick box. Untick any you'd rather keep as they are, for example
+visibility range if you need it for spotting, and the button changes to **Apply the
+ticked settings**. Unticked settings are left exactly as they were. The test measured the
+recommendation as a whole, so a partial mix can come out a little faster or slower than
+the report says. The "Cost on this PC" column shows each change as a share of your frame
+rate and as frames per second on your average frame rate (for example "About 8% of frame
+rate, -14 FPS").
+
 A change is only recommended when it is clearly better looking and still holds the
 goal. The tool never recommends something that measured worse than what you have.
 

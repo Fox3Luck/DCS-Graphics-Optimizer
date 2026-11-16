@@ -168,6 +168,14 @@ function showReport(sc) {
   $("result").classList.remove("hidden");
   $("report-body").innerHTML = sc.report_html || "";   // built by the app itself, already escaped
   $("apply").classList.toggle("hidden", !rep.changes || !!rep.applied);
+  const boxes = [...document.querySelectorAll("#report-body input.pick")];
+  const label = () => {
+    const on = boxes.filter(b => b.checked).length;
+    $("apply").textContent = on === boxes.length ? "Apply these settings" : (on === 1 ? "Apply the ticked setting" : "Apply the " + on + " ticked settings");
+    $("apply").disabled = RUNNING || on === 0;
+  };
+  boxes.forEach(b => b.onchange = label);
+  label();
   $("open-report").classList.toggle("hidden", !rep.dir);
   $("report-where").textContent = rep.dir
     ? "This report and its screenshots are saved in Saved Games\\" + sc.profile_dir + "\\DCS Graphics Optimizer Reports\\" + rep.dir + ". You can keep or share that folder."
@@ -331,12 +339,14 @@ async function start(full) {
 $("quick").onclick = () => start(false);
 $("full").onclick = () => start(true);
 $("apply").onclick = async () => {
-  try { note((await api("/api/apply", {})).message); await refresh(); }
+  // Changes the player unticked stay as they are (#24).
+  const skip = [...document.querySelectorAll("#report-body input.pick")].filter(b => !b.checked).map(b => b.dataset.key);
+  try { note((await api("/api/apply", { skip })).message); await refresh(); }
   catch (e) {
     // VR profile, monitor test (beta feedback: VR frame rate halved after Apply): ask first.
     if (e.message.startsWith("[vr] ")) {
       if (!confirm(e.message.slice(5))) { note("Nothing was changed."); return; }
-      try { note((await api("/api/apply", { vr_ok: true })).message); await refresh(); } catch (e2) { note(e2.message, true); }
+      try { note((await api("/api/apply", { vr_ok: true, skip })).message); await refresh(); } catch (e2) { note(e2.message, true); }
       return;
     }
     note(e.message, true);

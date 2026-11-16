@@ -212,3 +212,47 @@ def test_goal_and_refresh_rate_buttons(served):
         app.job["state"] = "idle"
     page = call("/?t=" + app.token)[1]
     assert b'id="goal-pick"' in page and b'id="hz-pick"' in page
+
+
+def test_unticked_changes_are_left_alone(served):
+    """#24: the player can untick changes before Apply; those settings stay as they were."""
+    app, call, options = served
+    call("/api/scorecard")
+    original = Options.load(options)
+    changes = {"graphics.DLSS_PerfQuality": 1, "graphics.Upscaling": "DLSS", "graphics.shadows": 4, "graphics.textures": 2}
+    rows = [{"key": "upscaling", "label": "Upscaling and anti-aliasing", "from": "a", "to": "b"},
+            {"key": "graphics.shadows", "label": "Shadows", "from": "a", "to": "b"},
+            {"key": "graphics.textures", "label": "Textures", "from": "a", "to": "b"}]
+    app.engine.report_path().write_text(json.dumps({"before": {"grade": "B", "score": 70}, "after": {"grade": "A", "score": 90}, "changes": changes,
+                                                    "change_list": rows}))
+    status, raw = call("/api/apply", {"skip": ["graphics.shadows", "upscaling", "graphics.bogus"]})
+    assert status == 200 and "leaving 2 settings as you had them" in json.loads(raw)["message"]
+    after = Options.load(options)
+    assert after.get("graphics", "textures") == 2
+    for key in ("shadows", "DLSS_PerfQuality", "Upscaling"):
+        assert after.get("graphics", key) == original.get("graphics", key), key
+    sc = json.loads(call("/api/scorecard")[1])
+    assert sc["report"]["skipped"] == ["graphics.shadows", "upscaling"]
+    assert "not applied, kept as it was" in sc["report_html"] and 'class="pick"' not in sc["report_html"]
+    assert call("/api/undo", {})[0] == 200 and "skipped" not in json.loads(call("/api/scorecard")[1])["report"]
+
+
+def test_untick_everything_applies_nothing(served):
+    app, call, options = served
+    call("/api/scorecard")
+    before = sha256(options)
+    app.engine.report_path().write_text(json.dumps({"changes": {"graphics.shadows": 0},
+                                                    "change_list": [{"key": "graphics.shadows", "label": "Shadows"}]}))
+    status, raw = call("/api/apply", {"skip": ["graphics.shadows"]})
+    assert status == 400 and "nothing to apply" in json.loads(raw)["error"] and sha256(options) == before
+
+
+def test_window_offers_tick_boxes_and_fps_numbers(tmp_path):
+    eng, rep, R = _sample_report(tmp_path)
+    win, saved = R.fragment(rep, pick=True), R.page(rep)
+    assert win.count('class="pick"') == len(rep["change_list"]) and 'class="pick"' not in saved
+    shadows = next(c for c in rep["change_list"] if c["key"] == "graphics.shadows")
+    text = R.cost_text(shadows, 260)
+    assert " FPS" in text and text.split(", ")[1].startswith("-"), text
+    assert "average frame rate of 260 FPS" in win
+    assert 'class="pick"' not in R.fragment(dict(rep, applied="2026-11-16 20:00"), pick=True)

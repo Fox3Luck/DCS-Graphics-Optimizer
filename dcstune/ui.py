@@ -252,7 +252,9 @@ class Engine:
                   "graphics settings in the headset, so settings that are smooth on the monitor can be much slower in "
                   "VR (players have seen their headset frame rate halve). Apply them anyway?")
 
-    def apply(self, vr_ok: bool = False) -> str:
+    def apply(self, vr_ok: bool = False, skip=()) -> str:
+        """Write the recommendation. skip: change-list keys the player unticked (#24); they
+        stay as they are. "upscaling" stands for the DCS options behind that one choice."""
         from .bench import dcs_running
         from .optionslua import Options, atomic_write, backup
         if dcs_running():
@@ -263,6 +265,13 @@ class Engine:
             raise RuntimeError("There is no recommendation to apply yet.")
         if rep.get("applied"):
             raise RuntimeError("These settings are already applied.")
+        from .optimize import RUNG_KEYS
+        rows = {c.get("key") for c in rep.get("change_list") or []}
+        skip = sorted({str(k) for k in (skip or ()) if str(k) in rows})
+        drop = set(skip) | (set(RUNG_KEYS) if "upscaling" in skip else set())
+        changes = {k: v for k, v in changes.items() if k not in drop}
+        if not changes:
+            raise RuntimeError("Everything is unticked, so there is nothing to apply.")
         measured_on_monitor = not rep.get("vr")
         if measured_on_monitor and (rep.get("vr_skipped") or self._flat().get("VR.enable")) and not vr_ok:
             raise RuntimeError(self.VR_WARNING)
@@ -271,7 +280,12 @@ class Engine:
         opts.update(changes)
         opts.save(self.profile["options"])
         rep["applied"] = time.strftime("%Y-%m-%d %H:%M")   # keep the report; the player may want to read it again
+        rep["skipped"] = skip
         atomic_write(rp, json.dumps(rep, indent=1).encode())
+        if skip:
+            return (f"Applied, leaving {len(skip)} setting{'s' if len(skip) > 1 else ''} as you had "
+                    f"{'them' if len(skip) > 1 else 'it'}. That mix was not tested as a whole, so your frame rate can "
+                    f"differ a little from the report. Your previous settings are kept as {saved.name}.")
         return f"Applied. Your previous settings are kept as {saved.name}."
 
     def undo(self) -> str:
@@ -286,6 +300,7 @@ class Engine:
         backups[-1].unlink()
         rep = self._report()
         if rep and rep.pop("applied", None):
+            rep.pop("skipped", None)
             atomic_write(self.report_path(), json.dumps(rep, indent=1).encode())
         return "Your previous settings are back."
 
@@ -434,7 +449,8 @@ class App:
             if setup:
                 sc["setup"] = setup
             if sc.get("report") and sc["report"].get("before"):
-                sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}")
+                sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}",
+                                                pick=True)
             return sc
         if method == "GET" and path == "/api/job":
             return self.job
@@ -448,7 +464,9 @@ class App:
             self.start_optimize(bool(body.get("full")), str(body.get("mode") or "balanced"))
             return {"ok": True}
         if method == "POST" and path == "/api/apply":
-            return {"message": self.engine.apply(body.get("vr_ok") is True)}
+            skip = body.get("skip")
+            return {"message": self.engine.apply(body.get("vr_ok") is True,
+                                                 skip if isinstance(skip, list) else ())}
         if method == "POST" and path == "/api/headset":
             with self.lock:
                 if self.job["state"] == "running":

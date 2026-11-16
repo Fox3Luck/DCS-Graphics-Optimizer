@@ -43,7 +43,9 @@ def gb(mb) -> str:
     return f"{mb / 1024:.1f} GB" if mb else "not measured"
 
 
-def cost_text(row: dict) -> str:
+def cost_text(row: dict, base_fps: float | None = None) -> str:
+    """What one change costs. With the average frame rate of the player's own settings it
+    also says it in frames per second, since a percentage can be read two ways (#24)."""
     pct = row.get("cost_pct")
     if pct is None:
         return ""
@@ -51,7 +53,13 @@ def cost_text(row: dict) -> str:
     if abs(pct) < 0.5:
         return f"Almost nothing ({basis})"
     word = "of frame rate" if pct > 0 else "frame rate gained"
-    return f"About {abs(pct):.0f}% {word} ({basis})" if abs(pct) >= 10 else f"About {abs(pct):.1f}% {word} ({basis})"
+    share = f"{abs(pct):.0f}%" if abs(pct) >= 10 else f"{abs(pct):.1f}%"
+    fps = ""
+    if base_fps and pct > -100:
+        diff = round(base_fps / (1 + pct / 100) - base_fps)
+        if diff:
+            fps = f", {'+' if diff > 0 else '-'}{abs(diff)} FPS"
+    return f"About {share} {word}{fps} ({basis})"
 
 
 def _grade(card: dict | None) -> str:
@@ -77,8 +85,9 @@ def _meta(rep: dict) -> str:
     return " &middot; ".join(e(str(b)) for b in bits)
 
 
-def fragment(rep: dict, img=lambda name: name) -> str:
-    """The test result. img(name) -> URL for a screenshot file of this report."""
+def fragment(rep: dict, img=lambda name: name, pick: bool = False) -> str:
+    """The test result. img(name) -> URL for a screenshot file of this report.
+    pick: the window adds a tick box to each change so the player can leave some out (#24)."""
     before, after = rep.get("before") or {}, rep.get("after")
     br, ar = rep.get("before_result") or {}, rep.get("after_result") or {}
     has = bool(after and rep.get("changes"))
@@ -137,12 +146,26 @@ def fragment(rep: dict, img=lambda name: name) -> str:
     changes = rep.get("change_list") or []
     if has and changes:
         extra = any("cost_pct" in c or c.get("why") for c in changes)
-        h.append('<h3>What changes, and what it costs on this PC</h3><div class="scroll"><table><tr><th>Setting</th>'
+        pick = pick and not rep.get("applied") and len(changes) > 1
+        skipped = set(rep.get("skipped") or ())
+        base_fps = br.get("avg_fps")
+        h.append('<h3>What changes, and what it costs on this PC</h3>')
+        if pick:
+            h.append('<p class="meta">Untick anything you would rather keep as it is, then press Apply. '
+                     'The costs are on your average frame rate of ' + _fps(base_fps) + '.</p>')
+        elif base_fps and extra:
+            h.append(f'<p class="meta">The costs are on your average frame rate of {_fps(base_fps)}.</p>')
+        h.append('<div class="scroll"><table><tr>' + ("<th>Apply</th>" if pick else "") + '<th>Setting</th>'
                  "<th>Now</th><th>Recommended</th>" + ("<th>What you get</th><th>Cost on this PC</th>" if extra else "") + "</tr>")
         for c in changes:
-            h.append(f'<tr><td>{e(str(c["label"]))}</td><td>{e(str(c["from"]))}</td>'
+            box = (f'<td><input type="checkbox" class="pick" data-key="{e(str(c.get("key") or ""))}" '
+                   f'aria-label="Apply {e(str(c["label"]))}" checked></td>') if pick else ""
+            kept = c.get("key") in skipped
+            row_cls = ' class="dim"' if kept else ""
+            h.append(f'<tr{row_cls}>{box}<td>{e(str(c["label"]))}'
+                     + (" (not applied, kept as it was)" if kept else "") + f'</td><td>{e(str(c["from"]))}</td>'
                      f'<td class="{e(c.get("direction") or "")}">{e(str(c["to"]))}</td>'
-                     + (f'<td>{e(c.get("why") or "")}</td><td class="dim">{e(cost_text(c))}</td>' if extra else "") + "</tr>")
+                     + (f'<td>{e(c.get("why") or "")}</td><td class="dim">{e(cost_text(c, base_fps))}</td>' if extra else "") + "</tr>")
         h.append("</table></div>")
 
     left = [f for f in (after if has else before).get("findings", []) if f.get("severity") != "good"]
