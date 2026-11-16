@@ -44,8 +44,10 @@ def gb(mb) -> str:
 
 
 def cost_text(row: dict, base_fps: float | None = None) -> str:
-    """What one change costs. With the average frame rate of the player's own settings it
-    also says it in frames per second, since a percentage can be read two ways (#24)."""
+    """What one change costs. With the average frame rate of the player's own settings, a
+    measured cost is also said in frames per second, since a percentage can be read two ways
+    (#24). Estimates stay a percentage: turned into FPS, a rough estimate of a big saving
+    becomes a wildly wrong number (a real run: estimate +261 FPS, measured +65)."""
     pct = row.get("cost_pct")
     if pct is None:
         return ""
@@ -55,7 +57,7 @@ def cost_text(row: dict, base_fps: float | None = None) -> str:
     word = "of frame rate" if pct > 0 else "frame rate gained"
     share = f"{abs(pct):.0f}%" if abs(pct) >= 10 else f"{abs(pct):.1f}%"
     fps = ""
-    if base_fps and pct > -100:
+    if base_fps and basis == "measured" and pct > -100:
         diff = round(base_fps / (1 + pct / 100) - base_fps)
         if diff:
             fps = f", {'+' if diff > 0 else '-'}{abs(diff)} FPS"
@@ -155,17 +157,21 @@ def fragment(rep: dict, img=lambda name: name, pick: bool = False) -> str:
                      'The costs are on your average frame rate of ' + _fps(base_fps) + '.</p>')
         elif base_fps and extra:
             h.append(f'<p class="meta">The costs are on your average frame rate of {_fps(base_fps)}.</p>')
+        only = len(changes) == 1 and base_fps and ar.get("avg_fps")
         h.append('<div class="scroll"><table><tr>' + ("<th>Apply</th>" if pick else "") + '<th>Setting</th>'
                  "<th>Now</th><th>Recommended</th>" + ("<th>What you get</th><th>Cost on this PC</th>" if extra else "") + "</tr>")
         for c in changes:
             box = (f'<td><input type="checkbox" class="pick" data-key="{e(str(c.get("key") or ""))}" '
                    f'aria-label="Apply {e(str(c["label"]))}" checked></td>') if pick else ""
+            # A single change was measured on its own: say what DCS really did.
+            cost = (f'Measured: {base_fps:.0f} to {ar["avg_fps"]:.0f} FPS average' if only
+                    else cost_text(c, base_fps))
             kept = c.get("key") in skipped
             row_cls = ' class="dim"' if kept else ""
             h.append(f'<tr{row_cls}>{box}<td>{e(str(c["label"]))}'
                      + (" (not applied, kept as it was)" if kept else "") + f'</td><td>{e(str(c["from"]))}</td>'
                      f'<td class="{e(c.get("direction") or "")}">{e(str(c["to"]))}</td>'
-                     + (f'<td>{e(c.get("why") or "")}</td><td class="dim">{e(cost_text(c, base_fps))}</td>' if extra else "") + "</tr>")
+                     + (f'<td>{e(c.get("why") or "")}</td><td class="dim">{e(cost)}</td>' if extra else "") + "</tr>")
         h.append("</table></div>")
 
     left = [f for f in (after if has else before).get("findings", []) if f.get("severity") != "good"]

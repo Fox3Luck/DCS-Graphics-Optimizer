@@ -219,8 +219,9 @@ visibility range if you need it for spotting, and the button changes to **Apply 
 ticked settings**. Unticked settings are left exactly as they were. The test measured the
 recommendation as a whole, so a partial mix can come out a little faster or slower than
 the report says. The "Cost on this PC" column shows each change as a share of your frame
-rate and as frames per second on your average frame rate (for example "About 8% of frame
-rate, -14 FPS").
+rate. Where the cost was measured, it also gives frames per second on your average frame
+rate (for example "About 8% of frame rate, -14 FPS (measured)"). When there's only one
+change, it shows what DCS really measured before and after.
 
 A change is only recommended when it is clearly better looking and still holds the
 goal. The tool never recommends something that measured worse than what you have.

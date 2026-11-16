@@ -254,5 +254,9 @@ def test_window_offers_tick_boxes_and_fps_numbers(tmp_path):
     shadows = next(c for c in rep["change_list"] if c["key"] == "graphics.shadows")
     text = R.cost_text(shadows, 260)
     assert " FPS" in text and text.split(", ")[1].startswith("-"), text
+    guess = next(c for c in rep["change_list"] if c.get("cost_basis") == "estimate")
+    assert "FPS" not in R.cost_text(guess, 260)          # estimates are not turned into FPS
+    one = dict(rep, change_list=[guess], before_result={"avg_fps": 96}, after_result={"avg_fps": 161})
+    assert "Measured: 96 to 161 FPS average" in R.fragment(one)
     assert "average frame rate of 260 FPS" in win
     assert 'class="pick"' not in R.fragment(dict(rep, applied="2026-11-16 20:00"), pick=True)
