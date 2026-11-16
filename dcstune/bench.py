@@ -92,6 +92,13 @@ def _taskkill_dcs() -> None:
         pass
 
 
+NEEDS_ADMIN = ("Windows only starts your DCS as administrator, and the optimizer was started normally, so it "
+               "could not start DCS. Either close the optimizer, right-click it and choose \"Run as administrator\", "
+               "or switch that off for DCS: right-click DCS.exe (in the bin-mt folder of your DCS install), "
+               "Properties, Compatibility, untick \"Run this program as an administrator\". Then test again. "
+               "Nothing was changed.")
+
+
 def is_steam_exe(exe) -> bool:
     """True for a DCS.exe inside a Steam library (...\\steamapps\\common\\DCSWorld\\bin-mt\\DCS.exe)."""
     return "steamapps" in (part.lower() for part in PureWindowsPath(str(exe)).parts)
@@ -540,7 +547,15 @@ class Bench:
                     # never start a second DCS next to one that is already coming up (#27)
                     quick = not self._follow_handoff(launched + timeout, wait=0)
                 else:
-                    proc = subprocess.Popen(args, cwd=str(self.exe.parent), **popen_extra)
+                    try:
+                        proc = subprocess.Popen(args, cwd=str(self.exe.parent), **popen_extra)
+                    except OSError as e:
+                        self.directive.unlink(missing_ok=True)
+                        if getattr(e, "winerror", None) == 740:
+                            # Windows error 740, "requires elevation" (beta issue #44): DCS.exe is set
+                            # to always run as administrator, and this program was started normally.
+                            raise BenchError(NEEDS_ADMIN) from e
+                        raise
                     if not self._wait_for(proc, launched + timeout):
                         self.directive.unlink(missing_ok=True)
                         self._keep_failure_log()

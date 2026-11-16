@@ -456,3 +456,27 @@ def test_hardware_script_is_not_run_as_a_script_file(monkeypatch):
     assert "-File" not in seen["cmd"] and "-Command" in seen["cmd"]
     assert not any(str(a).lower().endswith(".ps1") for a in seen["cmd"])      # the path is not on the command line
     assert seen["script"] == sysinfo._PS
+
+
+def test_dcs_set_to_run_as_administrator_gives_a_clear_message(tmp_path, monkeypatch):
+    # Issue #44: "[WinError 740] The requested operation requires elevation" told the player nothing.
+    from test_core import _bench
+    bench, b = _bench(tmp_path, monkeypatch)
+
+    def refuse(args, cwd, **kw):
+        e = OSError("The requested operation requires elevation")
+        e.winerror = 740
+        raise e
+    monkeypatch.setattr(bench.subprocess, "Popen", refuse)
+    monkeypatch.setattr(bench.time, "sleep", lambda s: None)
+    with b:
+        with pytest.raises(bench.BenchError, match="Run as administrator"):
+            b._launch(None, {"tag": "x"}, True, 100)
+        assert not b.directive.exists()                 # nothing is left for a later DCS start to pick up
+
+    def other(args, cwd, **kw):
+        raise FileNotFoundError("DCS.exe")
+    monkeypatch.setattr(bench.subprocess, "Popen", other)
+    with b:
+        with pytest.raises(FileNotFoundError):          # any other start failure is not disguised
+            b._launch(None, {"tag": "y"}, True, 100)
