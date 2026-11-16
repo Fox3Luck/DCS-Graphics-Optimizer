@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Tests for the window's local page and its buttons.
 import json
 import shutil
 import threading

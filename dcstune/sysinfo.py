@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Finds the hardware, the DCS install and the settings folders (read-only).
 """Hardware and DCS discovery (Windows). Read-only."""
 from __future__ import annotations
 

@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Runs one benchmark: starts DCS, measures the scenes, puts the player's files back.
 """Run one benchmark: write trial settings, launch DCS, let the hook drive the scenes,
 collect frame times and GPU memory, and always put the player's files back."""
 from __future__ import annotations

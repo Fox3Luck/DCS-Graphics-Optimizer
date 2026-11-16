@@ -1,3 +1,5 @@
+-- DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+-- Created 2026-11-10. DCS hook that flies the test scenes and records frame times; only active during a test.
 -- dcstune_bench.lua -- DCS Graphics Optimizer benchmark driver (Saved Games\<profile>\Scripts\Hooks)
 --
 -- Inert unless Config\dcstune_directive.json exists AND carries this copy's key. The

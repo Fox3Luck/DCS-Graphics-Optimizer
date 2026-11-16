@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-14. Tests for finding DCS and its settings in unusual places.
 """Finding DCS and its settings when they are not where the tool first looks
 (beta feedback: DCS or Saved Games on another drive, Steam installs)."""
 from pathlib import Path

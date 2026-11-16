@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-11. Writes the audit file saved with every test report (no names or folder paths).
 """The audit file: one small JSON written into every saved report folder, so a tester can send
 back what the tool saw and measured. It holds hardware, DCS and VR set-up, the graphics and VR
 settings, and the test results. It holds no names, no folder paths, no account details, and the

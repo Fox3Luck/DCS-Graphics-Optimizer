@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Command line: rate, bench, optimize, apply, undo.
 """DCS Graphics Optimizer command line.
 
   python -m dcstune rate                 scorecard, no DCS launch

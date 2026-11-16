@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Signing script: signs the built program, only if its hash matches the one given.
 # Signs dist\DCSGraphicsOptimizer.exe with Azure Artifact Signing (formerly Trusted Signing).
 # Run it as:  build\sign.ps1 -Sha256 <hash printed by build\build.ps1>
 # It signs only dist\DCSGraphicsOptimizer.exe and only if the file still has that hash, so a file

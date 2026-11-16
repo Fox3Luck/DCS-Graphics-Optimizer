@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Reads and writes DCS options.lua without disturbing the rest of the file; backups and undo.
 """Byte-preserving reader/writer for DCS ``options.lua``.
 
 DCS writes the file as ``options = { ["section"] = { ["key"] = value, ... }, ... }``

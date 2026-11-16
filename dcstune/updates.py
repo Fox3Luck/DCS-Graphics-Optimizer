@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-14. Checks GitHub for a newer version and tells the player.
 """Tells the player when a newer version is out (beta feedback: players kept testing old copies
 long after the problem they reported was fixed, and the app never told them).
 

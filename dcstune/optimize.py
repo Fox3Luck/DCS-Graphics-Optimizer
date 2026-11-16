@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Searches for the best-looking settings that hold the frame-rate goal.
 """Pick the best-looking settings that hold the frame-rate target.
 
 ``choose`` is a pure search over the model. ``run`` drives real benchmark runs through

@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-14. Tests for the failure-log extract.
 """The failure-log extract shown when a test fails (made-up log; no player data in the repo)."""
 import json
 import time

@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Scorecard: rates the PC for DCS and how well the settings fit it.
 """Scorecard: how capable is this PC for DCS, and how well do the settings fit it."""
 from __future__ import annotations
 

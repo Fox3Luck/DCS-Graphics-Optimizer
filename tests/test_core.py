@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Tests for the settings file, the model, the optimizer and the scorecard.
 import json
 import shutil
 import time

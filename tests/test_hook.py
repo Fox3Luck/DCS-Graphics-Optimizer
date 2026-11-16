@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Tests that run the real DCS hook in a Lua machine with DCS mocked.
 """Run the real hook file inside a Lua VM with DCS's functions mocked, to prove the
 state machine: consume directive -> host -> wait for world -> settle -> scenes ->
 result JSON -> exit. (Real-game behavior is verified separately on the test box.)"""

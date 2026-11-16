@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Turns a test report into the page shown in the window and saved for the player.
 """Turns a test report (the dict Engine.optimize saves) into HTML: a fragment shown in
 the window and a self-contained page saved beside the screenshots for the player to
 keep or share. One renderer, so the window and the saved report always agree."""

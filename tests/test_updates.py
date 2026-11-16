@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-14. Tests for the newer-version notice.
 """The "newer version available" notice (players kept testing old copies)."""
 import json
 

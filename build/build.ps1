@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Build script: makes the single-file Windows program from pinned packages.
 # Builds dist\DCSGraphicsOptimizer.exe (single file, no install needed). Run on Windows from the repo root:
 #   powershell -ExecutionPolicy Bypass -File build\build.ps1
 # Every package that ends up in the exe is pinned to an exact version and file hash in

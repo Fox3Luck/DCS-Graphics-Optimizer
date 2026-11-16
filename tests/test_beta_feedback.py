@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-14. Tests for problems players reported during the beta.
 """Fixes for problems players reported on beta 11 (GitHub issues #6, #7, #8, #1)."""
 import subprocess
 from pathlib import Path

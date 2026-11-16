@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-16. Keeps the player's own choices (such as the headset picked) in the DCS profile.
 """The player's answers kept in a DCS profile (for now: which headset they picked).
 Stored as Config\\dcstune-prefs.json in that profile; never sent anywhere."""
 from __future__ import annotations

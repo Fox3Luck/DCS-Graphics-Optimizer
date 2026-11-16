@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-11. Shared test setup: no update check and no browser during tests.
 import pytest
 
 

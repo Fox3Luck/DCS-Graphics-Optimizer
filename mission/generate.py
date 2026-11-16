@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Builds the test mission (free content only, same every run).
 """Build mission/dcstune_bench.miz with pydcs. Free content only (Caucasus, Su-25T,
 AI-flown), no weapons, no enemies, fixed weather and time, so every run is the same.
 

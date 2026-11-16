@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-11. VR: headset detection, frame-rate goals and VR-specific advice.
 """VR: what headset is in use, what the frame-rate goal is, and what VR-specific advice
 applies. Everything here works without the headset being connected.
 

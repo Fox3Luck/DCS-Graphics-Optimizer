@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. Settings table and frame-time model shared by the rater and the optimizer.
 """Settings table + frame-time model shared by the rater and the optimizer.
 
 A *config* is a dict of dotted option keys -> values, e.g. {"graphics.shadows": 3}.

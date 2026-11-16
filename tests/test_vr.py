@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-11. Tests for VR headset detection, goals and advice.
 import json
 from pathlib import Path
 

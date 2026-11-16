@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-10. The program's window and the engine behind its buttons (local page, this PC only).
 """DCS Graphics Optimizer window. A tiny local web page (127.0.0.1 only, random port, secret token)
 shown in a native window via pywebview when installed, otherwise the default browser.
 

@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-14. Makes the short, anonymized DCS log extract shown when a test fails.
 """A short, anonymized extract of DCS's log for a failed test (beta feedback: logs were the only
 way to see why "benchmark aircraft never appeared", and asking each player for a file is slow).
 

@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-16. Opens the project's GitHub issues or Discord channel in the player's browser.
 """Where players report problems and talk about the tool. The tool itself sends nothing: these
 are pages the player opens in their own browser."""
 from __future__ import annotations

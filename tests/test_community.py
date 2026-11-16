@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-16. Tests that the tool sends nothing and only opens the two community pages.
 """The tool sends nothing about the player; it only opens the project's GitHub issues or Discord
 channel in the player's browser when they press a button."""
 import re

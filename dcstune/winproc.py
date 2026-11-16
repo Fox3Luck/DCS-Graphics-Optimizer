@@ -1,3 +1,5 @@
+# DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
+# Created 2026-11-14. Handles a web-browser setting that would stop DCS from starting.
 """The "prefer System32 DLLs" policy a web browser can pass on (beta issue #1).
 
 Firefox-based browsers switch on the PreferSystem32 image-load mitigation for themselves, and
