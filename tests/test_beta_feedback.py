@@ -434,3 +434,23 @@ def test_standalone_edition_keeps_its_environment(tmp_path, monkeypatch):
     with b:
         b._launch(None, {"tag": "x"}, True, 100)
     assert seen == [{}]
+
+
+def test_hardware_script_is_not_run_as_a_script_file(monkeypatch):
+    # A PC that only allows signed PowerShell scripts refused the hardware reading (a player had to
+    # switch script signing off). Script files are covered by that policy; commands are not.
+    seen = {}
+
+    class P:
+        stdout, stderr = b'{"cpu":"x","gpus":[],"installs":[],"profiles":[]}', b""
+
+    def run(cmd, **k):
+        seen["cmd"], seen["env"] = cmd, k.get("env") or {}
+        seen["script"] = open(seen["env"]["DCSTUNE_SYSINFO_PS"], encoding="utf-8").read()
+        return P()
+    monkeypatch.setattr(sysinfo.subprocess, "run", run)
+    monkeypatch.setattr(sysinfo, "primary_display", lambda: None)
+    sysinfo.collect()
+    assert "-File" not in seen["cmd"] and "-Command" in seen["cmd"]
+    assert not any(str(a).lower().endswith(".ps1") for a in seen["cmd"])      # the path is not on the command line
+    assert seen["script"] == sysinfo._PS

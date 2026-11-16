@@ -145,14 +145,22 @@ def primary_display() -> dict | None:
         return None
 
 
+_PS_RUN = "& ([scriptblock]::Create([IO.File]::ReadAllText($env:DCSTUNE_SYSINFO_PS, [Text.Encoding]::UTF8)))"
+
+
 def collect() -> dict:
     # A script file, not stdin: "powershell -Command -" silently drops multi-line blocks.
     with tempfile.TemporaryDirectory() as tmp:
         script = Path(tmp) / "dcstune-sysinfo.ps1"
         script.write_text(_PS, encoding="utf-8")
+        # Read as text and run as a command, not "-File": a PC whose PowerShell policy only allows
+        # signed scripts refuses any script file, and a policy set by an administrator wins over
+        # "-ExecutionPolicy Bypass". Commands are not covered by that policy. The path goes through
+        # the environment so a quote in the user name cannot break the command.
         proc = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
-            capture_output=True, timeout=90, creationflags=NO_WINDOW)
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", _PS_RUN],
+            capture_output=True, timeout=90, creationflags=NO_WINDOW,
+            env=dict(os.environ, DCSTUNE_SYSINFO_PS=str(script)))
     # UTF-8 both ways: folder names with accents (C:\Users\José) must survive, and a byte the
     # default code page cannot decode must never break the start (beta issue #8).
     out = proc.stdout.decode("utf-8", errors="replace").lstrip("\ufeff")
