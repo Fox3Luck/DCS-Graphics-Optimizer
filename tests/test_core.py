@@ -705,3 +705,21 @@ def test_busy_dcs_gets_more_time_but_not_forever(tmp_path):
     assert not bench.Bench._still_working(me, deadline=now - bench.BUSY_EXTRA_SEC - 10)
     os.utime(log, (now - 600, now - 600))
     assert not bench.Bench._still_working(me, deadline=now - 10)
+
+
+def test_gpu_counters_work_on_non_english_windows(monkeypatch):
+    from dcstune import bench
+    """#21: Get-Counter needs translated counter names on non-English Windows, so the sampler
+    falls back to the WMI classes, whose names never change, and reads numbers in invariant culture."""
+    cap = {}
+
+    def fake(args, **kw):
+        cap["cmd"] = args[-1]
+        return type("R", (), {"stdout": "8123;97.5\n"})()
+    monkeypatch.setattr(bench.subprocess, "run", fake)
+    g = bench.GpuSampler()
+    g._nvidia = None
+    assert g._sample() == (8123.0, 97.5)
+    for want in ("Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory", "DedicatedUsage",
+                 "Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine", "InvariantCulture"):
+        assert want in cap["cmd"], want

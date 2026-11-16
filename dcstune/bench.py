@@ -156,13 +156,22 @@ class GpuSampler:
                 best = max(rows, key=lambda r: float(r[0]))
                 return float(best[0]), float(best[1])
         # Any vendor: Windows' own counters. Memory = the busiest adapter; load = the busiest
-        # single process's 3D engine use (what Task Manager shows as GPU %).
+        # single process's 3D engine use (what Task Manager shows as GPU %). Get-Counter only
+        # knows the English counter names, which Windows translates in other languages (#21),
+        # so when it finds nothing the same counters are read through their WMI classes,
+        # whose names are never translated.
         out = subprocess.run(["powershell", "-NoProfile", "-Command",
                               "$c = (Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage','\\GPU Engine(*engtype_3D)\\Utilization Percentage' "
                               "-ErrorAction SilentlyContinue).CounterSamples; "
                               "$m = ($c | ? Path -like '*dedicated usage' | Measure-Object CookedValue -Maximum).Maximum / 1MB; "
                               "$u = ($c | ? Path -like '*utilization percentage' | Group-Object { ($_.InstanceName -split '_')[1] } | "
                               "% { ($_.Group | Measure-Object CookedValue -Sum).Sum } | Measure-Object -Maximum).Maximum; "
+                              "if (-not $m) { "
+                              "$m = (Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory -ErrorAction SilentlyContinue | "
+                              "Measure-Object DedicatedUsage -Maximum).Maximum / 1MB; "
+                              "$u = (Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | "
+                              "? Name -like '*engtype_3D' | Group-Object { ($_.Name -split '_')[1] } | "
+                              "% { ($_.Group | Measure-Object UtilizationPercentage -Sum).Sum } | Measure-Object -Maximum).Maximum }; "
                               "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F0};{1:F1}', $m, $u)"],
                              capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=20).stdout.strip()
         # Invariant culture and ";": a German or French Windows writes decimals with a comma.
