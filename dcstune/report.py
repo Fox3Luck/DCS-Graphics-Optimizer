@@ -94,7 +94,8 @@ def fragment(rep: dict, img=lambda name: name) -> str:
         h.append(f'<p class="meta">{_meta(rep)}</p>')
     if rep.get("target_fps"):
         h.append(f'<p class="meta">Goal: hold {rep["target_fps"]} FPS in the worst moments'
-                 + (f' ({e(rep["mode_label"])})' if rep.get("mode_label") else '') + '.</p>')
+                 + (f' ({e(rep["mode_label"])})' if rep.get("mode_label") else '')
+                 + (f', from your own goal of {int(rep["goal_chosen"])} FPS' if rep.get("goal_chosen") else '') + '.</p>')
     if rep.get("applied"):
         h.append(f'<p class="note">These settings were applied on {e(str(rep["applied"]))}. '
                  'Use Undo in the app to go back.</p>')

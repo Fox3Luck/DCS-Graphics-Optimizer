@@ -28,23 +28,46 @@ class Engine:
         from .optionslua import recover
         self.info = sysinfo.collect()
         self.profile = sysinfo.pick_profile(self.info, profile_name)
-        self._use_headset_pick()
+        self._use_prefs()
         self.recovered = recover(self.profile["options"], keep_player_edits=True)
         if not bench.dcs_running():
             bench.remove_leftovers(self.profile["path"])     # a hook left by an interrupted test
 
-    def _use_headset_pick(self):
-        """The headset the player picked earlier (used when the tool cannot tell by itself)."""
+    def _use_prefs(self):
+        """What the player picked earlier in this profile: the headset (used when the tool cannot
+        tell by itself), the refresh rate they run it at, and their own frame-rate goal."""
         from . import prefs
-        self.info["vr"] = dict(self.info.get("vr") or {}, chosen=prefs.get_pref(self.profile, "headset"))
+        self.info["vr"] = dict(self.info.get("vr") or {}, chosen=prefs.get_pref(self.profile, "headset"),
+                               hz=prefs.get_pref(self.profile, "headset_hz"))
+        self.info["fps_goal"] = prefs.get_pref(self.profile, "fps_goal")
 
     def set_headset(self, name) -> str:
         from . import prefs, vr as V
         name = name if name in V.headset_names() else None
         prefs.set_pref(self.profile, "headset", name)
-        self._use_headset_pick()
+        self._use_prefs()
         return (f"Headset set to {name}. The scorecard is now rated for it." if name
                 else "Headset cleared. The scorecard assumes a typical headset.")
+
+    def set_headset_hz(self, hz) -> str:
+        """The refresh rate the player runs the headset at; None goes back to the usual one."""
+        from . import prefs, vr as V
+        st = V.state(self.info, self._flat())
+        rates = st["refresh"] if st else []
+        hz = hz if isinstance(hz, int) and not isinstance(hz, bool) and hz in rates else None
+        prefs.set_pref(self.profile, "headset_hz", hz)
+        self._use_prefs()
+        return (f"Headset refresh rate set to {hz} Hz. The scorecard and the test now aim for {hz} FPS." if hz
+                else "Headset refresh rate set back to automatic.")
+
+    def set_goal(self, fps) -> str:
+        """The player's own frame-rate goal for monitor tests; None goes back to automatic."""
+        from . import prefs, rate
+        fps = fps if isinstance(fps, int) and not isinstance(fps, bool) and fps in rate.GOAL_CHOICES else None
+        prefs.set_pref(self.profile, "fps_goal", fps)
+        self._use_prefs()
+        return (f"Frame-rate goal set to {fps} FPS. The scorecard and the test now aim for it." if fps
+                else "Frame-rate goal set back to automatic (your monitor's refresh rate).")
 
     def _flat(self):
         from . import rate
@@ -134,7 +157,10 @@ class Engine:
         return {"profile": self.profile["name"], "profile_dir": Path(self.profile["path"]).name,
                 "vr_tested": bool(st) and V.bench_enabled(), "vr_test_build": V.test_build(),
                 "headset": st and {"name": st["headset"], "detected": st["detected"],
-                                   "choices": V.headset_names()},
+                                   "choices": V.headset_names(), "refresh": st["refresh"],
+                                   "hz": st["target"], "hz_chosen": st["hz_chosen"]},
+                "goal": {"chosen": rate.chosen_goal(self.info), "choices": list(rate.GOAL_CHOICES),
+                         "auto": rate.target_fps((self.info.get("gpu") or {}).get("refresh"))},
                 "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
                 "profile_path": self.profile["path"],
                 "profiles": [{"name": p.get("name"), "path": p.get("path")} for p in self.info["profiles"]],
@@ -163,7 +189,10 @@ class Engine:
         mdl = M.Model(machine["gpu_score"], machine["cpu_score"],
                       flat.get("graphics.width") or gpu["width"], flat.get("graphics.height") or gpu["height"], vendor,
                       vr=st and st["model"])
-        goal = st["target"] if st else rate.target_fps(gpu.get("refresh"))
+        goal = st["target"] if st else rate.display_goal(self.info)
+        own_goal = (st["target"] if st["hz_chosen"] else None) if st else rate.chosen_goal(self.info)
+        if own_goal:
+            log(f"Your own goal: {own_goal} FPS" + (" (the refresh rate you picked for your headset)." if st else "."))
         extra = V.fixed_changes(st, flat) if st else None
         if extra and "VR.pixel_density" in extra:      # candidates are judged at the density they will use
             mdl.vr = dict(mdl.vr, pd=extra["VR.pixel_density"])
@@ -193,7 +222,7 @@ class Engine:
                   "hardware": rate.hardware_summary(self.info, flat),
                   "vr": bool(st), "vr_skipped": vr_skipped,
                   "costs": optimize.measured_costs(mdl, base_ms),
-                  "target_fps": target, "target_reached": out["target_reached"],
+                  "target_fps": target, "goal_chosen": own_goal, "target_reached": out["target_reached"],
                   "keep_current": out["keep_current"], "runs": launches,
                   "disturbed": out["disturbed"],
                   "before": rate.rate_settings(self.info, flat, machine, out["before"], target),
@@ -425,6 +454,13 @@ class App:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; pick the headset after it finishes.")
             return {"message": self.engine.set_headset(body.get("name"))}
+        if method == "POST" and path in ("/api/headset-hz", "/api/goal"):
+            with self.lock:
+                if self.job["state"] == "running":
+                    raise RuntimeError("A test is running; change the goal after it finishes.")
+            if path == "/api/goal":
+                return {"message": self.engine.set_goal(body.get("fps"))}
+            return {"message": self.engine.set_headset_hz(body.get("hz"))}
         if method == "POST" and path == "/api/undo":
             return {"message": self.engine.undo()}
         if method == "GET" and path == "/api/version":

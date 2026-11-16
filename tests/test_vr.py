@@ -367,3 +367,75 @@ def test_vr_goal_never_trades_frame_rate_for_picture(monkeypatch):
     # on a monitor nothing changes
     reach[60] = (0.9, True)
     assert optimize.pick_target(Mdl(), 90, 16376, 0.8) == 60
+
+
+QUEST3 = dict(INFO, vr={"runtime": r"C:\Program Files\Virtual Desktop Streamer\OpenXR\virtualdesktop-openxr.json",
+                        "layers": [], "chosen": "Meta Quest 3"})
+
+
+def test_headset_refresh_rate_the_player_picked_becomes_the_goal():
+    # Issue #40: a Quest 3 flown at 72 Hz was tested against 90.
+    st = V.state(QUEST3, _vr())
+    assert st["target"] == 90 and not st["hz_chosen"] and st["steps"] == [90, 80, 72, 36]
+    st = V.state(dict(QUEST3, vr=dict(QUEST3["vr"], hz=72)), _vr())
+    assert st["target"] == 72 and st["hz_chosen"] and st["steps"] == [72, 36]
+    st = V.state(dict(QUEST3, vr=dict(QUEST3["vr"], hz=120)), _vr())
+    assert st["target"] == 120 and st["steps"] == [120, 90, 80, 72, 36]
+    for bad in (75, "72", True, None, 0):          # only a rate this headset really has counts
+        st = V.state(dict(QUEST3, vr=dict(QUEST3["vr"], hz=bad)), _vr())
+        assert st["target"] == 90 and not st["hz_chosen"]
+    machine = rate.rate_machine(QUEST3)
+    said = lambda info: " ".join(f["text"] for f in rate.rate_settings(info, _vr(), machine)["findings"])
+    assert "pick it under the profile name" in said(QUEST3)
+    assert "the 72 Hz you picked" in said(dict(QUEST3, vr=dict(QUEST3["vr"], hz=72)))
+
+
+def test_window_keeps_the_picked_refresh_rate_and_tests_for_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("DCSTUNE_VR_BENCH", "1")
+    eng = _engine(tmp_path, monkeypatch)
+    eng.info = dict(QUEST3, profiles=[{"name": "DCS"}])
+    eng.set_headset("Meta Quest 3")
+    h = eng.scorecard()["headset"]
+    assert h["refresh"] == [72, 80, 90, 120] and h["hz"] == 90 and not h["hz_chosen"]
+    assert "72 Hz" in eng.set_headset_hz(72)
+    h = eng.scorecard()["headset"]
+    assert h["hz"] == 72 and h["hz_chosen"]
+    assert json.loads((tmp_path / "Config" / "dcstune-prefs.json").read_text())["headset_hz"] == 72
+    log = []
+    rep = eng.optimize(False, log.append)
+    assert rep["vr"] and rep["target_fps"] in (72, 36) and rep["goal_chosen"] == 72
+    assert any("Your own goal: 72 FPS" in line for line in log)
+    assert "automatic" in eng.set_headset_hz(75)                 # not a Quest 3 rate: back to the usual one
+    assert eng.scorecard()["headset"]["hz"] == 90
+
+
+def test_own_frame_rate_goal_for_monitor_tests(tmp_path, monkeypatch):
+    # Issue #45: "my monitors are 60 Hz but I'm perfectly fine running DCS at 30 fps".
+    from dcstune import report as R
+    assert rate.chosen_goal({"fps_goal": 30}) == 30 and rate.display_goal(dict(INFO, fps_goal=45)) == 45
+    for bad in (31, "30", True, None, 0, 500):
+        assert rate.chosen_goal({"fps_goal": bad}) is None
+    assert rate.display_goal(INFO) == rate.target_fps(INFO["gpu"].get("refresh"))
+    monkeypatch.delenv("DCSTUNE_VR_BENCH", raising=False)
+    eng = _engine(tmp_path, monkeypatch)
+    o = Options.load(eng.profile["options"])
+    o.update({"VR.enable": False})
+    o.save(eng.profile["options"])
+    eng.info = dict(INFO, profiles=[{"name": "DCS"}])
+    sc = eng.scorecard()
+    assert sc["goal"]["chosen"] is None and 30 in sc["goal"]["choices"] and sc["headset"] is None
+    auto = eng.optimize(False, lambda m: None)
+    assert auto["goal_chosen"] is None and auto["target_fps"] >= 60 and "your own goal" not in R.fragment(auto)
+    assert "30 FPS" in eng.set_goal(30)
+    assert eng.scorecard()["goal"]["chosen"] == 30
+    assert eng.scorecard()["settings"]["target_fps"] == 30       # the scorecard is graded against it too
+    log = []
+    rep = eng.optimize(False, log.append)
+    assert rep["target_fps"] == 30 and rep["goal_chosen"] == 30 and rep["target_reached"]
+    assert any("Your own goal: 30 FPS." in line for line in log)
+    assert "from your own goal of 30 FPS" in R.fragment(rep)
+    # a lower goal leaves room for a better-looking picture than the automatic one found
+    quality = lambda r: r["after"]["quality_share"] if "after" in r else r["before"]["quality_share"]
+    assert quality(rep) >= quality(auto)
+    assert "automatic" in eng.set_goal(33)                       # not one of the choices: back to automatic
+    assert eng.scorecard()["goal"]["chosen"] is None

@@ -79,6 +79,22 @@ def target_fps(refresh: int | None) -> int:
     return max(60, min(int(refresh or 60), 120))
 
 
+# Goals a player can pick instead of the automatic one (beta issue #45: "my monitor is 60 Hz but
+# I am fine at 30"; others want headroom above the screen's rate for busy maps and multiplayer).
+GOAL_CHOICES = (30, 40, 45, 50, 60, 75, 90, 100, 120)
+
+
+def chosen_goal(info: dict) -> int | None:
+    """The frame-rate goal the player picked for monitor tests, or None for automatic."""
+    goal = info.get("fps_goal")
+    return goal if isinstance(goal, int) and not isinstance(goal, bool) and goal in GOAL_CHOICES else None
+
+
+def display_goal(info: dict) -> int:
+    """What a monitor test aims for at most: the player's own goal, else the screen's refresh rate."""
+    return chosen_goal(info) or target_fps((info.get("gpu") or {}).get("refresh"))
+
+
 def hardware_summary(info: dict, options: dict | None = None) -> list[dict]:
     """The PC at a glance, as label/value rows for the scorecard. With the player's
     options, the VR headset is listed when VR is switched on."""
@@ -171,8 +187,8 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
         # always the screen's full refresh rate. Grading every 144 Hz screen against 120 FPS called
         # good, smooth settings poor, most of all on wide multi-screen pictures (#7, #12).
         from .optimize import pick_target
-        target = pick_target(mdl, target_fps(gpu.get("refresh")), vram_total, low_ratio)
-    target = target or (st["target"] if st else target_fps(gpu.get("refresh")))
+        target = pick_target(mdl, display_goal(info), vram_total, low_ratio)
+    target = target or (st["target"] if st else display_goal(info))
 
     if not measured and calibration:
         # These exact settings were benchmarked in an earlier test: show that, not a guess.

@@ -189,3 +189,26 @@ def test_report_folder_apply_keeps_report_and_files_are_guarded(served):
     assert "already applied" in json.loads(call("/api/apply", {})[1])["error"]
     assert call("/api/undo", {})[0] == 200
     assert "applied" not in json.loads(call("/api/scorecard")[1])["report"]
+
+
+def test_goal_and_refresh_rate_buttons(served):
+    # Issues #45 and #40: the player's own frame-rate goal and headset refresh rate, set from the window.
+    app, call, _ = served
+    sc = json.loads(call("/api/scorecard")[1])
+    assert sc["goal"] == {"chosen": None, "choices": [30, 40, 45, 50, 60, 75, 90, 100, 120], "auto": sc["goal"]["auto"]}
+    status, body = call("/api/goal", {"fps": 45})
+    assert status == 200 and "45 FPS" in json.loads(body)["message"]
+    sc = json.loads(call("/api/scorecard")[1])
+    assert sc["goal"]["chosen"] == 45 and sc["settings"]["target_fps"] == 45
+    for junk in ("45", 46, None, {"x": 1}):                       # anything else means automatic
+        assert "automatic" in json.loads(call("/api/goal", {"fps": junk})[1])["message"]
+        assert json.loads(call("/api/scorecard")[1])["goal"]["chosen"] is None
+    assert "automatic" in json.loads(call("/api/headset-hz", {"hz": 72})[1])["message"]   # VR is off here
+    with app.lock:
+        app.job["state"] = "running"
+    status, body = call("/api/goal", {"fps": 30})
+    assert status != 200 and b"A test is running" in body
+    with app.lock:
+        app.job["state"] = "idle"
+    page = call("/?t=" + app.token)[1]
+    assert b'id="goal-pick"' in page and b'id="hz-pick"' in page

@@ -157,6 +157,28 @@ result looks too plain, run the test again with **Quality**; if it does not feel
 enough, use **Smoothness**. (In VR every choice leans more toward smoothness, because a
 missed frame is felt in a headset.)
 
+**Your own frame-rate goal.** Under the three choices there is a **Frame-rate goal** list.
+Leave it on *Automatic* and the tool aims for your monitor's refresh rate, as described
+above. Pick a number (30, 40, 45, 50, 60, 75, 90, 100 or 120 FPS) and the tool works toward
+that instead:
+
+- **Lower than your monitor** (for example 30 or 45 on a 60 Hz screen) if you cap DCS there
+  anyway. The tool then spends the spare performance on a better-looking picture.
+- **Higher than your monitor** (for example 75 on a 60 Hz screen) if you want room to spare.
+  Busy maps and multiplayer run slower than the test scenes, so settings that hold 75 in the
+  test are more likely to stay at 60 there.
+
+The scorecard is graded against your goal too, and the report says the goal was your own.
+For goals above 60 the three choices still apply: Balanced and Quality may settle for a lower
+step (90, 72 or 60) if holding your number would cost too much picture, and the test log says
+so. Goals of 60 and below are held as they are. Your pick is remembered for this DCS profile.
+
+**In a headset** the goal is the headset's refresh rate. If your headset can run at more than
+one rate, a **Refresh rate you run the headset at** list appears under the profile name. Pick
+the rate your headset is really set to (for example 72 Hz on a Quest 3); the scorecard and,
+in the VR test builds, the test then aim for that. The tool does not change the headset's own
+refresh rate; that stays in the headset's software.
+
 ## The result
 
 After a test the window shows:
@@ -331,7 +353,8 @@ Kept:
   VR headset and software, graphics and VR settings, results). It has no names, folder paths or
   account details, and the tool never sends it anywhere; it is there for you to share if asked
 - `Config\dcstune-calibration.json` — what the last test learned about your PC
-- `Config\dcstune-prefs.json` — the headset you picked, if you picked one
+- `Config\dcstune-prefs.json` — what you picked in the window, if anything: your headset, the
+  refresh rate you run it at, and your own frame-rate goal
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
 - `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed (the tool never sends it; see "Reporting a problem")
 

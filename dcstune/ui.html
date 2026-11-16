@@ -46,6 +46,9 @@
   <p class="sub hidden" id="headset-line">Your headset:
     <select id="headset-pick" title="The tool could not tell which headset you use; pick it so the scorecard uses its resolution and refresh rate"
       style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
+  <p class="sub hidden" id="hz-line">Refresh rate you run the headset at:
+    <select id="hz-pick" title="The test aims for this many frames per second in the headset. Pick the rate your headset is really set to."
+      style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
   <div class="note hidden" id="update"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
     <span id="update-text" style="flex:1;min-width:240px"></span>
     <button class="primary" id="update-get">Download</button>
@@ -80,6 +83,10 @@
       <b>Balanced</b> &mdash; never choppy, and looks great: at least 60 FPS in the worst moments, with most of the best possible picture. Recommended.</label>
     <label style="display:block;margin:4px 0"><input type="radio" name="mode" value="quality">
       <b>Quality</b> &mdash; the best-looking picture your PC can show while still holding 60 FPS in the worst moments.</label>
+    <p class="hidden" id="goal-line" style="margin:8px 0 2px">Frame-rate goal:
+      <select id="goal-pick" title="Automatic aims for your monitor's refresh rate. Pick your own number if you cap DCS lower, or want room to spare for busy maps and multiplayer."
+        style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select>
+      <span class="sub" id="goal-hint"></span></p>
   </fieldset>
   <div class="actions">
     <button class="primary" id="quick">Test and optimize (10 to 20 min)</button>
@@ -96,7 +103,7 @@
       <li>Each time, the computer flies three short scenes on the Caucasus map (a city pass, an airfield ramp, a cloud layer) while every frame is timed.</li>
       <li><b>Test and optimize</b>: 2 to 5 starts, usually 10 to 20 minutes. Measures your settings, then tests and corrects a recommendation.</li>
       <li><b>Thorough test</b>: about 10 starts, usually 35 to 60 minutes. Also measures what each expensive setting costs on your PC; most of them are measured inside one long DCS session that restarts only the mission.</li>
-      <li>The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60.</li>
+      <li>The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60. You can pick your own goal instead, under "What matters most to you?": lower if you cap DCS (30 or 45 leaves room for a better picture), or higher than your screen for room to spare on busy maps and in multiplayer.</li>
       <li>Resolution, vertical sync, VR, controls and sound are never changed. Your settings file is restored after every start.</li>
       <li>The tool sends nothing about you, your PC or your results over the internet. The full guide is in the project's User Guide.</li>
     </ul>
@@ -230,6 +237,7 @@ async function refresh() {
   if (sc.vr_test_build)
     $("subtitle").textContent = "VR test build. With VR on in your DCS profile, the test runs in your headset.";
   showHeadset(sc);
+  showGoals(sc);
   if (sc.vr && !sc.vr_tested && !sc.recovered && !$("msg").children.length)
     note("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet.");
   if (sc.vr && sc.vr_tested && !sc.recovered && !$("msg").children.length)
@@ -246,12 +254,43 @@ function showHeadset(sc) {
   h.choices.forEach(n => { const o = el("option", null, n); o.value = n; pick.append(o); });
   pick.value = h.name || "";
 }
+// The player's own goals: the refresh rate the headset really runs at (VR), and a frame-rate goal
+// for monitor tests. Both are kept with the DCS profile on this PC.
+function showGoals(sc) {
+  const h = sc.headset, hz = $("hz-pick"), g = sc.goal, gp = $("goal-pick");
+  const showHz = !!(h && h.refresh && h.refresh.length > 1);
+  $("hz-line").classList.toggle("hidden", !showHz);
+  if (showHz) {
+    hz.replaceChildren();
+    h.refresh.forEach(r => { const o = el("option", null, r + " Hz" + (!h.hz_chosen && r === h.hz ? " (assumed)" : "")); o.value = r; hz.append(o); });
+    hz.value = h.hz;
+  }
+  const showGoal = !!g && !sc.vr_tested;          // a test in the headset aims for the headset's rate instead
+  $("goal-line").classList.toggle("hidden", !showGoal);
+  if (showGoal) {
+    gp.replaceChildren(el("option", null, "Automatic (your monitor: up to " + g.auto + " FPS)"));
+    gp.firstChild.value = "";
+    g.choices.forEach(n => { const o = el("option", null, n + " FPS"); o.value = n; gp.append(o); });
+    gp.value = g.chosen || "";
+    $("goal-hint").textContent = g.chosen
+      ? "The three choices above now work toward " + g.chosen + " FPS in the worst moments."
+      : "";
+  }
+}
+$("hz-pick").onchange = async () => {
+  try { note((await api("/api/headset-hz", { hz: parseInt($("hz-pick").value, 10) || null })).message); await refresh(); }
+  catch (e) { note(e.message, true); }
+};
+$("goal-pick").onchange = async () => {
+  try { note((await api("/api/goal", { fps: parseInt($("goal-pick").value, 10) || null })).message); await refresh(); }
+  catch (e) { note(e.message, true); }
+};
 $("headset-pick").onchange = async () => {
   try { note((await api("/api/headset", { name: $("headset-pick").value || null })).message); await refresh(); }
   catch (e) { note(e.message, true); }
 };
 let RUNNING = false;
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "goal-pick"].forEach(i => $(i).disabled = on);
   if (SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");

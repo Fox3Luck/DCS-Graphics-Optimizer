@@ -16,7 +16,7 @@ from . import vr as V
 SCHEMA = "dcsgo-audit/1"
 # Values from the headset software that describe rendering. Body measurements (eye distance) are left out.
 PIMAX_KEYS = ("pixels_per_display_pixel_rate", "enable_foveated_rendering", "gpu_upscaling_sharpness")
-RESULT_KEYS = ("id", "kind", "duration_min", "runs", "target_fps", "target_reached", "keep_current", "disturbed",
+RESULT_KEYS = ("id", "kind", "duration_min", "runs", "target_fps", "goal_chosen", "target_reached", "keep_current", "disturbed",
                "vr", "vr_skipped", "before_result", "after_result", "changes", "costs",
                "overall_before", "overall_after")
 
@@ -62,7 +62,7 @@ def build(info: dict, options: dict, report: dict, install: dict | None = None) 
             "runtime_file": _stem(raw_vr.get("runtime")) or None,
             "detected": found, "pimax": pimax,
             "rated_as": st and {k: st.get(k) for k in ("headset", "known", "eye_w", "eye_h", "refresh", "eye_tracking",
-                                                        "render_quality", "pixel_density", "quad_view", "target", "steps")},
+                                                        "render_quality", "pixel_density", "quad_view", "target", "hz_chosen", "steps")},
             "options": {k[3:]: v for k, v in sorted(options.items()) if k.startswith("VR.") and "ipd" not in k.lower()},
         },
         "graphics": {k[9:]: v for k, v in sorted(options.items()) if k.startswith("graphics.")},

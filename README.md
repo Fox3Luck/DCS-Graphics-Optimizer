@@ -74,6 +74,10 @@ The goal is chosen automatically: hold your monitor's refresh rate in the worst
 moments (the "1% low"), up to 120 FPS. If that would cost more than half of the
 possible image quality on your PC, it aims for 90, then 72, then 60 FPS instead.
 
+You can also set the goal yourself in the window: lower than your monitor if you cap DCS
+(30 or 45 FPS leaves room for a better picture), or higher for room to spare on busy maps
+and in multiplayer. In a headset, pick the refresh rate you really run it at.
+
 ### Example result
 
 A real thorough test on a Ryzen 7 9800X3D with an RTX 4080 at 3840 x 2160 (goal:

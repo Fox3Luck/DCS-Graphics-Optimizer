@@ -98,7 +98,11 @@ def state(info: dict, options: dict) -> dict | None:
     known = spec is not None
     spec = dict(spec or TABLE["unknown_headset"])
     refresh = sorted(spec["refresh"])
-    target = 90 if 90 in refresh else refresh[-1]
+    # The rate the player says they run the headset at (beta issue #40: a Quest 3 flown at 72 Hz was
+    # tested against 90). Only a rate this headset really has counts.
+    picked = (info.get("vr") or {}).get("hz")
+    hz_chosen = isinstance(picked, int) and not isinstance(picked, bool) and picked in refresh
+    target = picked if hz_chosen else (90 if 90 in refresh else refresh[-1])
     pd = options.get("VR.pixel_density")
     pd = float(pd) if isinstance(pd, (int, float)) and not isinstance(pd, bool) else 1.0
     hires = known and spec["eye_w"] >= TABLE["hires_eye_w"]
@@ -109,7 +113,7 @@ def state(info: dict, options: dict) -> dict | None:
             "render_quality": found["render_quality"], "pixel_density": pd,
             "quad_view": bool(options.get("VR.openxr_quadView")),
             "quad_layer": found["quad_layer"], "vendor_foveation": found.get("vendor_foveation", False),
-            "target": target, "steps": goal_steps(refresh, target),
+            "target": target, "hz_chosen": hz_chosen, "steps": goal_steps(refresh, target),
             "model": {"eye_px": spec["eye_w"] * spec["eye_h"],
                       "render_quality": found["render_quality"] or 1.0, "pd": pd,
                       "quad": bool(options.get("VR.openxr_quadView"))}}
@@ -200,6 +204,11 @@ def rules(st: dict, o: dict, machine: dict, ratio: float):
         yield ("info", 0, f"If DCS settings alone cannot hold the goal, lower render quality in {soft}{rq} "
                           "before lowering DCS pixel density.", "untouched")
     if len(st["refresh"]) > 1:
-        yield ("info", 0, f"The goal assumes the headset runs at {st['target']} Hz. It can also run at "
-                          + ", ".join(str(r) for r in st["refresh"] if r != st["target"])
-                          + f" Hz ({soft}); set DCS's frame-rate limit to match.", "untouched")
+        others = ", ".join(str(r) for r in st["refresh"] if r != st["target"])
+        if st.get("hz_chosen"):
+            yield ("info", 0, f"The goal is the {st['target']} Hz you picked for your headset. Keep the headset "
+                              f"itself on {st['target']} Hz ({soft}).", "untouched")
+        else:
+            yield ("info", 0, f"The goal assumes the headset runs at {st['target']} Hz. It can also run at "
+                              f"{others} Hz ({soft}). If you play at another rate, pick it under the profile "
+                              "name at the top.", "untouched")

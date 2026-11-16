@@ -98,6 +98,8 @@ def cmd_optimize(args):
     # Same code path as the window, so both write the same report.
     from .ui import Engine
     engine = Engine(args.profile)
+    if args.fps:
+        engine.info["fps_goal"] = args.fps          # for this run only
     report = engine.optimize(args.full, print, args.mode)
     machine = engine.scorecard()["machine"]
     _print_card("Your PC for DCS", machine, machine["reasons"])
@@ -150,6 +152,9 @@ def main(argv=None):
             s.add_argument("--full", action="store_true", help="measure every setting (about an hour)")
             s.add_argument("--mode", choices=["smooth", "balanced", "quality"], default="balanced",
                            help="what matters most: frame rate, a balance (default), or picture quality")
+            from .rate import GOAL_CHOICES
+            s.add_argument("--fps", type=int, choices=GOAL_CHOICES,
+                           help="your own frame-rate goal for a monitor test (default: the monitor's refresh rate)")
         s.set_defaults(fn=fn)
     s = sub.add_parser("trials"); s.add_argument("file", help="JSON file with a list of trials"); s.set_defaults(fn=cmd_trials)
     s = sub.add_parser("apply")
