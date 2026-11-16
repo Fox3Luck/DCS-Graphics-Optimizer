@@ -55,15 +55,40 @@ def newest(releases: list, current: str = __version__) -> dict | None:
     return best[1] if best else None
 
 
+_VR_TAG = re.compile(r"^vr-test-(\d+)$")
+
+
+def newest_vr_test(releases: list, mine: int) -> dict | None:
+    """For a VR test build: the newest VR test build after number `mine`. Regular betas are never
+    offered there, because they test on the monitor (beta issue #42: the notice in VR test build 2
+    sent VR volunteers to a download without the in-headset test)."""
+    best = None
+    for r in releases if isinstance(releases, list) else []:
+        if not isinstance(r, dict) or r.get("draft"):
+            continue
+        m = _VR_TAG.match(str(r.get("tag_name") or ""))
+        if not m or int(m.group(1)) <= max(mine, best[0] if best else 0):
+            continue
+        url = str(r.get("html_url") or "")
+        best = (int(m.group(1)), {"version": f"VR test build {int(m.group(1))}",
+                                  "url": url if is_release_page(url) else RELEASES_PAGE})
+    return best[1] if best else None
+
+
 def check(current: str = __version__) -> dict | None:
     """Ask GitHub; None when up to date, switched off, or GitHub cannot be reached."""
     if os.environ.get("DCSTUNE_NO_UPDATE_CHECK") == "1":
         return None
+    from . import vr
+    vr_build = vr.test_build()
+    if vr_build and not vr.test_build_number():
+        return None                   # a VR test build that does not know its number offers nothing
     try:
         req = urllib.request.Request(API_URL, headers={
             "Accept": "application/vnd.github+json",
             "User-Agent": f"DCS-Graphics-Optimizer/{current}"})
         with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as resp:
-            return newest(json.loads(resp.read(2_000_000)), current)
+            releases = json.loads(resp.read(2_000_000))
+            return newest_vr_test(releases, vr.test_build_number()) if vr_build else newest(releases, current)
     except Exception:
         return None

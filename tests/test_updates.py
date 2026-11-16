@@ -74,3 +74,21 @@ def test_window_routes(monkeypatch):
     except RuntimeError:
         pass
     assert opened == [f"{PAGE}/tag/v0.1.0-beta.99"]
+
+
+def test_vr_test_build_is_only_offered_newer_vr_test_builds(monkeypatch, tmp_path):
+    # Issue #42: the notice in VR test build 2 sent VR volunteers to a regular beta, which tests on
+    # the monitor.
+    from dcstune import vr
+    rels = [rel("v0.1.0-beta.22"), rel("vr-test-2"), rel("vr-test-3"), rel("vr-test-1"), rel("vr-test-4", draft=True)]
+    assert updates.newest_vr_test(rels, 2)["version"] == "VR test build 3"
+    assert updates.newest_vr_test(rels, 2)["url"].endswith("/tag/vr-test-3")
+    assert updates.newest_vr_test(rels, 3) is None
+    assert updates.newest_vr_test([rel("v0.1.0-beta.22")], 2) is None
+    marker = tmp_path / "vr_test_build"
+    monkeypatch.setattr(vr, "TEST_BUILD_MARKER", marker)
+    assert vr.test_build_number() == 0
+    marker.write_text("3\n")
+    assert vr.test_build() and vr.test_build_number() == 3
+    marker.write_text("VR test build: in-headset testing is switched on.")      # builds before the number
+    assert vr.test_build_number() == 0

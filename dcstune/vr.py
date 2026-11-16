@@ -32,6 +32,15 @@ def test_build() -> bool:
     return TEST_BUILD_MARKER.exists()
 
 
+def test_build_number() -> int:
+    """Which VR test build this is (the number in the tag vr-test-N); 0 when it is not one or does not say."""
+    try:
+        m = re.search(r"\d+", TEST_BUILD_MARKER.read_text(encoding="utf-8"))
+        return int(m.group()) if m else 0
+    except OSError:
+        return 0
+
+
 def bench_enabled() -> bool:
     return test_build() or os.environ.get("DCSTUNE_VR_BENCH") == "1"
 
