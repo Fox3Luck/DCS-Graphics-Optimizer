@@ -5,8 +5,8 @@ The extract keeps what explains a failure - every line the benchmark script wrot
 DCS's errors and warnings, and the end of the log - and removes what could identify the player:
 the Windows user name and folder paths become <USER>, <SAVED> and <DCS>, and lines that mention
 logins, passwords, tokens, serials or e-mail addresses are left out. Mod and module names stay,
-because they are the likely cause. Nothing is sent from here: see feedback.py and ui.py for when
-it is (automatically only when the player agreed to share results, otherwise only on a click).
+because they are the likely cause. The tool never sends it: the window shows it with a Copy
+button, so the player can paste it into a GitHub issue or the Discord channel.
 """
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ from pathlib import Path
 
 TAIL_LINES = 150
 MAX_LINES = 600
-MAX_LINE = 280          # the receiver refuses longer texts
-MAX_BYTES = 40_000      # leaves room in the receiver's 64 KB per submission
+MAX_LINE = 280
+MAX_BYTES = 40_000      # short enough to paste into an issue (GitHub's limit is about 65,000)
 _DROP = re.compile(r"login|password|passwd|token|serial|@|e-?mail|steamid|user ?id", re.I)
 _USERS_DIR = re.compile(r"([A-Za-z]:[\\/]+Users[\\/]+)[^\\/\s\"']+", re.I)
 _CONTROL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")

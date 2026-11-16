@@ -1,10 +1,10 @@
-"""The failure-log extract sent when a test fails (made-up log; no player data in the repo)."""
+"""The failure-log extract shown when a test fails (made-up log; no player data in the repo)."""
 import json
 import time
 
 import pytest
 
-from dcstune import failurelog, feedback as F, ui
+from dcstune import failurelog, ui
 from test_core import INFO
 
 SAVED = r"C:\Users\Pilot Jane\Saved Games\DCS"
@@ -47,13 +47,6 @@ def test_huge_log_is_capped_but_keeps_the_benchmark_lines():
     assert sum("DCSTUNE" in x for x in lines) == 4 and any("DCS/2.9.31" in x for x in lines)
 
 
-def test_payload_fits_the_receiver_limits():
-    lines = failurelog.excerpt(LOG, saved_dir=SAVED, dcs_dir=DCS, user="Pilot Jane")
-    p = F.payload("failure", "0123456789abcdef", error="benchmark did not finish:\n aircraft never appeared", log=lines)
-    assert set(p) == {"schema", "tool_version", "event", "id", "error", "log"}
-    assert "\n" not in p["error"] and len(json.dumps(p).encode()) < 64 * 1024
-
-
 class _Eng:
     def __init__(self, tmp_path):
         cfg = tmp_path / "DCS" / "Config"
@@ -61,9 +54,6 @@ class _Eng:
         (cfg / "dcstune-last-failure.log").write_text(LOG.replace(SAVED, str(tmp_path / "DCS")))
         self.profile = {"path": str(tmp_path / "DCS"), "name": "DCS"}
         self.info = dict(INFO, installs=[{"path": DCS}])
-
-    def sharing(self):
-        return {"available": True, "choice": True}
 
     def optimize(self, full, log, mode="balanced"):
         raise RuntimeError("benchmark did not finish: benchmark aircraft never appeared")
@@ -78,28 +68,18 @@ def _fail(app):
     return app.job
 
 
-@pytest.mark.parametrize("share", [True, None, False])
-def test_failed_test_sends_the_log_only_with_consent(tmp_path, monkeypatch, share):
-    sent = []
-    monkeypatch.setattr(F, "available", lambda: True)
-    monkeypatch.setattr(F, "on", lambda profile: share is True)
-    monkeypatch.setattr(F, "send", lambda p: sent.append(p) or True)
+def test_failed_test_shows_the_log_and_sends_nothing(tmp_path, monkeypatch):
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: pytest.fail("the tool must not send anything"))
     app = ui.App(lambda: _Eng(tmp_path))
     job = _fail(app)
-    assert job["state"] == "failed" and job["failure_log"]["lines"]
-    if share:
-        assert job["failure_log"]["sent"] and len(sent) == 1 and sent[0]["event"] == "failure"
-    else:
-        assert not job["failure_log"]["sent"] and sent == []           # never silently
-        assert "sent" in app.handle("POST", "/api/failure-log", {})["message"]
-        assert len(sent) == 1 and sent[0]["id"] == job["failure_log"]["id"]
-    assert app.handle("POST", "/api/failure-log", {})["message"].startswith("The failure log was already sent")
-    assert len(sent) == 1
+    assert job["state"] == "failed" and set(job["failure_log"]) == {"lines"} and job["failure_log"]["lines"]
+    with pytest.raises(KeyError):
+        app.handle("POST", "/api/failure-log", {})
 
 
 def test_old_failure_log_is_not_offered(tmp_path, monkeypatch):
     import os
-    monkeypatch.setattr(F, "available", lambda: True)
     eng = _Eng(tmp_path)
     old = time.time() - 3600
     os.utime(tmp_path / "DCS" / "Config" / "dcstune-last-failure.log", (old, old))

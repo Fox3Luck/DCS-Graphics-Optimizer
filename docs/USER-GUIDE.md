@@ -303,8 +303,8 @@ VR settings, controls, sound, gameplay or module options.
 - Nothing inside the DCS installation folder is modified, so DCS's file check stays
   clean and multiplayer is unaffected.
 - The tool never runs while you are flying and does nothing in multiplayer.
-- Nothing is sent over the internet unless you agree to share results (see "Anonymous results").
-  The one exception is the update check: when the window opens, the tool asks GitHub for this
+- The tool sends nothing about you, your PC or your results over the internet (see "Reporting a
+  problem"). The one thing it does ask for is the update check: when the window opens, the tool asks GitHub for this
   project's list of releases, the same as opening the releases page in a browser. Nothing about
   you, your PC or your settings goes with it. If a newer version is out, a notice with a
   **Download** button appears at the top; the button opens the release page in your browser.
@@ -331,9 +331,9 @@ Kept:
   VR headset and software, graphics and VR settings, results). It has no names, folder paths or
   account details, and the tool never sends it anywhere; it is there for you to share if asked
 - `Config\dcstune-calibration.json` — what the last test learned about your PC
-- `Config\dcstune-prefs.json` — your answer to the question about sharing results
+- `Config\dcstune-prefs.json` — the headset you picked, if you picked one
 - `Config\options.lua.dcstune-bak-<date>-<time>` — your settings from before each Apply
-- `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed (only the anonymized extract described under "Anonymous results" is ever sent)
+- `Config\dcstune-last-failure.log` — a copy of DCS's log, only if a test run failed (the tool never sends it; see "Reporting a problem")
 
 Outside that folder:
 
@@ -402,30 +402,26 @@ Details of each run are written to `Saved Games\DCS\Logs\dcs.log` on lines conta
   setting adds visually. If you care more about one thing (for example long
   visibility for spotting), adjust that setting yourself after applying.
 
-## Anonymous results (optional)
+## Reporting a problem
 
-Versions of the tool that have result sharing switched on ask one question the first time you
-start them: may the tool send the result of each test to Fox3, the makers of this tool?
+The tool does not send your results anywhere. To tell us about a problem, a result that feels
+wrong or an idea, use either of these (both have a button at the bottom of the window):
 
-- **It is anonymous.** What is sent is the content of `audit.json` (processor, graphics card and
-  driver, memory, monitor resolution, DCS version, VR headset and software, your graphics and VR
-  settings, the measured frame rates) and whether you applied or undid the recommendation. Each
-  test gets a random number; there is no number for you or your PC.
-- **Not sent:** your name, Windows or DCS account, pilot name, folder names, serial numbers,
-  screenshots, controls. Results are stored without your internet address. (As with any website,
-  the request itself travels through our web host's network, which sees the address in transit.)
-- **What it is for:** real results from many PCs and headsets make the tool's estimates and
-  recommendations better.
-- You can add a comment to a result (better, same or worse, and free text) if you want to tell
-  us more. Leave personal details out of it.
-- **When a test fails**, a short extract of DCS's log for that run is sent as well: the lines the
-  benchmark wrote, DCS's errors and warnings, and the end of the log. Your Windows user name and
-  folder paths are replaced by `<USER>`, `<SAVED>` and `<DCS>`, and lines that mention logins,
-  passwords, tokens, serials or e-mail addresses are left out. Mod and module names stay in,
-  because they are often the cause. The window shows exactly what was sent. If you do not share
-  results, nothing is sent; the window offers a **Send this failure log** button with a preview
-  instead, and sends only if you press it.
-- If you answer no, nothing is ever sent and the tool works the same. You can change your answer
-  at the bottom of the window. Your answer is kept in `Config\dcstune-prefs.json`.
+- [GitHub issues](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/issues) — best for problems, so everyone can follow the fix
+- the [DCS channel on the Fox3 Discord](https://discord.com/channels/814940459134484511/1571736773682274427) — best for questions and quick feedback
 
-Sharing is switched on from version 0.1.0-beta.6. Earlier versions do not ask and send nothing.
+What helps most:
+
+- The report folder of the test (see "Files it creates"), zipped. Its `audit.json` lists what the
+  tool saw and measured: processor, graphics card and driver, memory, monitor resolution, DCS
+  version, VR headset and software, your graphics and VR settings and the measured frame rates.
+  It has no names, folder paths or account details.
+- **When a test fails**, the window shows a short extract of DCS's log for that run: the lines
+  the benchmark wrote, DCS's errors and warnings, and the end of the log. Your Windows user name
+  and folder paths are replaced by `<USER>`, `<SAVED>` and `<DCS>`, and lines that mention
+  logins, passwords, tokens, serials or e-mail addresses are left out. Mod and module names stay
+  in, because they are often the cause. Press **Copy the failure log** and paste it into your
+  issue or Discord message.
+
+Versions 0.1.0-beta.6 to beta.21 could send anonymous results if you agreed to it. That has been
+removed: newer versions do not ask and send nothing.

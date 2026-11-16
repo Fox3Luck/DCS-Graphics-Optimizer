@@ -33,13 +33,13 @@ class Engine:
 
     def _use_headset_pick(self):
         """The headset the player picked earlier (used when the tool cannot tell by itself)."""
-        from . import feedback as F
-        self.info["vr"] = dict(self.info.get("vr") or {}, chosen=F.get_pref(self.profile, "headset"))
+        from . import prefs
+        self.info["vr"] = dict(self.info.get("vr") or {}, chosen=prefs.get_pref(self.profile, "headset"))
 
     def set_headset(self, name) -> str:
-        from . import feedback as F, vr as V
+        from . import prefs, vr as V
         name = name if name in V.headset_names() else None
-        F.set_pref(self.profile, "headset", name)
+        prefs.set_pref(self.profile, "headset", name)
         self._use_headset_pick()
         return (f"Headset set to {name}. The scorecard is now rated for it." if name
                 else "Headset cleared. The scorecard assumes a typical headset.")
@@ -143,7 +143,7 @@ class Engine:
                 "report": self._report()}
 
     def optimize(self, full: bool, log, mode: str = "balanced") -> dict:
-        from . import audit, feedback as F, model as M, optimize, rate, sysinfo, vr as V
+        from . import audit, model as M, optimize, rate, sysinfo, vr as V
         from .bench import Bench, other_vram_high
         from .optionslua import atomic_write
         started = time.time()
@@ -215,46 +215,7 @@ class Engine:
         except OSError as e:
             log(f"The report page could not be saved ({e}); the result is still shown here.")
         atomic_write(self.report_path(), json.dumps(report, indent=1).encode())
-        if F.on(self.profile):
-            sent = F.send(F.payload("result", report["id"],
-                                    audit.build(self.info, self._flat_at_test, report, sysinfo.pick_install(self.info))))
-            log("Sent the anonymous result. Thank you." if sent else
-                "The anonymous result could not be sent (no connection?). Nothing else is affected.")
         return report
-
-    # -- anonymous sharing (opt-in) ------------------------------------------------
-    def sharing(self) -> dict:
-        from . import feedback as F
-        return {"available": F.available(), "choice": F.choice(self.profile)}
-
-    def set_sharing(self, share: bool) -> str:
-        from . import feedback as F
-        F.set_choice(self.profile, share)
-        return ("Thank you. Anonymous results will be sent after each test." if share
-                else "Nothing will be sent. You can change this at the bottom of the window.")
-
-    def _tell(self, event: str, rep: dict | None, **extra) -> None:
-        """Send a follow-up about a test (applied, undone, the player's comment) in the background."""
-        from . import feedback as F
-        if rep and rep.get("id") and F.on(self.profile):
-            threading.Thread(target=F.send, args=(F.payload(event, rep["id"], **extra),), daemon=True).start()
-
-    def feedback(self, feel: str | None, comment: str | None) -> str:
-        from . import feedback as F
-        from .optionslua import atomic_write
-        rep = self._report()
-        if not rep or not rep.get("id"):
-            raise RuntimeError("Run a test first; feedback is attached to a test result.")
-        if not F.on(self.profile):
-            raise RuntimeError("Anonymous sharing is switched off, so nothing was sent.")
-        if feel not in F.FEELS and not (comment or "").strip():
-            raise RuntimeError("Choose better, same or worse, or write a comment.")
-        p = F.payload("feedback", rep["id"], feel=feel, comment=comment)
-        if not F.send(p):
-            raise RuntimeError("Your feedback could not be sent (no connection?). Please try again later.")
-        rep["feedback"] = {k: p[k] for k in ("feel", "comment") if k in p}
-        atomic_write(self.report_path(), json.dumps(rep, indent=1).encode())
-        return "Feedback sent. Thank you."
 
     VR_WARNING = ("[vr] VR is switched on in this DCS profile, but this test ran on the monitor. DCS uses the same "
                   "graphics settings in the headset, so settings that are smooth on the monitor can be much slower in "
@@ -280,7 +241,6 @@ class Engine:
         opts.save(self.profile["options"])
         rep["applied"] = time.strftime("%Y-%m-%d %H:%M")   # keep the report; the player may want to read it again
         atomic_write(rp, json.dumps(rep, indent=1).encode())
-        self._tell("applied", rep)
         return f"Applied. Your previous settings are kept as {saved.name}."
 
     def undo(self) -> str:
@@ -296,7 +256,6 @@ class Engine:
         rep = self._report()
         if rep and rep.pop("applied", None):
             atomic_write(self.report_path(), json.dumps(rep, indent=1).encode())
-            self._tell("undone", rep)
         return "Your previous settings are back."
 
 
@@ -384,9 +343,9 @@ class App:
             chime("failed")
 
     def _failure_log(self, job: dict) -> None:
-        """Attach an anonymized extract of DCS's log to a failed test. Sent at once if the player
-        agreed to share results; otherwise the window offers to send it (with a preview)."""
-        from . import failurelog, feedback as F, sysinfo
+        """Attach an anonymized extract of DCS's log to a failed test. Nothing is sent: the
+        window shows it so the player can copy it into a GitHub issue or the Discord channel."""
+        from . import failurelog, sysinfo
         try:
             eng = self.engine
             try:
@@ -396,25 +355,8 @@ class App:
             lines = failurelog.for_profile(eng.profile, inst, since=job.get("started", 0) - 5)
         except Exception:
             return
-        if not lines or not F.available():
-            return
-        fl = {"id": secrets.token_hex(8), "lines": lines, "sent": False}
-        job["failure_log"] = fl
-        if F.on(eng.profile):
-            fl["sent"] = F.send(F.payload("failure", fl["id"], error=job.get("error"), log=lines))
-            fl["auto"] = True
-
-    def send_failure_log(self) -> dict:
-        from . import feedback as F
-        fl = self.job.get("failure_log")
-        if not fl:
-            raise RuntimeError("There is no failure log to send.")
-        if fl.get("sent"):
-            return {"message": "The failure log was already sent. Thank you."}
-        if not F.send(F.payload("failure", fl["id"], error=self.job.get("error"), log=fl["lines"])):
-            raise RuntimeError("The failure log could not be sent (no connection?). Please try again later.")
-        fl["sent"] = True
-        return {"message": "Failure log sent. Thank you, it helps us fix this."}
+        if lines:
+            job["failure_log"] = {"lines": lines}
 
     def setup_needed(self) -> dict | None:
         """What the player must point to before anything else works, or None."""
@@ -462,24 +404,18 @@ class App:
                 sc["setup"] = setup
             if sc.get("report") and sc["report"].get("before"):
                 sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}")
-            sc["sharing"] = self.engine.sharing()
             return sc
         if method == "GET" and path == "/api/job":
             return self.job
-        if method == "POST" and path == "/api/sharing":
-            return {"message": self.engine.set_sharing(body.get("share") is True)}
-        if method == "POST" and path == "/api/feedback":
-            return {"message": self.engine.feedback(body.get("feel"), body.get("comment"))}
+        if method == "POST" and path == "/api/open-link":
+            from . import community
+            return {"message": community.open_link(str(body.get("which")))}
         if method == "POST" and path == "/api/optimize":
             setup = self.setup_needed()
             if setup:
                 raise RuntimeError(setup["message"])
-            if self.engine.sharing() == {"available": True, "choice": None}:
-                raise RuntimeError("Please answer the question about anonymous results first.")
             self.start_optimize(bool(body.get("full")), str(body.get("mode") or "balanced"))
             return {"ok": True}
-        if method == "POST" and path == "/api/failure-log":
-            return self.send_failure_log()
         if method == "POST" and path == "/api/apply":
             return {"message": self.engine.apply(body.get("vr_ok") is True)}
         if method == "POST" and path == "/api/headset":

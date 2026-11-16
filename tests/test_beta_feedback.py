@@ -194,7 +194,7 @@ def test_window_passes_the_choice_and_refuses_unknown_ones():
     import pytest
     from dcstune import ui
     seen = []
-    eng = type("E", (), {"info": dict(INFO, installs=[{}]), "sharing": lambda self: {"available": False},
+    eng = type("E", (), {"info": dict(INFO, installs=[{}]), 
                          "optimize": lambda self, full, log, mode="balanced": seen.append((full, mode)) or {}})()
     app = ui.App(lambda: eng)
     with pytest.raises(RuntimeError, match="Smoothness, Balanced or Quality"):

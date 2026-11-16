@@ -309,20 +309,18 @@ def test_player_picks_a_headset_the_tool_cannot_read():
 
 
 def test_headset_pick_is_kept_and_shown_in_the_window(tmp_path, monkeypatch):
-    from dcstune import feedback as F
+    from dcstune import prefs as F
     eng = _engine(tmp_path, monkeypatch)
     eng.info["vr"] = dict(VD_RAW)
-    F.set_choice(eng.profile, True)
+    F.set_pref(eng.profile, "share", True)        # an answer left by an older version
     sc = eng.scorecard()
     assert sc["headset"]["name"] is None and not sc["headset"]["detected"] and "Meta Quest 3" in sc["headset"]["choices"]
     assert "Meta Quest 3" in eng.set_headset("Meta Quest 3")
     sc = eng.scorecard()
     assert sc["headset"]["name"] == "Meta Quest 3"
     assert any(r["value"].startswith("Meta Quest 3 (2064 x 2208") for r in sc["hardware"])
-    # kept next to the sharing answer, neither one overwriting the other
-    assert F.get_pref(eng.profile, "headset") == "Meta Quest 3" and F.choice(eng.profile) is True
-    F.set_choice(eng.profile, False)
-    assert F.get_pref(eng.profile, "headset") == "Meta Quest 3"
+    # kept next to other saved answers, neither one overwriting the other
+    assert F.get_pref(eng.profile, "headset") == "Meta Quest 3" and F.get_pref(eng.profile, "share") is True
     assert "cleared" in eng.set_headset("<script>")
     assert F.get_pref(eng.profile, "headset") is None and eng.scorecard()["headset"]["name"] is None
     # a Pimax headset is read from Pimax Play, so no picker

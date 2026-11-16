@@ -15,7 +15,8 @@ What's fixed and what's next is kept up to date in the pinned issue
 [#26](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/issues/26). Each beta has a
 [milestone](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/milestones?state=all), and labels show
 where a report stands: **investigating**, **fix in next beta**, **fixed - please confirm**. New betas
-come out at most once a day. Found a problem? [Open an issue](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/issues/new).
+come out at most once a day. Found a problem? [Open an issue](https://github.com/Fox3Luck/DCS-Graphics-Optimizer/issues/new),
+or talk to us in the [DCS channel on the Fox3 Discord](https://discord.com/channels/814940459134484511/1571736773682274427).
 
 ## For players
 
@@ -105,8 +106,8 @@ sync, your frame-rate cap, VR, controls, sound, gameplay or module options.
 - Your original settings are restored after every DCS start, and after a crash or an
   interrupted test the next time you open the tool.
 - **Apply** keeps a dated copy of your previous settings; **Undo** restores it.
-- Nothing inside the DCS installation folder is modified. Your results are sent only if
-  you agree to share them. When it opens, the tool asks GitHub whether a newer version
+- Nothing inside the DCS installation folder is modified. The tool sends nothing about
+  you, your PC or your results. When it opens, the tool asks GitHub whether a newer version
   is out (nothing about you or your PC is sent) and shows a notice if there is one.
 
 The full details, the list of files it creates and troubleshooting are in the

@@ -60,22 +60,6 @@
     <p class="sub" id="setup-hint" style="margin:8px 0 0"></p>
   </div>
 
-  <div class="card hidden" id="consent" style="margin-bottom:14px;border-color:var(--accent)">
-    <h2 style="color:var(--text)">Help make this tool better? (optional)</h2>
-    <p style="margin:0 0 8px">May the tool send the result of each test to Fox3, the makers of this tool? It is <b>anonymous</b>.</p>
-    <ul>
-      <li><b>What is sent:</b> your processor, graphics card and driver, memory, monitor resolution, DCS version, VR headset model and VR software if you have one, your DCS graphics and VR settings, the measured frame rates, and whether you applied or undid the recommendation.</li>
-      <li><b>What is not sent:</b> your name, Windows or DCS account, pilot name, folder names, serial numbers, screenshots or controls. Each test only gets a random number; there is no number for you or your PC. Results are stored without your internet address.</li>
-      <li><b>What it is for:</b> the tool estimates what each setting costs on your hardware. Real results from many different PCs and headsets make those estimates and the recommendations better for everyone.</li>
-      <li>After every test the same information is saved as <b>audit.json</b> in the report folder, so you can read exactly what was sent. You can add a comment to a result if you want to tell us more.</li>
-      <li>If you say no, nothing is ever sent and the tool works exactly the same. You can change your answer at any time at the bottom of this window.</li>
-    </ul>
-    <div class="actions" style="margin-bottom:0">
-      <button class="primary" id="share-yes">Yes, send anonymous results</button>
-      <button id="share-no">No, send nothing</button>
-    </div>
-  </div>
-
   <div class="card overall">
     <div><h2 style="margin-bottom:6px">Overall</h2><div class="grade" style="margin:0" id="overall"></div></div>
     <div class="hw" id="hardware"></div>
@@ -112,17 +96,19 @@
       <li><b>Thorough test</b>: about 10 starts, usually 35 to 60 minutes. Also measures what each expensive setting costs on your PC; most of them are measured inside one long DCS session that restarts only the mission.</li>
       <li>The goal is your monitor's refresh rate (up to 120 FPS) in the worst moments; on slower PCs it steps down to 90, 72 or 60.</li>
       <li>Resolution, vertical sync, VR, controls and sound are never changed. Your settings file is restored after every start.</li>
-      <li id="sent-line">Nothing is sent over the internet. The full guide is in the project's User Guide.</li>
+      <li>The tool sends nothing about you, your PC or your results over the internet. The full guide is in the project's User Guide.</li>
     </ul>
   </details>
 
   <div class="card hidden" id="progress"><h2>Testing</h2><div id="log"></div></div>
   <div class="card hidden" id="faillog" style="margin-bottom:14px">
     <h2>Help us fix this</h2>
-    <p id="faillog-text" style="margin:0 0 10px"></p>
+    <p style="margin:0 0 10px">A short extract of DCS's log shows why this failed. Your Windows user name and folder paths are removed. The tool does not send it: copy it, then paste it into a GitHub issue or the Discord channel and tell us what happened.</p>
     <div class="actions" style="margin:0">
-      <button class="primary" id="faillog-send">Send this failure log to the developer</button>
-      <button id="faillog-show">Show what will be sent</button>
+      <button class="primary" id="faillog-copy">Copy the failure log</button>
+      <button id="faillog-show">Show it</button>
+      <button data-link="issues">Report it on GitHub</button>
+      <button data-link="discord">Open the Discord channel</button>
     </div>
     <pre id="faillog-lines" class="hidden" style="max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;margin:10px 0 0"></pre>
   </div>
@@ -137,21 +123,15 @@
       </div>
       <p class="sub" id="report-where" style="margin:10px 0 0"></p>
     </div>
-    <div class="card hidden" id="fb" style="margin-top:14px">
-      <h2>Tell us more about this result (optional, anonymous)</h2>
-      <p class="sub" style="margin-bottom:8px">After flying with the recommended settings, how do they feel compared with your old ones?</p>
-      <div class="actions" style="margin:0 0 10px">
-        <label><input type="radio" name="feel" value="better"> Better</label>
-        <label><input type="radio" name="feel" value="same"> The same</label>
-        <label><input type="radio" name="feel" value="worse"> Worse</label>
-      </div>
-      <textarea id="fb-text" maxlength="1000" rows="3" style="width:100%;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px"
-        placeholder="Anything else: what went wrong, what looked odd, which aircraft or map you fly. Please leave out names and other personal details."></textarea>
-      <div class="actions" style="margin:10px 0 0"><button id="fb-send">Send feedback</button></div>
-      <p class="sub hidden" id="fb-done" style="margin:8px 0 0"></p>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h2>Problems, questions, ideas</h2>
+    <p class="sub" style="margin-bottom:8px">Tell us how the recommended settings feel, what went wrong or what you would like next. The saved report folder (with audit.json) is the most useful thing to attach. The tool sends nothing by itself.</p>
+    <div class="actions" style="margin:0">
+      <button data-link="issues">Report a problem on GitHub</button>
+      <button data-link="discord">Talk to us on Discord</button>
     </div>
   </div>
-  <p class="sub hidden" id="share-state" style="margin-top:18px"></p>
   <p class="sub" id="version" style="margin-top:18px;font-size:13px"></p>
 </main>
 <script>
@@ -253,7 +233,6 @@ async function refresh() {
   if (sc.vr && sc.vr_tested && !sc.recovered && !$("msg").children.length)
     note("VR is switched on in this profile, so the test runs in your headset. Before you press start, connect the headset, open its own software (and Virtual Desktop or Link, if you use them), and put it on or keep it awake. DCS opens in the headset by itself and closes again when each part is done.");
   showReport(sc);
-  showSharing(sc);
 }
 // The tool reads Pimax headsets by itself; for any other headset the player says which one it is.
 function showHeadset(sc) {
@@ -269,29 +248,9 @@ $("headset-pick").onchange = async () => {
   try { note((await api("/api/headset", { name: $("headset-pick").value || null })).message); await refresh(); }
   catch (e) { note(e.message, true); }
 };
-function showSharing(sc) {
-  const sh = sc.sharing || {}, ask = sh.available && sh.choice == null, rep = sc.report;
-  $("consent").classList.toggle("hidden", !ask);
-  ASKING = ask; if (!RUNNING) busy(false);
-  $("sent-line").textContent = (sh.available && sh.choice === true
-    ? "After each test the anonymous result is sent to Fox3, because you agreed to that; nothing else is sent."
-    : "Nothing is sent over the internet.") + " The full guide is in the project's User Guide.";
-  const st = $("share-state"); st.classList.toggle("hidden", !sh.available || sh.choice == null);
-  if (sh.available && sh.choice != null) {
-    const b = el("button", null, sh.choice ? "Stop sending" : "Start sending anonymous results");
-    b.style.padding = "4px 10px"; b.style.marginLeft = "10px";
-    b.onclick = () => setSharing(!sh.choice);
-    st.replaceChildren(document.createTextNode("Anonymous results: " + (sh.choice ? "sent after each test." : "not sent.")), b);
-  }
-  const fb = sh.available && sh.choice === true && rep && rep.id;
-  $("fb").classList.toggle("hidden", !fb);
-  if (fb && rep.feedback) { $("fb-done").classList.remove("hidden");
-    $("fb-done").textContent = "You already sent feedback for this result. You can send more."; }
-}
-let ASKING = false, RUNNING = false;
-async function setSharing(share) { try { note((await api("/api/sharing", { share })).message); await refresh(); } catch (e) { note(e.message, true); } }
+let RUNNING = false;
 function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box"].forEach(i => $(i).disabled = on);
-  if (ASKING || SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
+  if (SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");
   $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
@@ -303,34 +262,31 @@ async function poll() {
 function chosenMode() { return (document.querySelector('input[name="mode"]:checked') || {}).value || "balanced"; }
 try { const m = localStorage.getItem("dcsgo-mode"); const r = m && document.querySelector('input[name="mode"][value="' + m + '"]'); if (r) r.checked = true; } catch (e) {}
 document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = () => { try { localStorage.setItem("dcsgo-mode", chosenMode()); } catch (e) {} });
-// A failed test: an anonymized extract of DCS's log (user name and folders removed) can go to the
-// developer. Sent already if the player shares results; otherwise only when they click.
+// A failed test: an anonymized extract of DCS's log (user name and folders removed). Nothing is
+// sent; the player copies it into a GitHub issue or the Discord channel.
 function showFailureLog(fl) {
   $("faillog").classList.toggle("hidden", !fl);
-  if (!fl) return;
-  $("faillog-lines").textContent = fl.lines.join("\n");
-  $("faillog-send").classList.toggle("hidden", !!fl.sent);
-  $("faillog-text").textContent = fl.sent
-    ? "Because you share test results, a short extract of DCS's log for this failure was sent to the developer (no names or folder paths). You can see it below."
-    : "A short extract of DCS's log would show us why this failed. Your Windows user name and folder paths are removed. Nothing is sent unless you press the button.";
+  if (fl) $("faillog-lines").textContent = fl.lines.join("\n");
 }
 $("faillog-show").onclick = () => $("faillog-lines").classList.toggle("hidden");
-$("faillog-send").onclick = async () => {
-  try { note((await api("/api/failure-log", {})).message); $("faillog-send").classList.add("hidden"); }
-  catch (e) { note(e.message, true); }
+$("faillog-copy").onclick = async () => {
+  const pre = $("faillog-lines"), text = pre.textContent;
+  try { await navigator.clipboard.writeText(text); note("The failure log is copied. Paste it into a GitHub issue or the Discord channel."); return; } catch (e) {}
+  pre.classList.remove("hidden");           // no clipboard access: select it for Ctrl+C
+  const r = document.createRange(); r.selectNodeContents(pre);
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+  note(ok ? "The failure log is copied. Paste it into a GitHub issue or the Discord channel."
+          : "The failure log is selected below. Press Ctrl+C to copy it.");
 };
+document.querySelectorAll("[data-link]").forEach(b => b.onclick = async () => {
+  try { note((await api("/api/open-link", { which: b.dataset.link })).message); } catch (e) { note(e.message, true); }
+});
 async function start(full) {
   try { await api("/api/optimize", { full, mode: chosenMode() }); busy(true); $("msg").replaceChildren();
         $("result").classList.add("hidden"); $("faillog").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
   catch (e) { note(e.message, true); }
 }
-$("share-yes").onclick = () => setSharing(true);
-$("share-no").onclick = () => setSharing(false);
-$("fb-send").onclick = async () => {
-  const feel = (document.querySelector('input[name="feel"]:checked') || {}).value || null;
-  try { note((await api("/api/feedback", { feel, comment: $("fb-text").value })).message); $("fb-text").value = ""; await refresh(); }
-  catch (e) { note(e.message, true); }
-};
 $("quick").onclick = () => start(false);
 $("full").onclick = () => start(true);
 $("apply").onclick = async () => {
