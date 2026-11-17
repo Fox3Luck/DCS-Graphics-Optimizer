@@ -723,3 +723,18 @@ def test_gpu_counters_work_on_non_english_windows(monkeypatch):
     for want in ("Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory", "DedicatedUsage",
                  "Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine", "InvariantCulture"):
         assert want in cap["cmd"], want
+
+
+def test_scene_load_uses_windows_counter_even_with_nvidia_smi(monkeypatch):
+    """#31: nvidia-smi's utilization read 99% whether the card was full or not; Task Manager's
+    counter told them apart, so scene load always comes from it."""
+    from dcstune import bench
+
+    def fake(args, **kw):
+        out = "8000, 99\n" if "nvidia" in str(args[0]) else "8100;90.0\n"
+        return type("R", (), {"stdout": out})()
+    monkeypatch.setattr(bench.subprocess, "run", fake)
+    g = bench.GpuSampler()
+    g._nvidia = "nvidia-smi"
+    assert g._sample() == (8000.0, 99.0) and g._windows_load() == 90.0
+    assert bench.GpuSampler()._load_thread is None or g._nvidia

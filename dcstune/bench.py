@@ -149,9 +149,15 @@ class GpuSampler:
         self._thread = threading.Thread(target=self._loop, args=(interval,), daemon=True)
         # DCSTUNE_NO_NVSMI: testing switch to exercise the AMD/Intel counter path on an NVIDIA PC
         self._nvidia = None if os.environ.get("DCSTUNE_NO_NVSMI") else shutil.which("nvidia-smi")
+        # The load matched to scenes always comes from Windows' counter (Task Manager's GPU %):
+        # on the test PC nvidia-smi said 99% both at 4K DLAA (97 FPS) and with everything
+        # turned down (256 FPS), where Windows said 96% and 90% (#31). With nvidia-smi present
+        # it runs in its own thread so memory sampling keeps its pace.
+        self._load_thread = (threading.Thread(target=self._load_loop, args=(interval,), daemon=True)
+                             if self._nvidia else None)
 
-    def _sample(self):
-        if self._nvidia:
+    def _sample(self, nvidia: bool = True):
+        if self._nvidia and nvidia:
             out = subprocess.run([self._nvidia, "--query-gpu=memory.used,utilization.gpu",
                                   "--format=csv,noheader,nounits"], capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=10).stdout
             rows = [r.split(",") for r in out.strip().splitlines() if "," in r]
@@ -184,6 +190,19 @@ class GpuSampler:
         except ValueError:
             return 0.0, None
 
+    def _windows_load(self):
+        """Task Manager's GPU %: the busiest process's 3D engine use, from Windows' counter."""
+        return self._sample(nvidia=False)[1]
+
+    def _load_loop(self, interval):
+        while not self._stop.wait(interval):
+            try:
+                util = self._windows_load()
+                if util is not None:
+                    self.samples.append((time.time(), util))
+            except Exception:
+                pass
+
     def _loop(self, interval):
         while not self._stop.wait(interval):
             try:
@@ -191,7 +210,8 @@ class GpuSampler:
                 self.peak_mb = max(self.peak_mb, mem)
                 if util is not None:
                     self.util.append(util)
-                    self.samples.append((time.time(), util))
+                    if not self._load_thread:
+                        self.samples.append((time.time(), util))
             except Exception:
                 pass
 
@@ -203,11 +223,15 @@ class GpuSampler:
 
     def __enter__(self):
         self._thread.start()
+        if self._load_thread:
+            self._load_thread.start()
         return self
 
     def __exit__(self, *exc):
         self._stop.set()
         self._thread.join(timeout=15)
+        if self._load_thread:
+            self._load_thread.join(timeout=25)
 
 
 BUSY_GPU_PERCENT = 25     # refuse to test above this while DCS is not even running

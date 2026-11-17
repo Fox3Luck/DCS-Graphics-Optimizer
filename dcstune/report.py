@@ -87,7 +87,9 @@ def _meta(rep: dict) -> str:
     return " &middot; ".join(e(str(b)) for b in bits)
 
 
-GPU_BOUND, CPU_BOUND = 90, 70     # graphics card load (%) while a scene was timed
+# Graphics card load (%) while a scene was timed, from Windows' counter. On the test PC (RTX 4080,
+# Ryzen 9800X3D) 4K DLAA read 95-96% and everything turned down 89-90%.
+GPU_BOUND, CPU_BOUND = 93, 75
 
 
 def _limit(busy) -> str:
@@ -121,7 +123,7 @@ def _limits(res: dict) -> list[str]:
                  'settings such as resolution and upscaling, shadows and clouds are what move your frame rate; a '
                  'faster processor would not help much.</p>')
     elif which == "processor":
-        h.append(f'<p class="meta">In the slowest scene ({where}) the graphics card is waiting for the processor. '
+        h.append(f'<p class="meta">In the slowest scene ({where}) the graphics card is mostly waiting for the processor. '
                  'Lowering picture quality will not help much there; settings that add things to draw (visibility '
                  'range, civilian traffic, trees and scenery detail) ease it. Busy multiplayer servers and detailed '
                  'aircraft add more processor work, so expect lower frame rates there than in this test.</p>')
