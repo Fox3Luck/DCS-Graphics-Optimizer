@@ -738,3 +738,16 @@ def test_scene_load_uses_windows_counter_even_with_nvidia_smi(monkeypatch):
     g._nvidia = "nvidia-smi"
     assert g._sample() == (8000.0, 99.0) and g._windows_load() == 90.0
     assert bench.GpuSampler()._load_thread is None or g._nvidia
+
+
+def test_dlss_through_optiscaler_on_an_amd_card_keeps_dlss_choices():
+    """Discord, 2026-11-17: a player runs DLSS on an RX 9070 XT through OptiScaler. The tool used to
+    offer such a card only FSR, TAA and MSAA; with DLSS already selected it now keeps the DLSS choices."""
+    from dcstune import sysinfo
+    amd = {"gpu": {"name": "AMD Radeon RX 9070 XT"}}
+    assert sysinfo.upscaling_vendor(amd, {"graphics.Upscaling": "FSR"}) == "other"
+    assert sysinfo.upscaling_vendor(amd, {"graphics.Upscaling": "DLSS", "graphics.DLSS_PerfQuality": 1}) == "nvidia"
+    assert sysinfo.upscaling_vendor(amd, {"graphics.AA": "DLAA"}) == "nvidia"
+    assert sysinfo.upscaling_vendor({"gpu": {"name": "NVIDIA GeForce RTX 4080"}}, {}) == "nvidia"
+    assert any("DLSS" in r["name"] for r in M.upscale_ladder(sysinfo.upscaling_vendor(amd, {"graphics.Upscaling": "DLSS"})))
+    assert not any("DLSS" in r["name"] for r in M.upscale_ladder(sysinfo.upscaling_vendor(amd, {})))

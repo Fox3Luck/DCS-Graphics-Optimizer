@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import model as M
 from . import vr as V
-from .sysinfo import gpu_vendor
+from .sysinfo import gpu_vendor, upscaling_vendor
 
 CALIBRATION_NAME = "dcstune-calibration.json"
 
@@ -167,7 +167,7 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
     """options: flat dict from flat_options(). measured: optional benchmark summary
     {"p1_low_fps", "avg_fps", "vram_peak_mb"}."""
     gpu = info.get("gpu") or {}
-    vendor = gpu_vendor(info)
+    vendor = upscaling_vendor(info, options)
     width = options.get("graphics.width") or gpu.get("width") or 1920
     height = options.get("graphics.height") or gpu.get("height") or 1080
     st = V.state(info, options)

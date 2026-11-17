@@ -185,7 +185,9 @@ class Engine:
             log("VR is switched on in this profile. This test runs on the monitor and your VR settings are left alone.")
             flat, st = dict(flat, **{"VR.enable": False}), None
         machine = rate.rate_machine(self.info)
-        vendor = sysinfo.gpu_vendor(self.info)
+        vendor = sysinfo.upscaling_vendor(self.info, flat)
+        if vendor != sysinfo.gpu_vendor(self.info):
+            log("DLSS is selected on a card that is not NVIDIA (through OptiScaler, for example), so DLSS choices are kept on offer.")
         mdl = M.Model(machine["gpu_score"], machine["cpu_score"],
                       flat.get("graphics.width") or gpu["width"], flat.get("graphics.height") or gpu["height"], vendor,
                       vr=st and st["model"])

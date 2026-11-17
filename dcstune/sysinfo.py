@@ -213,6 +213,18 @@ def gpu_vendor(info: dict) -> str:
     return "other"
 
 
+def upscaling_vendor(info: dict, options: dict | None = None) -> str:
+    """Which upscaling choices to offer. An AMD or Intel card normally gets no DLSS, but some players
+    run DLSS on those cards through OptiScaler (reported for an RX 9070 XT in VR). If the profile
+    already has DLSS or DLAA selected, it evidently works on this PC, so the DLSS choices stay on
+    offer instead of the tool steering the player to FSR or TAA."""
+    vendor = gpu_vendor(info)
+    o = options or {}
+    if vendor != "nvidia" and (o.get("graphics.Upscaling") == "DLSS" or o.get("graphics.AA") == "DLAA"):
+        return "nvidia"
+    return vendor
+
+
 class SetupNeeded(RuntimeError):
     """DCS or its Saved Games folder could not be found; the player can point to it."""
 
