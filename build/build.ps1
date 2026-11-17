@@ -30,6 +30,7 @@ try {
 & .buildenv\Scripts\pyinstaller --noconfirm --clean --onefile --windowed --name DCSGraphicsOptimizer `
     --add-data "$PWD\dcstune\data;dcstune\data" --add-data "$PWD\dcstune\ui.html;dcstune" `
     --add-data "$PWD\hook;hook" --add-data "$PWD\mission\dcstune_bench.miz;mission" `
+    --add-data "$PWD\mission\scenes.tar.xz;mission" --add-data "$PWD\mission\scenes.json;mission" `
     --distpath dist --workpath build\work --specpath build\work app.py
 Check "pyinstaller"
 } finally { Remove-Item $marker -ErrorAction SilentlyContinue }

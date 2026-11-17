@@ -1,0 +1,1264 @@
+{
+ "maps": {
+  "caucasus": {
+   "label": "Caucasus (Batumi)",
+   "folder": "Caucasus",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "syria": {
+   "label": "Syria (Beirut)",
+   "folder": "Syria",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "nevada": {
+   "label": "Nevada (Las Vegas)",
+   "folder": "Nevada",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "persiangulf": {
+   "label": "Persian Gulf (Dubai)",
+   "folder": "PersianGulf",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "marianaislands": {
+   "label": "Mariana Islands (Guam)",
+   "folder": "MarianaIslands",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "normandy": {
+   "label": "Normandy 2.0 (Paris)",
+   "folder": "Normandy",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "thechannel": {
+   "label": "The Channel (Dover)",
+   "folder": "TheChannel",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "falklands": {
+   "label": "South Atlantic (Port Stanley)",
+   "folder": "Falklands",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "sinai": {
+   "label": "Sinai (Cairo)",
+   "folder": "Sinai",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "kola": {
+   "label": "Kola (Murmansk)",
+   "folder": "Kola",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "afghanistan": {
+   "label": "Afghanistan (Kandahar)",
+   "folder": "Afghanistan",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  },
+  "germany": {
+   "label": "Germany Cold War (Berlin)",
+   "folder": "GermanyColdWar",
+   "aircraft": [
+    "Su-25T",
+    "TF-51D",
+    "A-10A",
+    "A-10C",
+    "A-10C_2",
+    "AJS37",
+    "AV8BNA",
+    "Bf-109K-4",
+    "C-101CC",
+    "C-130J-30",
+    "Christen Eagle II",
+    "F-100D",
+    "F-14A-135-GR",
+    "F-14B",
+    "F-14BU",
+    "F-15C",
+    "F-15ESE",
+    "F-16C_50",
+    "F-4E-45MC",
+    "F-5E-3",
+    "F-5E-3_FC",
+    "F-86F Sabre",
+    "F-86F_FC",
+    "F4U-1D",
+    "FA-18C_hornet",
+    "FW-190A8",
+    "FW-190D9",
+    "Hawk",
+    "I-16",
+    "J-11A",
+    "JF-17",
+    "L-39C",
+    "L-39ZA",
+    "La-7",
+    "M-2000C",
+    "MB-339A",
+    "MiG-15bis",
+    "MiG-15bis_FC",
+    "MiG-19P",
+    "MiG-21Bis",
+    "MiG-29 Fulcrum",
+    "MiG-29A",
+    "MiG-29S",
+    "Mirage-F1CE",
+    "Mirage-F1EE",
+    "MosquitoFBMkVI",
+    "P-47D-30",
+    "P-51D",
+    "SpitfireLFMkIX",
+    "Su-25",
+    "Su-27",
+    "Su-33",
+    "Yak-52",
+    "AH-64D_BLK_II",
+    "CH-47Fbl1",
+    "Ka-50_3",
+    "Ka-50",
+    "Mi-24P",
+    "Mi-8MT",
+    "OH58D",
+    "SA342L",
+    "UH-1H"
+   ]
+  }
+ },
+ "aircraft": {
+  "Su-25T": {
+   "label": "Su-25T (free)",
+   "folders": [
+    "Su-25T"
+   ],
+   "helicopter": false
+  },
+  "TF-51D": {
+   "label": "TF-51D (free)",
+   "folders": [
+    "TF-51D"
+   ],
+   "helicopter": false
+  },
+  "A-10A": {
+   "label": "A-10A",
+   "folders": [
+    "A-10A"
+   ],
+   "helicopter": false
+  },
+  "A-10C": {
+   "label": "A-10C",
+   "folders": [
+    "A-10C"
+   ],
+   "helicopter": false
+  },
+  "A-10C_2": {
+   "label": "A-10C II",
+   "folders": [
+    "A-10C_2"
+   ],
+   "helicopter": false
+  },
+  "AJS37": {
+   "label": "AJS-37 Viggen",
+   "folders": [
+    "AJS37"
+   ],
+   "helicopter": false
+  },
+  "AV8BNA": {
+   "label": "AV-8B Harrier",
+   "folders": [
+    "AV8BNA"
+   ],
+   "helicopter": false
+  },
+  "Bf-109K-4": {
+   "label": "Bf 109 K-4",
+   "folders": [
+    "Bf-109K-4"
+   ],
+   "helicopter": false
+  },
+  "C-101CC": {
+   "label": "C-101CC",
+   "folders": [
+    "C-101"
+   ],
+   "helicopter": false
+  },
+  "C-130J-30": {
+   "label": "C-130J",
+   "folders": [
+    "C130J"
+   ],
+   "helicopter": false
+  },
+  "Christen Eagle II": {
+   "label": "Christen Eagle II",
+   "folders": [
+    "Christen Eagle II"
+   ],
+   "helicopter": false
+  },
+  "F-100D": {
+   "label": "F-100D",
+   "folders": [
+    "F-100D"
+   ],
+   "helicopter": false
+  },
+  "F-14A-135-GR": {
+   "label": "F-14A",
+   "folders": [
+    "F14"
+   ],
+   "helicopter": false
+  },
+  "F-14B": {
+   "label": "F-14B",
+   "folders": [
+    "F14"
+   ],
+   "helicopter": false
+  },
+  "F-14BU": {
+   "label": "F-14B(U)",
+   "folders": [
+    "F14BU"
+   ],
+   "helicopter": false
+  },
+  "F-15C": {
+   "label": "F-15C",
+   "folders": [
+    "F-15C"
+   ],
+   "helicopter": false
+  },
+  "F-15ESE": {
+   "label": "F-15E",
+   "folders": [
+    "F-15E"
+   ],
+   "helicopter": false
+  },
+  "F-16C_50": {
+   "label": "F-16C",
+   "folders": [
+    "F-16C"
+   ],
+   "helicopter": false
+  },
+  "F-4E-45MC": {
+   "label": "F-4E",
+   "folders": [
+    "F-4E"
+   ],
+   "helicopter": false
+  },
+  "F-5E-3": {
+   "label": "F-5E",
+   "folders": [
+    "F-5E",
+    "F-5E 2024"
+   ],
+   "helicopter": false
+  },
+  "F-5E-3_FC": {
+   "label": "F-5E (Flaming Cliffs)",
+   "folders": [
+    "F-5E_FC"
+   ],
+   "helicopter": false
+  },
+  "F-86F Sabre": {
+   "label": "F-86F",
+   "folders": [
+    "F-86"
+   ],
+   "helicopter": false
+  },
+  "F-86F_FC": {
+   "label": "F-86F (Flaming Cliffs)",
+   "folders": [
+    "F-86_FC"
+   ],
+   "helicopter": false
+  },
+  "F4U-1D": {
+   "label": "F4U-1D Corsair",
+   "folders": [
+    "F4U-1D"
+   ],
+   "helicopter": false
+  },
+  "FA-18C_hornet": {
+   "label": "F/A-18C",
+   "folders": [
+    "FA-18C"
+   ],
+   "helicopter": false
+  },
+  "FW-190A8": {
+   "label": "Fw 190 A-8",
+   "folders": [
+    "FW-190A8"
+   ],
+   "helicopter": false
+  },
+  "FW-190D9": {
+   "label": "Fw 190 D-9",
+   "folders": [
+    "FW-190D9"
+   ],
+   "helicopter": false
+  },
+  "Hawk": {
+   "label": "Hawk",
+   "folders": [
+    "Hawk"
+   ],
+   "helicopter": false
+  },
+  "I-16": {
+   "label": "I-16",
+   "folders": [
+    "I-16"
+   ],
+   "helicopter": false
+  },
+  "J-11A": {
+   "label": "J-11A",
+   "folders": [
+    "J-11A"
+   ],
+   "helicopter": false
+  },
+  "JF-17": {
+   "label": "JF-17",
+   "folders": [
+    "JF-17"
+   ],
+   "helicopter": false
+  },
+  "L-39C": {
+   "label": "L-39C",
+   "folders": [
+    "L-39C",
+    "L-39"
+   ],
+   "helicopter": false
+  },
+  "L-39ZA": {
+   "label": "L-39ZA",
+   "folders": [
+    "L-39ZA",
+    "L-39"
+   ],
+   "helicopter": false
+  },
+  "La-7": {
+   "label": "La-7",
+   "folders": [
+    "La-7"
+   ],
+   "helicopter": false
+  },
+  "M-2000C": {
+   "label": "M-2000C",
+   "folders": [
+    "M-2000C"
+   ],
+   "helicopter": false
+  },
+  "MB-339A": {
+   "label": "MB-339A",
+   "folders": [
+    "MB-339"
+   ],
+   "helicopter": false
+  },
+  "MiG-15bis": {
+   "label": "MiG-15bis",
+   "folders": [
+    "MiG-15bis"
+   ],
+   "helicopter": false
+  },
+  "MiG-15bis_FC": {
+   "label": "MiG-15bis (Flaming Cliffs)",
+   "folders": [
+    "MiG-15bis_FC"
+   ],
+   "helicopter": false
+  },
+  "MiG-19P": {
+   "label": "MiG-19P",
+   "folders": [
+    "MiG-19P"
+   ],
+   "helicopter": false
+  },
+  "MiG-21Bis": {
+   "label": "MiG-21bis",
+   "folders": [
+    "MiG-21bis"
+   ],
+   "helicopter": false
+  },
+  "MiG-29 Fulcrum": {
+   "label": "MiG-29A (full fidelity)",
+   "folders": [
+    "MiG-29-Fulcrum"
+   ],
+   "helicopter": false
+  },
+  "MiG-29A": {
+   "label": "MiG-29A",
+   "folders": [
+    "MiG-29"
+   ],
+   "helicopter": false
+  },
+  "MiG-29S": {
+   "label": "MiG-29S",
+   "folders": [
+    "MiG-29"
+   ],
+   "helicopter": false
+  },
+  "Mirage-F1CE": {
+   "label": "Mirage F1CE",
+   "folders": [
+    "Mirage-F1"
+   ],
+   "helicopter": false
+  },
+  "Mirage-F1EE": {
+   "label": "Mirage F1EE",
+   "folders": [
+    "Mirage-F1"
+   ],
+   "helicopter": false
+  },
+  "MosquitoFBMkVI": {
+   "label": "Mosquito FB VI",
+   "folders": [
+    "MosquitoFBMkVI"
+   ],
+   "helicopter": false
+  },
+  "P-47D-30": {
+   "label": "P-47D",
+   "folders": [
+    "P-47D-30"
+   ],
+   "helicopter": false
+  },
+  "P-51D": {
+   "label": "P-51D",
+   "folders": [
+    "P-51D"
+   ],
+   "helicopter": false
+  },
+  "SpitfireLFMkIX": {
+   "label": "Spitfire LF Mk IX",
+   "folders": [
+    "SpitfireLFMkIX"
+   ],
+   "helicopter": false
+  },
+  "Su-25": {
+   "label": "Su-25",
+   "folders": [
+    "Su-25A"
+   ],
+   "helicopter": false
+  },
+  "Su-27": {
+   "label": "Su-27",
+   "folders": [
+    "Su-27"
+   ],
+   "helicopter": false
+  },
+  "Su-33": {
+   "label": "Su-33",
+   "folders": [
+    "Su-33"
+   ],
+   "helicopter": false
+  },
+  "Yak-52": {
+   "label": "Yak-52",
+   "folders": [
+    "Yak-52"
+   ],
+   "helicopter": false
+  },
+  "AH-64D_BLK_II": {
+   "label": "AH-64D Apache",
+   "folders": [
+    "AH-64D"
+   ],
+   "helicopter": true
+  },
+  "CH-47Fbl1": {
+   "label": "CH-47F",
+   "folders": [
+    "CH-47F"
+   ],
+   "helicopter": true
+  },
+  "Ka-50_3": {
+   "label": "Ka-50 III",
+   "folders": [
+    "Ka-50"
+   ],
+   "helicopter": true
+  },
+  "Ka-50": {
+   "label": "Ka-50",
+   "folders": [
+    "Ka-50"
+   ],
+   "helicopter": true
+  },
+  "Mi-24P": {
+   "label": "Mi-24P",
+   "folders": [
+    "Mi-24P"
+   ],
+   "helicopter": true
+  },
+  "Mi-8MT": {
+   "label": "Mi-8MTV2",
+   "folders": [
+    "Mi-8MTV2"
+   ],
+   "helicopter": true
+  },
+  "OH58D": {
+   "label": "OH-58D",
+   "folders": [
+    "OH-58D"
+   ],
+   "helicopter": true
+  },
+  "SA342L": {
+   "label": "SA342 Gazelle",
+   "folders": [
+    "SA342"
+   ],
+   "helicopter": true
+  },
+  "UH-1H": {
+   "label": "UH-1H Huey",
+   "folders": [
+    "Uh-1H"
+   ],
+   "helicopter": true
+  }
+ },
+ "files": [
+  "mission",
+  "options",
+  "warehouses",
+  "l10n/DEFAULT/dictionary",
+  "l10n/DEFAULT/mapResource"
+ ]
+}

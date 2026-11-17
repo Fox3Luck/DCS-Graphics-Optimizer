@@ -78,6 +78,8 @@ def _meta(rep: dict) -> str:
     bits = []
     if rep.get("kind"):
         bits.append(rep["kind"])
+    if rep.get("scene"):                    # the player's own map and aircraft (#23)
+        bits.append("flown with " + str(rep.get("scene_label")))
     if rep.get("created"):
         bits.append(rep["created"])
     if rep.get("duration_min"):

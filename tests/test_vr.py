@@ -151,8 +151,8 @@ class _FakeBench:
     made = []
     other_vram_mb = 0.0             # video memory other programs hold before DCS starts
 
-    def __init__(self, profile, exe, log=print, vr=False, vram_total_mb=0):
-        self.vr, self.runs, self.keep_shots = vr, 0, set()
+    def __init__(self, profile, exe, log=print, vr=False, vram_total_mb=0, scene=None):
+        self.vr, self.runs, self.keep_shots, self.scene = vr, 0, set(), scene
         self.options = profile["options"]
         _FakeBench.made.append(self)
 
@@ -496,3 +496,32 @@ def test_window_keeps_the_own_headset_goal_and_tests_for_it(tmp_path, monkeypatc
     assert any("Your own goal: 36 FPS (for flying with motion smoothing at 72 Hz)" in line for line in log)
     assert "full refresh rate: 72 FPS" in eng.set_vr_goal("nonsense")
     assert eng.scorecard()["headset"]["goal_fps"] == 72
+
+
+def test_window_keeps_the_scene_choice_and_tests_with_it(tmp_path, monkeypatch):
+    # Issue #23: pick the map and aircraft for the test from what is installed.
+    from dcstune import scenes, sysinfo
+    eng = _engine(tmp_path, monkeypatch)
+    dcs_root = tmp_path / "dcs"
+    for folder in ("Mods/terrains/Syria", "Mods/aircraft/F14"):
+        (dcs_root / folder).mkdir(parents=True)
+    monkeypatch.setattr(sysinfo, "pick_install", lambda info: {"path": str(dcs_root)})
+    card = eng.scorecard()["scene"]
+    assert card["default"] and card["map"] == "caucasus" and card["aircraft"] == "Su-25T"
+    assert [m["key"] for m in card["maps"]] == ["caucasus", "syria"]
+    assert "F-14B over Syria (Beirut)" in eng.set_scene("syria", "F-14B")
+    card = eng.scorecard()["scene"]
+    assert not card["default"] and card["label"] == "F-14B over Syria (Beirut)"
+    assert json.loads((tmp_path / "Config" / "dcstune-prefs.json").read_text())["bench_scene"] == ["syria", "F-14B"]
+    log = []
+    rep = eng.optimize(False, log.append)
+    assert _FakeBench.made[-1].scene == ("syria", "F-14B")
+    assert rep["scene"] == ["syria", "F-14B"] and rep["scene_label"] == "F-14B over Syria (Beirut)"
+    assert any("Test scenes: F-14B over Syria (Beirut)" in line for line in log)
+    from dcstune import report as R
+    assert "flown with F-14B over Syria (Beirut)" in R._meta(rep)
+    assert "standard scenes" in eng.set_scene("syria", "FA-18C_hornet")        # that module is not installed
+    assert eng.scorecard()["scene"]["default"]
+    assert "standard scenes" in eng.set_scene("nevada", "F-14B")               # that map is not installed
+    rep = eng.optimize(False, log.append)
+    assert _FakeBench.made[-1].scene is None and rep["scene"] is None and "flown with" not in R._meta(rep)

@@ -319,7 +319,8 @@ def free_port() -> int:
 
 class Bench:
     def __init__(self, profile: dict, exe: Path, scene_sec: int = 25, settle_sec: int = 20,
-                 timeout: int = 600, log=print, vr: bool = False, vram_total_mb: float = 0):
+                 timeout: int = 600, log=print, vr: bool = False, vram_total_mb: float = 0, scene=None):
+        self.scene = scene                 # the player's map and aircraft (issue #23); None = the default test
         self.profile_dir = Path(profile["path"])
         self.profile_name = profile["name"]
         self.options = Path(profile["options"])
@@ -363,7 +364,8 @@ class Bench:
         self.hook_dst.parent.mkdir(parents=True, exist_ok=True)
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)
         self._install_hook()
-        shutil.copyfile(MISSION_SRC, self.mission_dst)
+        from . import scenes
+        self.scene_used = scenes.write_mission(self.scene, self.mission_dst)
         return self
 
     def _install_hook(self):

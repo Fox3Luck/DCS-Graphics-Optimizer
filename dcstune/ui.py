@@ -41,6 +41,7 @@ class Engine:
                                hz=prefs.get_pref(self.profile, "headset_hz"),
                                goal=prefs.get_pref(self.profile, "vr_goal"))
         self.info["fps_goal"] = prefs.get_pref(self.profile, "fps_goal")
+        self.info["bench_scene"] = prefs.get_pref(self.profile, "bench_scene")
 
     def set_headset(self, name) -> str:
         from . import prefs, vr as V
@@ -77,6 +78,28 @@ class Engine:
             return f"Headset goal set back to the full refresh rate: {st['target']} FPS."
         return (f"Headset goal set to {st['target']} FPS, for flying with motion smoothing at {st['hz']} Hz. "
                 "The scorecard and the test now aim for it.")
+
+    def _install_root(self):
+        from . import sysinfo
+        try:
+            return sysinfo.pick_install(self.info).get("path")
+        except Exception:
+            return None
+
+    def set_scene(self, map_key, aircraft) -> str:
+        """The map and aircraft the test flies (#23); anything not offered goes back to the default."""
+        from . import prefs, scenes
+        pick = scenes.valid((map_key, aircraft))
+        have = scenes.installed(self._install_root())
+        if pick and not (any(m["key"] == pick[0] for m in have["maps"])
+                         and any(a["key"] == pick[1] for a in have["aircraft"])):
+            pick = None
+        prefs.set_pref(self.profile, "bench_scene", list(pick) if pick else None)
+        self._use_prefs()
+        if not pick:
+            return "The test is back on the standard scenes: " + scenes.label(None) + "."
+        return ("The test now flies " + scenes.label(pick) + ". Results from different maps or aircraft "
+                "can't be compared with each other; a heavier pair gives lower numbers.")
 
     def set_goal(self, fps) -> str:
         """The player's own frame-rate goal for monitor tests; None goes back to automatic."""
@@ -179,6 +202,7 @@ class Engine:
                                    "hz": st["hz"], "hz_chosen": st["hz_chosen"],
                                    "goal_mode": st["goal_mode"] or "", "goal_fps": st["target"],
                                    "goal_choices": V.goal_choices(st["hz"])},
+                "scene": self._scene_card(),
                 "goal": {"chosen": rate.chosen_goal(self.info), "choices": list(rate.GOAL_CHOICES),
                          "auto": rate.target_fps((self.info.get("gpu") or {}).get("refresh"))},
                 "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
@@ -189,6 +213,15 @@ class Engine:
                 "vr": bool(flat.get("VR.enable")), "recovered": self.recovered,
                 "can_undo": bool(list_backups(self.profile["options"])),
                 "report": self._report()}
+
+    def _scene_card(self) -> dict:
+        from . import scenes
+        have = scenes.installed(self._install_root())
+        pick = scenes.valid(self.info.get("bench_scene")) or scenes.DEFAULT
+        combos = {k: m["aircraft"] for k, m in scenes.index()["maps"].items()}
+        return {"map": pick[0], "aircraft": pick[1], "label": scenes.label(pick),
+                "default": pick == scenes.DEFAULT, "maps": have["maps"], "aircraft_list": have["aircraft"],
+                "combos": combos}
 
     def optimize(self, full: bool, log, mode: str = "balanced") -> dict:
         from . import audit, model as M, optimize, rate, sysinfo, vr as V
@@ -226,7 +259,11 @@ class Engine:
         if cal and not full:
             mdl.measured = {k: {int(i): ms for i, ms in v.items()} for k, v in cal.get("measured", {}).items()}
         exe = sysinfo.dcs_exe(sysinfo.pick_install(self.info))
-        with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0) as b:
+        from . import scenes
+        scene = scenes.valid(self.info.get("bench_scene"))
+        if scene:
+            log("Test scenes: " + scenes.label(scene) + " (your own choice).")
+        with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0, scene=scene) as b:
             out = optimize.run(mdl, flat, vendor, goal,
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
                                measure_fast=b.measure_fast, measure_batch=b.measure_batch,
@@ -245,6 +282,7 @@ class Engine:
                   "duration_min": max(1, round((time.time() - started) / 60)),
                   "hardware": rate.hardware_summary(self.info, flat),
                   "vr": bool(st), "vr_skipped": vr_skipped,
+                  "scene": list(scene) if scene else None, "scene_label": scenes.label(scene),
                   "costs": optimize.measured_costs(mdl, base_ms),
                   "target_fps": target, "goal_chosen": own_goal, "target_reached": out["target_reached"],
                   "keep_current": out["keep_current"], "runs": launches,
@@ -496,12 +534,14 @@ class App:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; pick the headset after it finishes.")
             return {"message": self.engine.set_headset(body.get("name"))}
-        if method == "POST" and path in ("/api/headset-hz", "/api/goal", "/api/vr-goal"):
+        if method == "POST" and path in ("/api/headset-hz", "/api/goal", "/api/vr-goal", "/api/scene"):
             with self.lock:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; change the goal after it finishes.")
             if path == "/api/goal":
                 return {"message": self.engine.set_goal(body.get("fps"))}
+            if path == "/api/scene":
+                return {"message": self.engine.set_scene(body.get("map"), body.get("aircraft"))}
             if path == "/api/vr-goal":
                 return {"message": self.engine.set_vr_goal(body.get("mode"))}
             return {"message": self.engine.set_headset_hz(body.get("hz"))}

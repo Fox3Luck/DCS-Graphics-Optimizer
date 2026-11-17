@@ -20,6 +20,10 @@ def _fingerprint(info: dict, options: dict) -> dict:
     st = V.state(info, options)
     if st:      # what was learned on the monitor says nothing about the headset, and vice versa
         fp["vr"] = [st["headset"], st["render_quality"]]
+    from . import scenes
+    pick = scenes.valid(info.get("bench_scene"))
+    if pick:    # numbers measured over another map with another aircraft are their own set (#23)
+        fp["scene"] = list(pick)
     return fp
 
 

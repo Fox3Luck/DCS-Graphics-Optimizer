@@ -90,6 +90,13 @@
       <select id="goal-pick" title="Automatic aims for your monitor's refresh rate. Pick your own number if you cap DCS lower, or want room to spare for busy maps and multiplayer."
         style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select>
       <span class="sub" id="goal-hint"></span></p>
+    <p class="hidden" id="scene-line" style="margin:8px 0 2px">Test with:
+      <select id="scene-plane" title="The aircraft the test films. Pick one you fly; a detailed aircraft is heavier than the free Su-25T."
+        style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select>
+      over
+      <select id="scene-map" title="The map the test flies over. Pick one you fly on; busy maps are heavier than Caucasus."
+        style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:2px"></select>
+      <span class="sub" id="scene-hint"></span></p>
   </fieldset>
   <div class="actions">
     <button class="primary" id="quick">Test and optimize (10 to 20 min)</button>
@@ -276,6 +283,19 @@ function showGoals(sc) {
     h.refresh.forEach(r => { const o = el("option", null, r + " Hz" + (!h.hz_chosen && r === h.hz ? " (assumed)" : "")); o.value = r; hz.append(o); });
     hz.value = h.hz;
   }
+  const s = sc.scene, sp = $("scene-plane"), sm = $("scene-map");
+  const showScene = !!(s && (s.maps.length > 1 || s.aircraft_list.length > 1));
+  $("scene-line").classList.toggle("hidden", !showScene);
+  if (showScene) {
+    sm.replaceChildren(); sp.replaceChildren();
+    s.maps.forEach(m => { const o = el("option", null, m.label); o.value = m.key; sm.append(o); });
+    sm.value = s.map;
+    // only aircraft that have a prepared test on the map shown
+    s.aircraft_list.filter(a => (s.combos[sm.value] || [s.aircraft]).includes(a.key) || a.key === s.aircraft)
+      .forEach(a => { const o = el("option", null, a.label); o.value = a.key; sp.append(o); });
+    sp.value = s.aircraft;
+    $("scene-hint").textContent = s.default ? "" : "Your own choice. Numbers from different maps or aircraft can't be compared.";
+  }
   const vg = $("vrgoal-pick"), showVg = !!(h && h.goal_choices);
   $("vrgoal-line").classList.toggle("hidden", !showVg);
   if (showVg) {
@@ -299,6 +319,12 @@ $("hz-pick").onchange = async () => {
   try { note((await api("/api/headset-hz", { hz: parseInt($("hz-pick").value, 10) || null })).message); await refresh(); }
   catch (e) { note(e.message, true); }
 };
+const sendScene = async () => {
+  try { note((await api("/api/scene", { map: $("scene-map").value, aircraft: $("scene-plane").value })).message); await refresh(); }
+  catch (e) { note(e.message, true); }
+};
+$("scene-plane").onchange = sendScene;
+$("scene-map").onchange = sendScene;
 $("vrgoal-pick").onchange = async () => {
   try { note((await api("/api/vr-goal", { mode: $("vrgoal-pick").value || null })).message); await refresh(); }
   catch (e) { note(e.message, true); }
@@ -312,7 +338,7 @@ $("headset-pick").onchange = async () => {
   catch (e) { note(e.message, true); }
 };
 let RUNNING = false;
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick", "scene-plane", "scene-map"].forEach(i => $(i).disabled = on);
   if (SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");

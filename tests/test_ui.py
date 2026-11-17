@@ -213,6 +213,8 @@ def test_goal_and_refresh_rate_buttons(served):
     page = call("/?t=" + app.token)[1]
     assert b'id="goal-pick"' in page and b'id="hz-pick"' in page
     assert b'id="vrgoal-pick"' in page
+    assert b'id="scene-map"' in page and b'id="scene-plane"' in page
+    assert "standard scenes" in json.loads(call("/api/scene", {"map": "syria", "aircraft": "F-14B"})[1])["message"]
     assert "VR is switched off" in json.loads(call("/api/vr-goal", {"mode": "half"})[1])["message"]
 
 
