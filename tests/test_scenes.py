@@ -46,6 +46,15 @@ def test_only_installed_maps_and_aircraft_are_offered(tmp_path):
     assert "Su-25T" in keys and "F-14B" in keys and "F-14A-135-GR" in keys and "UH-1H" in keys      # folder case ignored
     assert "F-14BU" not in keys and "FA-18C_hornet" not in keys
     assert [m["key"] for m in scenes.installed(None)["maps"]] == ["caucasus"]                         # DCS not found
+    # a map switched off in DCS's module manager cannot be loaded, so it is not offered (found on the test PC)
+    profile = tmp_path / "profile"
+    (profile / "Config").mkdir(parents=True)
+    (profile / "Config" / "pluginsEnabled.lua").write_text(
+        'pluginsEnabled = {\n    ["F-14B by Heatblur Simulations"] = false,\n    ["Syria"] = false,\n    ["MarianaIslands"] = true,\n}\n')
+    have = scenes.installed(tmp_path, profile)
+    assert [m["key"] for m in have["maps"]] == ["caucasus", "marianaislands"]
+    assert "F-14B" in [a["key"] for a in have["aircraft"]]            # filmed from outside: still works
+    assert scenes.switched_off(tmp_path / "nowhere") == set() and scenes.switched_off(None) == set()
 
 
 def test_numbers_from_another_scene_are_kept_apart():

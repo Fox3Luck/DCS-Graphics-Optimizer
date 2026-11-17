@@ -59,12 +59,29 @@ def _has_folder(parent: Path, names: list[str]) -> bool:
     return any(n.lower() in there for n in names)
 
 
-def installed(install_root) -> dict:
+def switched_off(profile_path) -> set[str]:
+    """Modules the player switched off in DCS's module manager (lower case). DCS will not load a
+    mission on a map that is switched off: on the test PC the South Atlantic map was installed but
+    switched off, and DCS refused to host the test there."""
+    import re
+    try:
+        text = (Path(profile_path) / "Config" / "pluginsEnabled.lua").read_text(errors="replace")
+    except (OSError, TypeError):
+        return set()
+    return {name.lower() for name in re.findall(r'\["([^"]+)"\]\s*=\s*false', text)}
+
+
+def installed(install_root, profile_path=None) -> dict:
     """The maps and aircraft from the pack that this DCS install has, as lists of {key, label}.
-    The default map and the free aircraft are always listed."""
+    The default map and the free aircraft are always listed. A map the player switched off in the
+    module manager is left out. (An aircraft that is switched off still works: the test only films
+    it from outside, flown by the computer.)"""
     idx, root = index(), Path(install_root) if install_root else None
+    off = switched_off(profile_path)
     maps, planes = [], []
     for key, m in idx["maps"].items():
+        if key != DEFAULT[0] and m["folder"].lower() in off:
+            continue
         if key == DEFAULT[0] or (root and _has_folder(root / "Mods" / "terrains", [m["folder"]])):
             maps.append({"key": key, "label": m["label"]})
     for key, a in idx["aircraft"].items():

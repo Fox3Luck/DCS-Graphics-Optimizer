@@ -90,7 +90,7 @@ class Engine:
         """The map and aircraft the test flies (#23); anything not offered goes back to the default."""
         from . import prefs, scenes
         pick = scenes.valid((map_key, aircraft))
-        have = scenes.installed(self._install_root())
+        have = scenes.installed(self._install_root(), self.profile["path"])
         if pick and not (any(m["key"] == pick[0] for m in have["maps"])
                          and any(a["key"] == pick[1] for a in have["aircraft"])):
             pick = None
@@ -216,8 +216,10 @@ class Engine:
 
     def _scene_card(self) -> dict:
         from . import scenes
-        have = scenes.installed(self._install_root())
+        have = scenes.installed(self._install_root(), self.profile["path"])
         pick = scenes.valid(self.info.get("bench_scene")) or scenes.DEFAULT
+        if not any(m["key"] == pick[0] for m in have["maps"]):      # the map was removed or switched off since
+            pick = scenes.DEFAULT
         combos = {k: m["aircraft"] for k, m in scenes.index()["maps"].items()}
         return {"map": pick[0], "aircraft": pick[1], "label": scenes.label(pick),
                 "default": pick == scenes.DEFAULT, "maps": have["maps"], "aircraft_list": have["aircraft"],
@@ -261,6 +263,10 @@ class Engine:
         exe = sysinfo.dcs_exe(sysinfo.pick_install(self.info))
         from . import scenes
         scene = scenes.valid(self.info.get("bench_scene"))
+        if scene and not any(m["key"] == scene[0] for m in scenes.installed(self._install_root(), self.profile["path"])["maps"]):
+            log("The map you picked for the test is not installed or is switched off in DCS's module manager; "
+                "using the standard scenes.")
+            scene = None
         if scene:
             log("Test scenes: " + scenes.label(scene) + " (your own choice).")
         with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0, scene=scene) as b:
