@@ -49,6 +49,9 @@
   <p class="sub hidden" id="hz-line">Refresh rate you run the headset at:
     <select id="hz-pick" title="The test aims for this many frames per second in the headset. Pick the rate your headset is really set to."
       style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
+  <p class="sub hidden" id="vrgoal-line">Frame rate to aim for in the headset:
+    <select id="vrgoal-pick" title="Full rate is your headset's refresh rate. If you fly with motion smoothing (SSW, ASW, motion reprojection), pick half rate; add room to spare for busy maps and multiplayer."
+      style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
   <div class="note hidden" id="update"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
     <span id="update-text" style="flex:1;min-width:240px"></span>
     <button class="primary" id="update-get">Download</button>
@@ -273,6 +276,13 @@ function showGoals(sc) {
     h.refresh.forEach(r => { const o = el("option", null, r + " Hz" + (!h.hz_chosen && r === h.hz ? " (assumed)" : "")); o.value = r; hz.append(o); });
     hz.value = h.hz;
   }
+  const vg = $("vrgoal-pick"), showVg = !!(h && h.goal_choices);
+  $("vrgoal-line").classList.toggle("hidden", !showVg);
+  if (showVg) {
+    vg.replaceChildren();
+    h.goal_choices.forEach(c => { const o = el("option", null, c.label); o.value = c.mode; vg.append(o); });
+    vg.value = h.goal_mode || "";
+  }
   const showGoal = !!g && !sc.vr_tested;          // a test in the headset aims for the headset's rate instead
   $("goal-line").classList.toggle("hidden", !showGoal);
   if (showGoal) {
@@ -289,6 +299,10 @@ $("hz-pick").onchange = async () => {
   try { note((await api("/api/headset-hz", { hz: parseInt($("hz-pick").value, 10) || null })).message); await refresh(); }
   catch (e) { note(e.message, true); }
 };
+$("vrgoal-pick").onchange = async () => {
+  try { note((await api("/api/vr-goal", { mode: $("vrgoal-pick").value || null })).message); await refresh(); }
+  catch (e) { note(e.message, true); }
+};
 $("goal-pick").onchange = async () => {
   try { note((await api("/api/goal", { fps: parseInt($("goal-pick").value, 10) || null })).message); await refresh(); }
   catch (e) { note(e.message, true); }
@@ -298,7 +312,7 @@ $("headset-pick").onchange = async () => {
   catch (e) { note(e.message, true); }
 };
 let RUNNING = false;
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "goal-pick"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick"].forEach(i => $(i).disabled = on);
   if (SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");

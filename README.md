@@ -76,7 +76,8 @@ possible image quality on your PC, it aims for 90, then 72, then 60 FPS instead.
 
 You can also set the goal yourself in the window: lower than your monitor if you cap DCS
 (30 or 45 FPS leaves room for a better picture), or higher for room to spare on busy maps
-and in multiplayer. In a headset, pick the refresh rate you really run it at.
+and in multiplayer. In a headset, pick the refresh rate you really run it at; if you fly
+with motion smoothing, you can aim for half that rate instead, with or without room to spare.
 
 ### Example result
 

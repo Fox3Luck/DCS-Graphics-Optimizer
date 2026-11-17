@@ -62,7 +62,7 @@ def build(info: dict, options: dict, report: dict, install: dict | None = None) 
             "runtime_file": _stem(raw_vr.get("runtime")) or None,
             "detected": found, "pimax": pimax,
             "rated_as": st and {k: st.get(k) for k in ("headset", "known", "eye_w", "eye_h", "refresh", "eye_tracking",
-                                                        "render_quality", "pixel_density", "quad_view", "target", "hz_chosen", "steps")},
+                                                        "render_quality", "pixel_density", "quad_view", "target", "hz", "hz_chosen", "goal_mode", "steps")},
             "options": {k[3:]: v for k, v in sorted(options.items()) if k.startswith("VR.") and "ipd" not in k.lower()},
         },
         "graphics": {k[9:]: v for k, v in sorted(options.items()) if k.startswith("graphics.")},

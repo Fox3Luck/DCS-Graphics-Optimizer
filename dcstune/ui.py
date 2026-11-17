@@ -38,7 +38,8 @@ class Engine:
         tell by itself), the refresh rate they run it at, and their own frame-rate goal."""
         from . import prefs
         self.info["vr"] = dict(self.info.get("vr") or {}, chosen=prefs.get_pref(self.profile, "headset"),
-                               hz=prefs.get_pref(self.profile, "headset_hz"))
+                               hz=prefs.get_pref(self.profile, "headset_hz"),
+                               goal=prefs.get_pref(self.profile, "vr_goal"))
         self.info["fps_goal"] = prefs.get_pref(self.profile, "fps_goal")
 
     def set_headset(self, name) -> str:
@@ -57,8 +58,25 @@ class Engine:
         hz = hz if isinstance(hz, int) and not isinstance(hz, bool) and hz in rates else None
         prefs.set_pref(self.profile, "headset_hz", hz)
         self._use_prefs()
-        return (f"Headset refresh rate set to {hz} Hz. The scorecard and the test now aim for {hz} FPS." if hz
+        st = V.state(self.info, self._flat())
+        aim = st["target"] if st else hz
+        return (f"Headset refresh rate set to {hz} Hz. The scorecard and the test now aim for {aim} FPS." if hz
                 else "Headset refresh rate set back to automatic.")
+
+    def set_vr_goal(self, mode) -> str:
+        """The player's own goal in the headset (#47): half rate for motion smoothing, with or without
+        room to spare; None goes back to the headset's full refresh rate."""
+        from . import prefs, vr as V
+        mode = mode if isinstance(mode, str) and mode in V.GOAL_MODES else None
+        if not V.state(self.info, self._flat()):
+            return "VR is switched off in this profile, so there is no headset goal to set."
+        prefs.set_pref(self.profile, "vr_goal", mode)
+        self._use_prefs()
+        st = V.state(self.info, self._flat())
+        if not mode:
+            return f"Headset goal set back to the full refresh rate: {st['target']} FPS."
+        return (f"Headset goal set to {st['target']} FPS, for flying with motion smoothing at {st['hz']} Hz. "
+                "The scorecard and the test now aim for it.")
 
     def set_goal(self, fps) -> str:
         """The player's own frame-rate goal for monitor tests; None goes back to automatic."""
@@ -158,7 +176,9 @@ class Engine:
                 "vr_tested": bool(st) and V.bench_enabled(), "vr_test_build": V.test_build(),
                 "headset": st and {"name": st["headset"], "detected": st["detected"],
                                    "choices": V.headset_names(), "refresh": st["refresh"],
-                                   "hz": st["target"], "hz_chosen": st["hz_chosen"]},
+                                   "hz": st["hz"], "hz_chosen": st["hz_chosen"],
+                                   "goal_mode": st["goal_mode"] or "", "goal_fps": st["target"],
+                                   "goal_choices": V.goal_choices(st["hz"])},
                 "goal": {"chosen": rate.chosen_goal(self.info), "choices": list(rate.GOAL_CHOICES),
                          "auto": rate.target_fps((self.info.get("gpu") or {}).get("refresh"))},
                 "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
@@ -192,9 +212,11 @@ class Engine:
                       flat.get("graphics.width") or gpu["width"], flat.get("graphics.height") or gpu["height"], vendor,
                       vr=st and st["model"])
         goal = st["target"] if st else rate.display_goal(self.info)
-        own_goal = (st["target"] if st["hz_chosen"] else None) if st else rate.chosen_goal(self.info)
+        own_goal = (st["target"] if st["hz_chosen"] or st["goal_mode"] else None) if st else rate.chosen_goal(self.info)
         if own_goal:
-            log(f"Your own goal: {own_goal} FPS" + (" (the refresh rate you picked for your headset)." if st else "."))
+            log(f"Your own goal: {own_goal} FPS"
+                + (f" (for flying with motion smoothing at {st['hz']} Hz)." if st and st["goal_mode"]
+                   else " (the refresh rate you picked for your headset)." if st else "."))
         extra = V.fixed_changes(st, flat) if st else None
         if extra and "VR.pixel_density" in extra:      # candidates are judged at the density they will use
             mdl.vr = dict(mdl.vr, pd=extra["VR.pixel_density"])
@@ -474,12 +496,14 @@ class App:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; pick the headset after it finishes.")
             return {"message": self.engine.set_headset(body.get("name"))}
-        if method == "POST" and path in ("/api/headset-hz", "/api/goal"):
+        if method == "POST" and path in ("/api/headset-hz", "/api/goal", "/api/vr-goal"):
             with self.lock:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; change the goal after it finishes.")
             if path == "/api/goal":
                 return {"message": self.engine.set_goal(body.get("fps"))}
+            if path == "/api/vr-goal":
+                return {"message": self.engine.set_vr_goal(body.get("mode"))}
             return {"message": self.engine.set_headset_hz(body.get("hz"))}
         if method == "POST" and path == "/api/undo":
             return {"message": self.engine.undo()}

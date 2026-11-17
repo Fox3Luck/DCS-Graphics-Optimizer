@@ -107,6 +107,14 @@ def state(info: dict, options: dict) -> dict | None:
     hz_chosen = isinstance(picked, int) and not isinstance(picked, bool) and picked in offer
     target = picked if hz_chosen else (90 if 90 in refresh else refresh[-1])
     steps_from = refresh if known or not hz_chosen else [picked]
+    hz, steps = target, goal_steps(steps_from, target)
+    # The player's own goal in the headset (beta issue #47): players who fly with motion smoothing on
+    # purpose want half the refresh rate, some with a little room to spare, not the full rate.
+    goal_mode = (info.get("vr") or {}).get("goal")
+    goal_mode = goal_mode if isinstance(goal_mode, str) and goal_mode in GOAL_MODES else None
+    if goal_mode:
+        target = own_goal(hz, goal_mode)
+        steps = [target]                 # their choice: no falling back to another rate
     pd = options.get("VR.pixel_density")
     pd = float(pd) if isinstance(pd, (int, float)) and not isinstance(pd, bool) else 1.0
     hires = known and spec["eye_w"] >= TABLE["hires_eye_w"]
@@ -117,10 +125,29 @@ def state(info: dict, options: dict) -> dict | None:
             "render_quality": found["render_quality"], "pixel_density": pd,
             "quad_view": bool(options.get("VR.openxr_quadView")),
             "quad_layer": found["quad_layer"], "vendor_foveation": found.get("vendor_foveation", False),
-            "target": target, "hz_chosen": hz_chosen, "steps": goal_steps(steps_from, target),
+            "target": target, "hz": hz, "hz_chosen": hz_chosen, "goal_mode": goal_mode, "steps": steps,
             "model": {"eye_px": spec["eye_w"] * spec["eye_h"],
                       "render_quality": found["render_quality"] or 1.0, "pd": pd,
                       "quad": bool(options.get("VR.openxr_quadView"))}}
+
+
+GOAL_MODES = ("half", "half_room")
+
+
+def own_goal(hz: int, mode: str) -> int:
+    """The frame rate a player's own headset goal stands for: half the refresh rate (what motion
+    smoothing locks to), or half with about a tenth to spare for busy maps and multiplayer
+    (50 at 90 Hz, 40 at 72 Hz)."""
+    return -(-hz * 11 // 20) if mode == "half_room" else (hz + 1) // 2
+
+
+def goal_choices(hz: int) -> list[dict]:
+    """What the window offers for a headset running at hz."""
+    return [{"mode": "", "fps": hz, "label": f"Full rate: {hz} FPS"},
+            {"mode": "half", "fps": own_goal(hz, "half"),
+             "label": f"Half rate: {own_goal(hz, 'half')} FPS (motion smoothing)"},
+            {"mode": "half_room", "fps": own_goal(hz, "half_room"),
+             "label": f"Half rate with room to spare: {own_goal(hz, 'half_room')} FPS"}]
 
 
 def goal_steps(refresh: list[int], target: int) -> list[int]:
@@ -207,15 +234,20 @@ def rules(st: dict, o: dict, machine: dict, ratio: float):
         rq = f" (now {st['render_quality']:.2f})" if st["render_quality"] else ""
         yield ("info", 0, f"If DCS settings alone cannot hold the goal, lower render quality in {soft}{rq} "
                           "before lowering DCS pixel density.", "untouched")
+    hz = st.get("hz") or st["target"]
+    if st.get("goal_mode"):
+        what = "half of" if st["goal_mode"] == "half" else "a little above half of"
+        yield ("info", 0, f"The goal is your own: {st['target']} FPS, {what} the headset's {hz} Hz, for flying "
+                          f"with motion smoothing. Keep motion smoothing switched on ({soft}).", "untouched")
     if len(st["refresh"]) > 1:
-        others = ", ".join(str(r) for r in st["refresh"] if r != st["target"])
+        others = ", ".join(str(r) for r in st["refresh"] if r != hz)
         if st.get("hz_chosen"):
-            yield ("info", 0, f"The goal is the {st['target']} Hz you picked for your headset. Keep the headset "
-                              f"itself on {st['target']} Hz ({soft}).", "untouched")
+            yield ("info", 0, f"The goal is the {hz} Hz you picked for your headset. Keep the headset "
+                              f"itself on {hz} Hz ({soft}).", "untouched")
         elif not st["known"]:
-            yield ("info", 0, f"The goal assumes the headset runs at {st['target']} Hz. If you play at another "
+            yield ("info", 0, f"The goal assumes the headset runs at {hz} Hz. If you play at another "
                               "rate, pick it under the profile name at the top.", "untouched")
         else:
-            yield ("info", 0, f"The goal assumes the headset runs at {st['target']} Hz. It can also run at "
+            yield ("info", 0, f"The goal assumes the headset runs at {hz} Hz. It can also run at "
                               f"{others} Hz ({soft}). If you play at another rate, pick it under the profile "
                               "name at the top.", "untouched")

@@ -212,6 +212,8 @@ def test_goal_and_refresh_rate_buttons(served):
         app.job["state"] = "idle"
     page = call("/?t=" + app.token)[1]
     assert b'id="goal-pick"' in page and b'id="hz-pick"' in page
+    assert b'id="vrgoal-pick"' in page
+    assert "VR is switched off" in json.loads(call("/api/vr-goal", {"mode": "half"})[1])["message"]
 
 
 def test_unticked_changes_are_left_alone(served):

@@ -453,3 +453,46 @@ def test_dream_air_and_unlisted_headsets_can_pick_their_rate():
     auto = V.state({"vr": {"runtime": "VirtualDesktop"}}, opts)
     assert auto["target"] == 90 and auto["steps"] == [90, 45] and not auto["hz_chosen"]
     assert any(h["name"] == "Pimax Dream Air" and h["refresh"] == [72, 90] for h in V.TABLE["headsets"])
+
+
+def test_own_headset_goal_half_rate_for_motion_smoothing():
+    # Issue #47: a VR tester flies with motion smoothing and wants 36 at 72 Hz, 45 at 90 Hz, or 50 for headroom.
+    assert [V.own_goal(hz, "half") for hz in (72, 80, 90, 120)] == [36, 40, 45, 60]
+    assert [V.own_goal(hz, "half_room") for hz in (72, 80, 90, 120)] == [40, 44, 50, 66]
+    st = V.state(dict(QUEST3, vr=dict(QUEST3["vr"], goal="half")), _vr())
+    assert st["hz"] == 90 and st["target"] == 45 and st["goal_mode"] == "half" and st["steps"] == [45]
+    st = V.state(dict(QUEST3, vr=dict(QUEST3["vr"], hz=72, goal="half_room")), _vr())
+    assert st["hz"] == 72 and st["target"] == 40 and st["hz_chosen"] and st["steps"] == [40]
+    for bad in ("full", "", 45, True, None, ["half"]):          # anything else: the full refresh rate, as before
+        st = V.state(dict(QUEST3, vr=dict(QUEST3["vr"], goal=bad)), _vr())
+        assert st["target"] == 90 and st["hz"] == 90 and st["goal_mode"] is None and st["steps"] == [90, 80, 72, 36]
+    # the chosen goal is the goal, whatever the PC can do: never swapped for another rate
+    mdl = M.Model(90, 90, 3840, 2160, "nvidia", vr=st["model"])
+    assert optimize.pick_target(mdl, 45, 16000, 0.8, steps=[45], current_low=80) == 45
+    assert optimize.pick_target(mdl, 45, 16000, 0.8, steps=[45], current_low=20) == 45
+    machine = rate.rate_machine(QUEST3)
+    info = dict(QUEST3, vr=dict(QUEST3["vr"], goal="half_room"))
+    fit = rate.rate_settings(info, _vr(), machine)
+    said = " ".join(f["text"] for f in fit["findings"])
+    assert fit["target_fps"] == 50 and "50 FPS, a little above half of the headset's 90 Hz" in said
+
+
+def test_window_keeps_the_own_headset_goal_and_tests_for_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("DCSTUNE_VR_BENCH", "1")
+    eng = _engine(tmp_path, monkeypatch)
+    eng.info = dict(QUEST3, profiles=[{"name": "DCS"}])
+    eng.set_headset("Meta Quest 3")
+    h = eng.scorecard()["headset"]
+    assert h["goal_mode"] == "" and h["goal_fps"] == 90 and [c["fps"] for c in h["goal_choices"]] == [90, 45, 50]
+    assert "45 FPS" in eng.set_vr_goal("half")
+    h = eng.scorecard()["headset"]
+    assert h["hz"] == 90 and h["goal_mode"] == "half" and h["goal_fps"] == 45
+    assert json.loads((tmp_path / "Config" / "dcstune-prefs.json").read_text())["vr_goal"] == "half"
+    assert "aim for 36 FPS" in eng.set_headset_hz(72)             # half of the rate now picked
+    assert [c["fps"] for c in eng.scorecard()["headset"]["goal_choices"]] == [72, 36, 40]
+    log = []
+    rep = eng.optimize(False, log.append)
+    assert rep["vr"] and rep["target_fps"] == 36 and rep["goal_chosen"] == 36
+    assert any("Your own goal: 36 FPS (for flying with motion smoothing at 72 Hz)" in line for line in log)
+    assert "full refresh rate: 72 FPS" in eng.set_vr_goal("nonsense")
+    assert eng.scorecard()["headset"]["goal_fps"] == 72
