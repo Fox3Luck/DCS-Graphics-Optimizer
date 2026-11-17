@@ -9,6 +9,7 @@
   {"name": "Pimax Crystal Light", "eye_w": 2880, "eye_h": 2880, "refresh": [72, 90, 120], "eye_tracking": false},
   {"name": "Pimax Crystal Super", "eye_w": 3840, "eye_h": 3840, "refresh": [72, 90], "eye_tracking": true},
   {"name": "Pimax Crystal", "eye_w": 2880, "eye_h": 2880, "refresh": [72, 90, 120], "eye_tracking": true},
+  {"name": "Pimax Dream Air SE", "eye_w": 2560, "eye_h": 2560, "refresh": [72, 90], "eye_tracking": true},
   {"name": "Pimax Dream Air", "eye_w": 3840, "eye_h": 3552, "refresh": [72, 90], "eye_tracking": true},
   {"name": "Meta Quest 3", "eye_w": 2064, "eye_h": 2208, "refresh": [72, 80, 90, 120], "eye_tracking": false},
   {"name": "Meta Quest 3S", "eye_w": 1832, "eye_h": 1920, "refresh": [72, 90, 120], "eye_tracking": false},

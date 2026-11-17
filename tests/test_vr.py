@@ -525,3 +525,12 @@ def test_window_keeps_the_scene_choice_and_tests_with_it(tmp_path, monkeypatch):
     assert "standard scenes" in eng.set_scene("nevada", "F-14B")               # that map is not installed
     rep = eng.optimize(False, log.append)
     assert _FakeBench.made[-1].scene is None and rep["scene"] is None and "flown with" not in R._meta(rep)
+
+
+def test_dream_air_se_is_listed_with_its_own_panel():
+    # Asked for on Discord, Nov 17. The SE has 2560 x 2560 per eye, not the Dream Air's 3840 x 3552.
+    assert "Pimax Dream Air SE" in V.headset_names() and "Pimax Dream Air" in V.headset_names()
+    se = V.state({"vr": {"runtime": "Pimax", "chosen": "Pimax Dream Air SE", "hz": 72}}, {"VR.enable": True})
+    assert se["known"] and (se["eye_w"], se["eye_h"]) == (2560, 2560) and se["target"] == 72 and se["refresh"] == [72, 90]
+    air = V.state({"vr": {"runtime": "Pimax", "chosen": "Pimax Dream Air"}}, {"VR.enable": True})
+    assert (air["eye_w"], air["eye_h"]) == (3840, 3552)
