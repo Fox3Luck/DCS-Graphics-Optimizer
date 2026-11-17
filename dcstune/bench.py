@@ -81,6 +81,8 @@ def parse_result(raw: dict) -> dict:
     for s in raw["scenes"]:
         stats = frame_stats([float(x) for x in s["frame_ms"]])
         stats.update(name=s["name"], shot=s.get("shot") or None)
+        if s.get("w0") and s.get("w1"):
+            stats.update(w0=s["w0"], w1=s["w1"])
         scenes.append(stats)
     return {"scenes": scenes, "clock": raw.get("clock"), "tag": raw.get("tag")}
 
@@ -143,6 +145,7 @@ class GpuSampler:
 
     def __init__(self, interval: float = 1.0):
         self.peak_mb, self.util, self._stop = 0.0, [], threading.Event()
+        self.samples: list[tuple[float, float]] = []      # (time, load %), to match to scenes
         self._thread = threading.Thread(target=self._loop, args=(interval,), daemon=True)
         # DCSTUNE_NO_NVSMI: testing switch to exercise the AMD/Intel counter path on an NVIDIA PC
         self._nvidia = None if os.environ.get("DCSTUNE_NO_NVSMI") else shutil.which("nvidia-smi")
@@ -188,8 +191,15 @@ class GpuSampler:
                 self.peak_mb = max(self.peak_mb, mem)
                 if util is not None:
                     self.util.append(util)
+                    self.samples.append((time.time(), util))
             except Exception:
                 pass
+
+    def busy_between(self, t0: float, t1: float) -> int | None:
+        """Average graphics card load (%) while a scene was timed; None with too few samples.
+        The scene's times are whole seconds, so the window is widened by one second."""
+        vals = [u for t, u in self.samples if t0 <= t <= t1 + 1]
+        return round(sum(vals) / len(vals)) if len(vals) >= 3 else None
 
     def __enter__(self):
         self._thread.start()
@@ -371,6 +381,10 @@ class Bench:
         tag = f"{self.session_id}r{self.runs:02d}"
         raw, gpu, seconds = self._launch(changes, {"tag": tag}, short, self.timeout)
         result = parse_result(raw)
+        for sc in result["scenes"]:
+            w0, w1 = sc.pop("w0", None), sc.pop("w1", None)
+            if w0 and w1:
+                sc["gpu_busy"] = gpu.busy_between(w0, w1)
         result["vram_peak_mb"] = round(gpu.peak_mb) or None
         result["vram_other_mb"] = round(self.other_vram_mb)      # already in use before DCS started
         result["gpu_util_avg"] = round(sum(gpu.util) / len(gpu.util)) if gpu.util else None

@@ -87,6 +87,50 @@ def _meta(rep: dict) -> str:
     return " &middot; ".join(e(str(b)) for b in bits)
 
 
+GPU_BOUND, CPU_BOUND = 90, 70     # graphics card load (%) while a scene was timed
+
+
+def _limit(busy) -> str:
+    if busy is None:
+        return ""
+    if busy >= GPU_BOUND:
+        return "graphics card"
+    if busy <= CPU_BOUND:
+        return "processor"
+    return "both about equally"
+
+
+def _limits(res: dict) -> list[str]:
+    """What held the frame rate back in each scene of the player's own settings (#31). The test
+    switches vertical sync off and lifts the frame cap, so a graphics card that is not kept
+    busy is waiting for the processor (DCS's simulation and the work of preparing each frame)."""
+    scenes = [sc for sc in res.get("scenes") or [] if sc.get("gpu_busy") is not None]
+    if not scenes:
+        return []
+    h = ['<h3>What limits your frame rate</h3><div class="scroll"><table><tr><th>Scene</th>'
+         '<th>Graphics card busy</th><th>Held back by</th></tr>']
+    for sc in scenes:
+        h.append(f'<tr><td>{e(SCENE_LABELS.get(sc.get("name"), str(sc.get("name"))))}</td>'
+                 f'<td>{sc["gpu_busy"]}%</td><td>{e(_limit(sc["gpu_busy"]))}</td></tr>')
+    h.append("</table></div>")
+    worst = min(scenes, key=lambda sc: sc.get("p1_low_fps") or 1e9)
+    which = _limit(worst["gpu_busy"])
+    where = e(SCENE_LABELS.get(worst.get("name"), str(worst.get("name"))).lower())
+    if which == "graphics card":
+        h.append(f'<p class="meta">In the slowest scene ({where}) your graphics card is working flat out. Graphics '
+                 'settings such as resolution and upscaling, shadows and clouds are what move your frame rate; a '
+                 'faster processor would not help much.</p>')
+    elif which == "processor":
+        h.append(f'<p class="meta">In the slowest scene ({where}) the graphics card is waiting for the processor. '
+                 'Lowering picture quality will not help much there; settings that add things to draw (visibility '
+                 'range, civilian traffic, trees and scenery detail) ease it. Busy multiplayer servers and detailed '
+                 'aircraft add more processor work, so expect lower frame rates there than in this test.</p>')
+    else:
+        h.append(f'<p class="meta">In the slowest scene ({where}) the graphics card and the processor are both near '
+                 'their limit, so lowering either kind of setting helps a little.</p>')
+    return h
+
+
 def fragment(rep: dict, img=lambda name: name, pick: bool = False) -> str:
     """The test result. img(name) -> URL for a screenshot file of this report.
     pick: the window adds a tick box to each change so the player can leave some out (#24)."""
@@ -144,6 +188,7 @@ def fragment(rep: dict, img=lambda name: name, pick: bool = False) -> str:
         if any(cells):
             h.append(f"<tr><td>{label}</td>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
     h.append("</table></div>")
+    h.extend(_limits(br))
 
     changes = rep.get("change_list") or []
     if has and changes:

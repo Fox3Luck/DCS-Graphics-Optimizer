@@ -121,8 +121,10 @@ local state = {
 local function scenesJson(results)
   local parts = {}
   for _, r in ipairs(results) do
-    parts[#parts + 1] = string.format('{"name":"%s","shot":"%s","frame_ms":[%s]}',
-      r.name, r.shot or "", table.concat(r.ms, ","))
+    -- w0/w1: wall clock (seconds) while the scene was timed, so the program can match its
+    -- graphics card load samples to each scene (#31).
+    parts[#parts + 1] = string.format('{"name":"%s","shot":"%s","w0":%d,"w1":%d,"frame_ms":[%s]}',
+      r.name, r.shot or "", r.w0 or 0, r.w1 or 0, table.concat(r.ms, ","))
   end
   return table.concat(parts, ",")
 end
@@ -390,6 +392,7 @@ end
 local function endScene(t)
   local i = state.scene_i
   local r = state.results[i]
+  r.w1 = os.time()
   L(string.format("scene %d done: %d frames", i, #r.ms))
   if cfg.screenshots then
     r.shot = string.format("dcstune_%s_%s", tostring(trials[state.trial_i].tag or cfg.tag), r.name)
@@ -514,6 +517,8 @@ function h.onSimulationFrame()
     if state.last then
       local ms = state.results[state.scene_i].ms
       ms[#ms + 1] = string.format("%.3f", (t - state.last) * 1000)
+    else
+      state.results[state.scene_i].w0 = os.time()
     end
     state.last = t
   end

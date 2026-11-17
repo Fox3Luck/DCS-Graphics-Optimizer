@@ -293,6 +293,8 @@ def test_several_trials_in_one_launch(tmp_path, monkeypatch):
     for t in raw["trials"]:
         assert [s["name"] for s in t["scenes"]] == ["city", "airfield", "clouds"]
         assert all(len(s["frame_ms"]) > 400 for s in t["scenes"])
+        # wall-clock window of each timed scene, for matching graphics card load (#31)
+        assert all(0 < s["w0"] < s["w1"] for s in t["scenes"])
     assert raw["scenes"] == raw["trials"][0]["scenes"]
     assert "dcstune_b_city" in w.shots and "dcstune_a_clouds" in w.shots
 

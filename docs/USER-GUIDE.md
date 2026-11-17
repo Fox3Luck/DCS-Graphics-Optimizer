@@ -223,6 +223,14 @@ rate. Where the cost was measured, it also gives frames per second on your avera
 rate (for example "About 8% of frame rate, -14 FPS (measured)"). When there's only one
 change, it shows what DCS really measured before and after.
 
+**What limits your frame rate** shows how busy your graphics card was in each scene of
+your own settings. During the test vertical sync is off and there is no frame cap, so a
+graphics card that isn't kept busy is waiting for the processor. Near 100% means the
+graphics card is the limit: picture settings (resolution and upscaling, shadows, clouds)
+move your frame rate. Well below that means the processor is the limit: settings that add
+things to draw (visibility range, civilian traffic, trees and scenery detail) help more,
+and busy multiplayer servers and detailed aircraft will run slower than the test.
+
 A change is only recommended when it is clearly better looking and still holds the
 goal. The tool never recommends something that measured worse than what you have.
 

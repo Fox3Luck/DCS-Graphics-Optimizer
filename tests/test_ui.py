@@ -260,3 +260,27 @@ def test_window_offers_tick_boxes_and_fps_numbers(tmp_path):
     assert "Measured: 96 to 161 FPS average" in R.fragment(one)
     assert "average frame rate of 260 FPS" in win
     assert 'class="pick"' not in R.fragment(dict(rep, applied="2026-11-16 20:00"), pick=True)
+
+
+def test_report_says_what_limits_the_frame_rate(tmp_path):
+    """#31: from the graphics card load while each scene was timed."""
+    eng, rep, R = _sample_report(tmp_path)
+    gpu = dict(rep, before_result={"avg_fps": 120, "scenes": [
+        {"name": "city", "avg_fps": 110, "p1_low_fps": 80, "gpu_busy": 97},
+        {"name": "airfield", "avg_fps": 130, "p1_low_fps": 95, "gpu_busy": 55}]})
+    html = R.fragment(gpu)
+    assert "What limits your frame rate" in html and "97%" in html and "processor</td>" in html
+    assert "slowest scene (city pass) your graphics card is working flat out" in html
+    cpu = dict(gpu, before_result={"scenes": [{"name": "airfield", "p1_low_fps": 60, "gpu_busy": 50}]})
+    assert "waiting for the processor" in R.fragment(cpu)
+    assert "What limits" not in R.fragment(dict(rep, before_result={"scenes": [{"name": "city"}]}))
+
+
+def test_scene_load_comes_from_samples_inside_the_scene():
+    from dcstune import bench
+    g = bench.GpuSampler()
+    g.samples = [(100, 10), (101, 99), (102, 98), (103, 97), (104, 96), (110, 5)]
+    assert g.busy_between(101, 103) == 98 and g.busy_between(200, 230) is None
+    raw = {"ok": True, "scenes": [{"name": "city", "w0": 101, "w1": 103, "frame_ms": [10.0] * 40}]}
+    sc = bench.parse_result(raw)["scenes"][0]
+    assert (sc["w0"], sc["w1"]) == (101, 103)

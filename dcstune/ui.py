@@ -329,7 +329,7 @@ def browse_folder(title: str) -> str | None:
 
 def _slim(summary: dict) -> dict:
     return {k: summary.get(k) for k in ("avg_fps", "p1_low_fps", "vram_peak_mb")} | {
-        "scenes": [{k: s.get(k) for k in ("name", "avg_fps", "p1_low_fps", "stutters", "shot")}
+        "scenes": [{k: s.get(k) for k in ("name", "avg_fps", "p1_low_fps", "stutters", "shot", "gpu_busy")}
                    for s in (summary.get("raw") or summary).get("scenes", [])]}
 
 
