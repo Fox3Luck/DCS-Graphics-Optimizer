@@ -88,8 +88,8 @@ def _meta(rep: dict) -> str:
 
 
 # Graphics card load (%) while a scene was timed, from Windows' counter. On the test PC (RTX 4080,
-# Ryzen 9800X3D) 4K DLAA read 95-96% and everything turned down 89-90%.
-GPU_BOUND, CPU_BOUND = 93, 75
+# Ryzen 9800X3D) 4K DLAA read 93-96% and everything turned down 89-90%.
+GPU_BOUND, CPU_BOUND = 92, 75
 
 
 def _limit(busy) -> str:
