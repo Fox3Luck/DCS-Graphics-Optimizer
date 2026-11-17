@@ -105,21 +105,45 @@ def build(out: Path, map_key: str = "caucasus", aircraft: str = "Su-25T") -> Pat
         flight("TUNE-CITY", center.point_from_heading((heading + 180) % 360, run_in),
                center.point_from_heading(heading, 25000), low, low_speed, via=center, above_ground=True)
 
-    # 2. airfield: one aircraft on the ramp, surrounded by parked ones (as many as the ramp has room for)
-    def parked(name):
+    # 2. airfield: one aircraft on the ramp, surrounded by parked ones (as many as the ramp has room for).
+    # The biggest parking spots are open apron, never a shelter: start from the biggest one this aircraft
+    # fits and fill the spots nearest to it, so the camera sees a crowded ramp and not a hangar wall
+    # (the first try put an F-16 inside a shelter at Kandahar).
+    def fits(slot):
+        if not (slot.helicopter if heli and slot.helicopter is not None else slot.airplanes or heli):
+            return False
+        for need, room in ((getattr(kind, "length", None), slot.length), (getattr(kind, "width", None), slot.width),
+                           (getattr(kind, "height", None), slot.height)):
+            if need and room and need > room:
+                return False
+        return True
+    spots = [p for p in field.parking_slots if fits(p)]
+    spots.sort(key=lambda p: (-(p.height or 99), -((p.length or 0) * (p.width or 0)), p.slot_name or ""))
+    if spots:
+        anchor = spots[0]
+        near = sorted(spots[1:], key=lambda p: (p.position.x - anchor.position.x) ** 2 + (p.position.y - anchor.position.y) ** 2)
+        spots = [anchor] + near[:8]
+
+    def parked(name, spot=None):
         g = m.flight_group_from_airport(side, name, kind, field, maintask=task.Nothing,
-                                        start_type=dcs.mission.StartType.Cold, group_size=1)
+                                        start_type=dcs.mission.StartType.Cold, group_size=1,
+                                        parking_slots=[spot] if spot else None)
         g.uncontrolled = True          # sits on the ramp, engines off, never moves
         g.units[0].pylons.clear()
         return g
-    ramp = parked("TUNE-RAMP")
+    try:
+        ramp = parked("TUNE-RAMP", spots[0] if spots else None)
+    except Exception:                   # the picked spot did not take it: let the library choose
+        spots = []
+        ramp = parked("TUNE-RAMP")
     ramp.units[0].name = "TUNE-RAMP-1"
     ramp.late_activation = False
     for i in range(8):
         try:
-            parked(f"TUNE-PARK-{i}")
+            parked(f"TUNE-PARK-{i}", spots[i + 1] if len(spots) > i + 1 else None)
         except Exception:               # no more room for this aircraft on this ramp
-            break
+            if len(spots) <= i + 1:
+                break
 
     # 3. clouds: inside the broken layer
     flight("TUNE-HIGH", mapping.Point(fp.x + 20000, fp.y + 30000, m.terrain),
