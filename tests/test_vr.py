@@ -534,3 +534,26 @@ def test_dream_air_se_is_listed_with_its_own_panel():
     assert se["known"] and (se["eye_w"], se["eye_h"]) == (2560, 2560) and se["target"] == 72 and se["refresh"] == [72, 90]
     air = V.state({"vr": {"runtime": "Pimax", "chosen": "Pimax Dream Air"}}, {"VR.enable": True})
     assert (air["eye_w"], air["eye_h"]) == (3840, 3552)
+
+
+def test_regular_build_lets_a_vr_player_choose_the_headset_test(tmp_path, monkeypatch):
+    # Issue #10: the in-headset test is a choice in the regular build, off until the player picks it.
+    monkeypatch.delenv("DCSTUNE_VR_BENCH", raising=False)
+    eng = _engine(tmp_path, monkeypatch)
+    eng.info = dict(QUEST3, profiles=[{"name": "DCS"}])
+    sc = eng.scorecard()
+    assert sc["vr"] and sc["vr_choice"] and not sc["vr_tested"] and not sc["vr_test_build"]
+    rep = eng.optimize(False, QUIET)
+    assert rep["vr_skipped"] and not _FakeBench.made[-1].vr                 # default: on the monitor, as before
+    assert "in your headset" in eng.set_vr_test(True)
+    assert json.loads((tmp_path / "Config" / "dcstune-prefs.json").read_text())["vr_in_headset"] is True
+    sc = eng.scorecard()
+    assert sc["vr_tested"] and sc["vr_choice"]
+    rep = eng.optimize(False, QUIET)
+    assert rep["vr"] and not rep["vr_skipped"] and _FakeBench.made[-1].vr
+    for junk in (False, None, "1", 1):                                       # anything but True: the monitor
+        assert "on the monitor" in eng.set_vr_test(junk)
+        assert not eng.scorecard()["vr_tested"]
+    monkeypatch.setenv("DCSTUNE_VR_BENCH", "1")                              # a VR test build: no choice, always the headset
+    sc = eng.scorecard()
+    assert sc["vr_tested"] and not sc["vr_choice"]

@@ -42,6 +42,25 @@ class Engine:
                                goal=prefs.get_pref(self.profile, "vr_goal"))
         self.info["fps_goal"] = prefs.get_pref(self.profile, "fps_goal")
         self.info["bench_scene"] = prefs.get_pref(self.profile, "bench_scene")
+        self.vr_in_headset = prefs.get_pref(self.profile, "vr_in_headset") is True
+
+    def _vr_bench(self) -> bool:
+        """Does the test run inside the headset? Always in a VR test build; in the regular build only
+        when the player chose it (issue #10: VR players were sent to a separate build, whose update
+        notice then pointed them back at a build that tests on the monitor, #42)."""
+        from . import vr as V
+        return V.bench_enabled() or getattr(self, "vr_in_headset", False)
+
+    def set_vr_test(self, in_headset) -> str:
+        """Where a VR profile is tested: in the headset (True) or on the monitor (anything else)."""
+        from . import prefs
+        prefs.set_pref(self.profile, "vr_in_headset", in_headset is True)
+        self._use_prefs()
+        if getattr(self, "vr_in_headset", False):
+            return ("The test will run in your headset. Connect it and open its software before you start, "
+                    "and wear it or keep it awake during the test. This is still being tested with VR "
+                    "volunteers; please tell us how it goes.")
+        return "The test will run on the monitor, and your VR settings are left alone."
 
     def set_headset(self, name) -> str:
         from . import prefs, vr as V
@@ -196,7 +215,8 @@ class Engine:
         from . import vr as V
         st = V.state(self.info, flat)
         return {"profile": self.profile["name"], "profile_dir": Path(self.profile["path"]).name,
-                "vr_tested": bool(st) and V.bench_enabled(), "vr_test_build": V.test_build(),
+                "vr_tested": bool(st) and self._vr_bench(), "vr_test_build": V.test_build(),
+                "vr_choice": bool(st) and not V.bench_enabled(),      # the regular build lets the player choose
                 "headset": st and {"name": st["headset"], "detected": st["detected"],
                                    "choices": V.headset_names(), "refresh": st["refresh"],
                                    "hz": st["hz"], "hz_chosen": st["hz_chosen"],
@@ -233,7 +253,7 @@ class Engine:
         flat, gpu = self._flat(), self.info["gpu"]
         self._flat_at_test = dict(flat)       # the player's real settings, for the audit file
         st = V.state(self.info, flat)
-        vr_skipped = bool(st) and not V.bench_enabled()
+        vr_skipped = bool(st) and not self._vr_bench()
         if vr_skipped:
             # Measuring inside the headset is not released yet: test on the monitor, rate the
             # result as a monitor result, and leave every VR setting alone.
@@ -540,12 +560,14 @@ class App:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; pick the headset after it finishes.")
             return {"message": self.engine.set_headset(body.get("name"))}
-        if method == "POST" and path in ("/api/headset-hz", "/api/goal", "/api/vr-goal", "/api/scene"):
+        if method == "POST" and path in ("/api/headset-hz", "/api/goal", "/api/vr-goal", "/api/scene", "/api/vr-test"):
             with self.lock:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; change the goal after it finishes.")
             if path == "/api/goal":
                 return {"message": self.engine.set_goal(body.get("fps"))}
+            if path == "/api/vr-test":
+                return {"message": self.engine.set_vr_test(body.get("in_headset"))}
             if path == "/api/scene":
                 return {"message": self.engine.set_scene(body.get("map"), body.get("aircraft"))}
             if path == "/api/vr-goal":

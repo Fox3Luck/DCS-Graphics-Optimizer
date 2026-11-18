@@ -49,6 +49,11 @@
   <p class="sub hidden" id="hz-line">Refresh rate you run the headset at:
     <select id="hz-pick" title="The test aims for this many frames per second in the headset. Pick the rate your headset is really set to."
       style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
+  <p class="sub hidden" id="vrtest-line">Where to run the test:
+    <select id="vrtest-pick" title="On the monitor is the safe choice: the test runs on your screen and leaves VR settings alone. In the headset measures what you really fly with; connect the headset and open its software first."
+      style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px">
+      <option value="">On the monitor (VR settings left alone)</option>
+      <option value="1">In the headset (new, still being tested)</option></select></p>
   <p class="sub hidden" id="vrgoal-line">Frame rate to aim for in the headset:
     <select id="vrgoal-pick" title="Full rate is your headset's refresh rate. If you fly with motion smoothing (SSW, ASW, motion reprojection), pick half rate; add room to spare for busy maps and multiplayer."
       style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:6px"></select></p>
@@ -257,7 +262,7 @@ async function refresh() {
   showHeadset(sc);
   showGoals(sc);
   if (sc.vr && !sc.vr_tested && !sc.recovered && !$("msg").children.length)
-    note("VR is switched on in this profile, so the scorecard is rated for your headset. The tests still run on the monitor and do not change VR settings yet.");
+    note("VR is switched on in this profile, so the scorecard is rated for your headset. The test runs on the monitor and leaves VR settings alone, unless you pick \"In the headset\" under the profile name.");
   if (sc.vr && sc.vr_tested && !sc.recovered && !$("msg").children.length)
     note("VR is switched on in this profile, so the test runs in your headset. Before you press start, connect the headset, open its own software (and Virtual Desktop or Link, if you use them), and put it on or keep it awake. DCS opens in the headset by itself and closes again when each part is done.");
   showReport(sc);
@@ -296,6 +301,8 @@ function showGoals(sc) {
     sp.value = s.aircraft;
     $("scene-hint").textContent = s.default ? "" : "Your own choice. Numbers from different maps or aircraft can't be compared.";
   }
+  $("vrtest-line").classList.toggle("hidden", !sc.vr_choice);
+  if (sc.vr_choice) $("vrtest-pick").value = sc.vr_tested ? "1" : "";
   const vg = $("vrgoal-pick"), showVg = !!(h && h.goal_choices);
   $("vrgoal-line").classList.toggle("hidden", !showVg);
   if (showVg) {
@@ -325,6 +332,10 @@ const sendScene = async () => {
 };
 $("scene-plane").onchange = sendScene;
 $("scene-map").onchange = sendScene;
+$("vrtest-pick").onchange = async () => {
+  try { note((await api("/api/vr-test", { in_headset: $("vrtest-pick").value === "1" })).message); await refresh(); }
+  catch (e) { note(e.message, true); }
+};
 $("vrgoal-pick").onchange = async () => {
   try { note((await api("/api/vr-goal", { mode: $("vrgoal-pick").value || null })).message); await refresh(); }
   catch (e) { note(e.message, true); }
@@ -338,7 +349,7 @@ $("headset-pick").onchange = async () => {
   catch (e) { note(e.message, true); }
 };
 let RUNNING = false;
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick", "scene-plane", "scene-map"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick", "scene-plane", "scene-map", "vrtest-pick"].forEach(i => $(i).disabled = on);
   if (SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");

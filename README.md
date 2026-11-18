@@ -5,9 +5,10 @@ them by actually running DCS, and recommends the best-looking settings your PC c
 run smoothly. Nothing is changed until you press **Apply**, and **Undo** puts your old
 settings back.
 
-**Monitor (2D) only for now.** The tests and recommendations are for flying on a monitor;
-VR settings are never changed. With VR switched on you get an estimated VR scorecard, and
-testing inside the headset is in development (#10).
+**Monitor (2D) first, VR by choice.** By default the tests and recommendations are for flying on a
+monitor and VR settings are never changed. With VR switched on you get a VR scorecard, and you can
+choose to run the test inside the headset ("Where to run the test", under the profile name). The
+headset test is newer and still being tried by VR volunteers (#10).
 
 ## Follow along
 
@@ -146,8 +147,9 @@ measuring session), apply and undo all verified in real DCS 2.9.31 on one PC
 (RTX 4080 / 9800X3D). Not yet verified: AMD/Intel GPUs, a second PC, the packaged exe's
 full click-through. The exe is signed with Azure Artifact Signing (publisher Fox3 Managed
 Solutions Inc.); whether SmartScreen still warns on a fresh PC is not yet checked. VR: the scorecard recognizes the
-headset and rates VR settings (an estimate); testing inside the headset is written but not yet
-proven on a real headset, and stays switched off (`DCSTUNE_VR_BENCH=1` enables it for development).
+headset and rates VR settings (an estimate); testing inside the headset has been run by VR volunteers on several headsets through the VR test
+builds, but not by us on a real headset (our test PC uses a headset simulator); in the regular build
+it is a choice the player makes, off by default.
 
 ## License
 MIT — see [LICENSE](LICENSE).
