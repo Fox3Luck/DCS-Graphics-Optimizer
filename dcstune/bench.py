@@ -146,8 +146,12 @@ class GpuSampler:
     """Peak GPU memory during a run. nvidia-smi when present, otherwise the
     vendor-neutral Windows 'GPU Adapter Memory' counter."""
 
-    def __init__(self, interval: float = 1.0):
+    def __init__(self, interval: float = 1.0, heat: bool = False):
         self.peak_mb, self.util, self._stop = 0.0, [], threading.Event()
+        # Heat check only (#23): every few seconds, the graphics card's temperature, clock and power
+        # (NVIDIA driver) and how fast Windows lets the processor run (any PC).
+        self.heat: list[dict] = []
+        self._heat_thread = threading.Thread(target=self._heat_loop, daemon=True) if heat else None
         self.samples: list[tuple[float, float]] = []      # (time, load %), to match to scenes
         self._thread = threading.Thread(target=self._loop, args=(interval,), daemon=True)
         # DCSTUNE_NO_NVSMI: testing switch to exercise the AMD/Intel counter path on an NVIDIA PC
@@ -193,6 +197,43 @@ class GpuSampler:
         except ValueError:
             return 0.0, None
 
+    def _heat_sample(self) -> dict:
+        row = {"t": time.time(), "gpu_temp": None, "gpu_clock": None, "gpu_power": None, "cpu_speed": None}
+        if self._nvidia:
+            out = subprocess.run([self._nvidia, "--query-gpu=temperature.gpu,clocks.gr,power.draw",
+                                  "--format=csv,noheader,nounits"], capture_output=True, text=True, errors="replace",
+                                 creationflags=NO_WINDOW, timeout=10).stdout
+            rows = [[c.strip() for c in r.split(",")] for r in out.strip().splitlines() if r.count(",") == 2]
+            for key, i in (("gpu_temp", 0), ("gpu_clock", 1), ("gpu_power", 2)):
+                vals = []
+                for r in rows:
+                    try:
+                        vals.append(float(r[i]))
+                    except ValueError:              # "[N/A]" on cards that do not report it
+                        pass
+                if vals:
+                    row[key] = max(vals)
+        # Processor speed as a percentage of its rated speed (above 100 with turbo; it falls when
+        # Windows or the firmware slows the processor to cool it). Read through the WMI class,
+        # whose names are never translated (#21).
+        out = subprocess.run(["powershell", "-NoProfile", "-Command",
+                              "$p = (Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter \"Name='_Total'\" "
+                              "-ErrorAction SilentlyContinue).PercentProcessorPerformance; "
+                              "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F0}', $p)"],
+                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=20).stdout.strip()
+        try:
+            row["cpu_speed"] = float(out) or None
+        except ValueError:
+            pass
+        return row
+
+    def _heat_loop(self):
+        while not self._stop.wait(4.0):
+            try:
+                self.heat.append(self._heat_sample())
+            except Exception:
+                pass
+
     def _windows_load(self):
         """Task Manager's GPU %: the busiest process's 3D engine use, from Windows' counter."""
         return self._sample(nvidia=False)[1]
@@ -228,6 +269,8 @@ class GpuSampler:
         self._thread.start()
         if self._load_thread:
             self._load_thread.start()
+        if self._heat_thread:
+            self._heat_thread.start()
         return self
 
     def __exit__(self, *exc):
@@ -235,6 +278,8 @@ class GpuSampler:
         self._thread.join(timeout=15)
         if self._load_thread:
             self._load_thread.join(timeout=25)
+        if self._heat_thread:
+            self._heat_thread.join(timeout=25)
 
 
 BUSY_GPU_PERCENT = 25     # refuse to test above this while DCS is not even running
@@ -469,6 +514,34 @@ class Bench:
         self.log(f"  {len(out)} trials in {seconds}s, VRAM peak {round(gpu.peak_mb)} MB")
         return out
 
+    def soak(self, laps: int = 6) -> dict:
+        """The heat check (#23): the same scenes flown `laps` times in ONE DCS session with the
+        player's own settings, full-length scenes, while temperatures and clocks are sampled.
+        Returns {"laps": [{"avg_fps", "p1_low_fps", "t0", "t1"}], "samples": [...], "seconds"}.
+        A first lap is flown and thrown away: it absorbs texture loading."""
+        self.runs += 1
+        trials = [{"tag": "warm", "set": {}, "settle_sec": self.settle_sec}]
+        trials += [{"tag": f"h{n:02d}", "set": {}, "settle_sec": BATCH_SETTLE_SEC} for n in range(laps)]
+        named = [dict(t, tag=f"{self.session_id}r{self.runs:02d}{t['tag']}") for t in trials]
+        self._heat = True
+        try:
+            raw, gpu, seconds = self._launch(None, {"tag": named[0]["tag"], "trials": named, "screenshots": False},
+                                             False, 420 + 150 * len(trials))
+        finally:
+            self._heat = False
+        if not raw.get("ok"):
+            raise BenchError("benchmark did not finish: " + (raw.get("reason") or "unknown"))
+        out = []
+        for t in raw["trials"][1:]:
+            stats = [frame_stats([float(x) for x in sc["frame_ms"]]) for sc in t["scenes"]]
+            w0 = [sc.get("w0") for sc in t["scenes"] if sc.get("w0")]
+            w1 = [sc.get("w1") for sc in t["scenes"] if sc.get("w1")]
+            out.append({"avg_fps": sum(s["avg_fps"] for s in stats) / len(stats),
+                        "p1_low_fps": min(s["p1_low_fps"] for s in stats),
+                        "t0": min(w0) if w0 else 0, "t1": max(w1) if w1 else 0})
+            self.log(f"  lap {len(out)}: avg {out[-1]['avg_fps']:.0f} FPS, 1% low {out[-1]['p1_low_fps']:.0f} FPS")
+        return {"laps": out, "samples": gpu.heat, "seconds": seconds}
+
     def _steam_restart(self) -> bool:
         """True when the DCS that just closed handed its start over to Steam. Steam then asks
         the player to OK the launch options before it starts DCS again (#27)."""
@@ -600,7 +673,7 @@ class Bench:
                 if not late:                    # its hook may already be reading the current directive
                     self.directive.write_text(directive())
             launched = time.time()
-            with GpuSampler() as gpu:
+            with GpuSampler(heat=getattr(self, "_heat", False)) as gpu:
                 if attempt == 2 and late:
                     # never start a second DCS next to one that is already coming up (#27)
                     quick = not self._follow_handoff(launched + timeout, wait=0)

@@ -580,3 +580,26 @@ def test_window_keeps_the_busy_scene_choice_and_tests_with_it(tmp_path, monkeypa
     for junk in (False, None, "1", 1):
         assert "is off" in eng.set_busy(junk)
         assert not eng.scorecard()["scene"]["busy"]
+
+
+def test_heat_check_flies_laps_with_the_players_settings_and_changes_nothing(tmp_path, monkeypatch):
+    # Issue #23: a heat check measures, reports, and leaves settings and recommendations alone.
+    monkeypatch.delenv("DCSTUNE_VR_BENCH", raising=False)
+    eng = _engine(tmp_path, monkeypatch)
+    before = (tmp_path / "Config" / "options.lua").read_bytes()
+
+    def soak(self, laps=6):
+        self.soaked = laps
+        return {"laps": [{"avg_fps": 90 - 2 * i, "p1_low_fps": 70 - 2 * i, "t0": 100 + 120 * i, "t1": 200 + 120 * i} for i in range(laps)],
+                "samples": [{"t": 100 + 4 * k, "gpu_temp": 60 + k // 10, "gpu_clock": 2700, "gpu_power": 300, "cpu_speed": 115} for k in range(180)],
+                "seconds": 800}
+    monkeypatch.setattr(_FakeBench, "soak", soak, raising=False)
+    eng.set_busy(True)
+    lines = []
+    out = eng.heat_check(lines.append)
+    made = _FakeBench.made[-1]
+    assert made.soaked == 6 and made.busy and not made.vr           # on the monitor unless "in the headset" was chosen
+    assert out["verdict"] == "slows" and len(out["laps"]) == 6 and "busy airfield" in out["scene_label"]
+    assert any("Heat check" in l for l in lines) and any("Verdict" in l for l in lines)
+    assert (tmp_path / "Config" / "options.lua").read_bytes() == before
+    json.dumps(out)

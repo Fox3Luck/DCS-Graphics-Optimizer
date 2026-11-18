@@ -85,6 +85,15 @@ scenes, and it ran no slower than the cloud scene. A full multiplayer server is 
 hundreds to thousands of units and scripts, and no repeatable test can copy that. To leave room
 for multiplayer, set a higher frame-rate goal.
 
+**The heat check (optional).** The *Heat check* button flies the same scenes six times in a row
+with your current settings, about 15 minutes, and tells you whether the frame rate falls as the
+PC warms up. It changes nothing and recommends nothing. Every lap shows the same thing, so a
+frame rate that drops from lap to lap is the PC slowing itself to stay cool. The result lists
+each lap's frame rate next to what the PC reports: graphics card temperature, clock and power
+(NVIDIA cards only; other cards do not report these to the program) and how fast Windows lets the
+processor run. If the frame rate falls by more than a few percent, the window says so, names the
+part when the readings show it, and suggests a frame-rate goal that will hold for a whole flight.
+
 During the test, vertical sync and the frame-rate cap are off so the numbers can be measured. That can
 work your graphics card harder than your usual settings do, much like a graphics benchmark. On a PC that is
 overclocked, undervolted or has a power supply near its limit, that is when a driver reset or a crash would

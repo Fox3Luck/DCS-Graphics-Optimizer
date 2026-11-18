@@ -109,6 +109,7 @@
   <div class="actions">
     <button class="primary" id="quick">Test and optimize (10 to 20 min)</button>
     <button id="full">Thorough test (35 to 60 min)</button>
+    <button id="heat" title="Flies the same scenes six times in a row with your current settings and tells you whether the frame rate falls as the PC warms up. Changes nothing and recommends nothing.">Heat check (about 15 min)</button>
     <button id="undo" class="hidden">Undo last change</button>
   </div>
   <p class="sub">The test starts DCS several times by itself and closes it again. Leave the PC alone while it runs.
@@ -140,6 +141,12 @@
     <pre id="faillog-lines" class="hidden" style="max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;margin:10px 0 0"></pre>
   </div>
 
+  <div class="card hidden" id="heat-result">
+    <h3 style="margin-top:0">Heat check</h3>
+    <p class="sub" id="heat-when"></p>
+    <div id="heat-lines"></div>
+    <table id="heat-table" style="margin-top:8px"></table>
+  </div>
   <div class="hidden" id="result">
     <div class="card">
       <h2>Test result</h2>
@@ -359,15 +366,27 @@ $("headset-pick").onchange = async () => {
   catch (e) { note(e.message, true); }
 };
 let RUNNING = false;
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick", "scene-plane", "scene-map", "vrtest-pick", "busy-box"].forEach(i => $(i).disabled = on);
-  if (SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
+function busy(on) { RUNNING = on; ["quick", "full", "heat", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick", "scene-plane", "scene-map", "vrtest-pick", "busy-box"].forEach(i => $(i).disabled = on);
+  if (SETUP) ["quick", "full", "heat"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");
   $("log").textContent = j.log.join("\n"); $("log").scrollTop = 1e9;
   if (j.state === "running") return setTimeout(poll, 1500);
   busy(false);
   if (j.state === "failed") { note(j.error, true); showFailureLog(j.failure_log); }
-  if (j.state === "done") { $("progress").classList.add("hidden"); await refresh(); }
+  if (j.state === "done") { $("progress").classList.add("hidden"); await refresh(); if (j.heat) showHeat(j.heat); }
+}
+function showHeat(h) {
+  $("heat-when").textContent = h.created + " · " + h.scene_label + " · " + h.laps.length + " laps";
+  $("heat-lines").replaceChildren(...h.lines.map(l => el("p", null, l)));
+  const t = $("heat-table"), has = k => h.laps.some(r => r[k] !== null && r[k] !== undefined);
+  const cols = [["lap", "Lap"], ["minute", "Minute"], ["avg_fps", "Average FPS"], ["p1_low_fps", "1% low FPS"],
+                ["gpu_temp", "Graphics card °C"], ["gpu_clock", "Graphics card clock (MHz)"], ["gpu_power", "Graphics card power (W)"],
+                ["cpu_speed", "Processor speed (% of rated)"]].filter(c => has(c[0]));
+  const row = cells => { const tr = el("tr"); tr.append(...cells); return tr; };
+  t.replaceChildren(row(cols.map(c => el("th", null, c[1]))),
+                    ...h.laps.map(r => row(cols.map(c => el("td", null, r[c[0]] === null || r[c[0]] === undefined ? "" : String(r[c[0]]))))));
+  $("heat-result").classList.remove("hidden");
 }
 function chosenMode() { return (document.querySelector('input[name="mode"]:checked') || {}).value || "balanced"; }
 try { const m = localStorage.getItem("dcsgo-mode"); const r = m && document.querySelector('input[name="mode"][value="' + m + '"]'); if (r) r.checked = true; } catch (e) {}
@@ -398,6 +417,11 @@ async function start(full) {
   catch (e) { note(e.message, true); }
 }
 $("quick").onclick = () => start(false);
+$("heat").onclick = async () => {
+  try { await api("/api/heat", {}); busy(true); $("msg").replaceChildren(); $("heat-result").classList.add("hidden");
+        $("faillog").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
+  catch (e) { note(e.message, true); }
+};
 $("full").onclick = () => start(true);
 $("apply").onclick = async () => {
   // Changes the player unticked stay as they are (#24).

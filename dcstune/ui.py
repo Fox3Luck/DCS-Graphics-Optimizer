@@ -106,6 +106,32 @@ class Engine:
         except Exception:
             return None
 
+    def heat_check(self, log=print) -> dict:
+        """Fly the test scenes over and over with the player's own settings and say whether the
+        frame rate falls as the PC warms up (#23). Changes no settings and recommends none."""
+        from . import heat, scenes, sysinfo, vr as V
+        from .bench import Bench
+        flat, gpu = self._flat(), self.info["gpu"]
+        st = V.state(self.info, flat)
+        in_headset = bool(st) and self._vr_bench()
+        exe = sysinfo.dcs_exe(sysinfo.pick_install(self.info))
+        scene = scenes.valid(self.info.get("bench_scene"))
+        if scene and not any(m["key"] == scene[0] for m in scenes.installed(self._install_root(), self.profile["path"])["maps"]):
+            scene = None
+        busy = self.info.get("bench_busy") is True and scenes.busy_ok(scene)
+        log("Heat check: the same scenes six times in a row with your current settings, about 15 minutes. "
+            "Nothing is changed.")
+        log("Scenes: " + scenes.label(scene) + (", with the busy airfield scene" if busy else "") + ".")
+        with Bench(self.profile, exe, log=log, vr=in_headset, vram_total_mb=gpu.get("vram_mb") or 0, scene=scene,
+                   busy=busy) as b:
+            raw = b.soak()
+        out = heat.summarize(raw["laps"], raw["samples"])
+        out["created"] = time.strftime("%Y-%m-%d %H:%M")
+        out["scene_label"] = scenes.label(scene) + (", with the busy airfield scene" if busy else "")
+        for line in out["lines"]:
+            log(line)
+        return out
+
     def set_busy(self, on) -> str:
         """Add the busy-airfield scene to the test, or take it out (issues #23, #35)."""
         from . import prefs, scenes
@@ -486,11 +512,21 @@ class App:
             self.job = {"state": "running", "log": [], "error": None, "report": None, "started": time.time()}
         threading.Thread(target=self._work, args=(full, mode), daemon=True).start()
 
+    def start_heat(self) -> None:
+        with self.lock:
+            if self.job["state"] == "running":
+                raise RuntimeError("A test is already running.")
+            self.job = {"state": "running", "log": [], "error": None, "report": None, "started": time.time()}
+        threading.Thread(target=self._work, args=(None, "heat"), daemon=True).start()
+
     def _work(self, full, mode="balanced"):
         job = self.job
         chime("start")
         try:
-            job["report"] = self.engine.optimize(full, lambda m: job["log"].append(str(m)), mode)
+            if mode == "heat":
+                job["heat"] = self.engine.heat_check(lambda m: job["log"].append(str(m)))
+            else:
+                job["report"] = self.engine.optimize(full, lambda m: job["log"].append(str(m)), mode)
             job["state"] = "done"
             chime("done")
         except Exception as e:
@@ -573,6 +609,9 @@ class App:
             if setup:
                 raise RuntimeError(setup["message"])
             self.start_optimize(bool(body.get("full")), str(body.get("mode") or "balanced"))
+            return {"ok": True}
+        if method == "POST" and path == "/api/heat":
+            self.start_heat()
             return {"ok": True}
         if method == "POST" and path == "/api/apply":
             skip = body.get("skip")
