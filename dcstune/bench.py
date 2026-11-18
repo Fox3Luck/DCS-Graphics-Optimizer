@@ -596,6 +596,8 @@ class Bench:
         cloud scene over Nevada)."""
         try:
             log = self.profile_dir / "Logs" / "dcs.log"
+            if log.stat().st_mtime < getattr(self, "_launched_at", 0):
+                return False                    # still the log of an earlier DCS start
             with open(log, "rb") as f:
                 f.seek(max(0, log.stat().st_size - 200_000))
                 tail = f.read()
@@ -700,7 +702,7 @@ class Bench:
                 late = dcs_running()            # a DCS came up late (Steam, after the player clicked)
                 if not late:                    # its hook may already be reading the current directive
                     self.directive.write_text(directive())
-            launched = time.time()
+            launched = self._launched_at = time.time()
             with GpuSampler(heat=getattr(self, "_heat", False)) as gpu:
                 if attempt == 2 and late:
                     # never start a second DCS next to one that is already coming up (#27)

@@ -79,4 +79,7 @@ def test_a_graphics_driver_reset_is_recognized_in_the_dcs_log(tmp_path):
     with open(log, "a") as f:
         f.write("2026-11-18 21:16:52.171 ERROR   DX11BACKEND (7992): DX device removed. Reason: 0x887A0006\n")
     assert b._graphics_reset()
+    import time
+    b._launched_at = time.time() + 60                               # that log is from an earlier DCS start
+    assert not b._graphics_reset()
     assert "graphics driver stopped" in bench.GRAPHICS_RESET and "settings have been put back" in bench.GRAPHICS_RESET
