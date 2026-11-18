@@ -371,6 +371,9 @@ class Bench:
         self._install_hook()
         from . import scenes
         self.busy = self.busy and scenes.busy_ok(self.scene)
+        if self.busy and not getattr(self, "_busy_time_added", False):
+            self.timeout += 60                 # the fourth scene and its 160 units need about half a minute more
+            self._busy_time_added = True
         self.scene_used = scenes.write_mission(self.scene, self.mission_dst, self.busy)
         return self
 
