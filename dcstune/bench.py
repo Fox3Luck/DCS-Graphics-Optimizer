@@ -282,6 +282,12 @@ class GpuSampler:
             self._heat_thread.join(timeout=25)
 
 
+GRAPHICS_RESET = (
+    "The graphics driver stopped and Windows restarted it during the test, so DCS could not go on. Your "
+    "settings have been put back. This is not caused by a DCS setting: it happens when the graphics card or "
+    "its driver gives up under full load. Things that help: remove any overclock or undervolt of the graphics "
+    "card, install the current graphics driver (a clean install), check the card's temperature and its power "
+    "cables, then try again. If it keeps happening only in this test, please tell us.")
 BUSY_GPU_PERCENT = 25     # refuse to test above this while DCS is not even running
 # In VR the headset software (Mixed Reality portal, SteamVR, Virtual Desktop, Link, Pimax Play) draws
 # its home screen until DCS takes over the headset; a VR tester saw 38% from that alone. Only a
@@ -583,17 +589,39 @@ class Bench:
             time.sleep(2)
         return True
 
+    def _graphics_reset(self) -> bool:
+        """Did Windows reset the graphics driver under DCS? DCS then writes 'DX device removed' and
+        stops with a crash box that nobody is there to click, so the test used to wait ten minutes
+        and blame a slow start (seen on the test PC on 2026-11-18: an RTX 4080 driver reset in the
+        cloud scene over Nevada)."""
+        try:
+            log = self.profile_dir / "Logs" / "dcs.log"
+            with open(log, "rb") as f:
+                f.seek(max(0, log.stat().st_size - 200_000))
+                tail = f.read()
+        except OSError:
+            return False
+        return b"DX device removed" in tail or b"DXGI_ERROR_DEVICE_REMOVED" in tail or b"DXGI_ERROR_DEVICE_HUNG" in tail
+
     def _wait_for(self, proc, deadline: float) -> bool:
         """Wait for the DCS we started. True when it closed, or when the benchmark finished and
         DCS was closed for it because it stayed open (beta 15 logs: result written, then DCS sat
         at the menu and the test was wrongly called a failure). False on a real timeout."""
-        done_at = None
+        done_at, looked = None, time.time()
         while True:
             try:
                 proc.wait(timeout=2)
                 return True
             except subprocess.TimeoutExpired:
                 pass
+            if not self.result.exists() and time.time() - looked > 10:
+                looked = time.time()
+                if self._graphics_reset():
+                    proc.kill()
+                    proc.wait(timeout=30)
+                    self.directive.unlink(missing_ok=True)
+                    self._keep_failure_log()
+                    raise BenchError(GRAPHICS_RESET)
             if self.result.exists():
                 done_at = done_at or time.time()
                 if time.time() - done_at > EXIT_GRACE_SEC:

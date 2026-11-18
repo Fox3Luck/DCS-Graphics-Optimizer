@@ -63,3 +63,20 @@ def test_slowing_with_no_readings_still_gives_advice_and_a_hot_steady_card_is_me
     with pytest.raises(ValueError):
         heat.summarize(_laps([80, 80]), [])
     json.dumps(h)                                                          # goes to the window as JSON
+
+
+def test_a_graphics_driver_reset_is_recognized_in_the_dcs_log(tmp_path):
+    # Test PC, 2026-11-18: the driver reset under DCS, DCS showed a crash box, and the test waited
+    # ten minutes and then blamed a slow start. The log says what happened; read it.
+    from dcstune import bench
+    b = bench.Bench.__new__(bench.Bench)
+    b.profile_dir = tmp_path
+    (tmp_path / "Logs").mkdir()
+    assert not b._graphics_reset()                                  # no log at all
+    log = tmp_path / "Logs" / "dcs.log"
+    log.write_text("2026-11-18 21:16:16.421 INFO    DCSTUNE (Main): scene 3 'clouds' start\n" * 50)
+    assert not b._graphics_reset()
+    with open(log, "a") as f:
+        f.write("2026-11-18 21:16:52.171 ERROR   DX11BACKEND (7992): DX device removed. Reason: 0x887A0006\n")
+    assert b._graphics_reset()
+    assert "graphics driver stopped" in bench.GRAPHICS_RESET and "settings have been put back" in bench.GRAPHICS_RESET
