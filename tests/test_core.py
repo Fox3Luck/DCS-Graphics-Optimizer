@@ -751,3 +751,55 @@ def test_dlss_through_optiscaler_on_an_amd_card_keeps_dlss_choices():
     assert sysinfo.upscaling_vendor({"gpu": {"name": "NVIDIA GeForce RTX 4080"}}, {}) == "nvidia"
     assert any("DLSS" in r["name"] for r in M.upscale_ladder(sysinfo.upscaling_vendor(amd, {"graphics.Upscaling": "DLSS"})))
     assert not any("DLSS" in r["name"] for r in M.upscale_ladder(sysinfo.upscaling_vendor(amd, {})))
+
+
+def _capped(pc, cap):
+    """A PC measured under a frame-rate limit: nothing reads higher than the limit."""
+    def measure(changes):
+        r = pc.measure(changes)
+        fps = min(r["avg_fps"], cap)
+        return dict(r, avg_fps=fps, p1_low_fps=min(r["p1_low_fps"], fps))
+    return measure
+
+
+@pytest.mark.parametrize("true_gpu,true_cpu", [(78, 100), (160, 140), (300, 200)])
+def test_run_under_a_frame_rate_limit_still_finds_a_setup_that_holds_the_goal(true_gpu, true_cpu):
+    # The test runs limited to twice the goal (2026-11-18). A fast PC then reads "at least", and the
+    # search has to work from that without recommending something that misses the goal.
+    cur = _current()
+    cap = 120                                              # goal 60
+    logs = []
+    capped = FakePC(cur, true_gpu, true_cpu)
+    out = optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 60, 16376, _capped(capped, cap),
+                       log=logs.append, fps_cap=cap)
+    free = FakePC(cur, true_gpu, true_cpu)
+    ref = optimize.run(M.Model(78, 100, 2560, 1440), cur, "nvidia", 60, 16376, free.measure, log=lambda *_: None)
+    assert out["target_reached"] and ref["target_reached"]
+    assert len(capped.calls) <= 1 + optimize.MAX_CONFIRM_RUNS
+    for o in (out,):
+        rec = o["recommended"]
+        if rec:                                            # what is recommended really holds the goal on the true PC
+            true = capped.truth.fps(dict(cur, **{k: v for k, v in rec["changes"].items()}),
+                                    M.current_rung(dict(cur, **rec["changes"]), "nvidia"))
+            assert true * capped.low_ratio >= 60 * optimize.HIT_MARGIN
+    at_limit = capped.truth.fps(cur, M.current_rung(cur, "nvidia")) >= cap * optimize.AT_CAP
+    assert any("reach the test's limit of 120 FPS" in l for l in logs) == at_limit
+    # the limit never makes the recommendation look worse than what an unlimited test would pick by much
+    q = lambda o: o["recommended"]["quality"] if o["recommended"] else o["current_quality"]
+    assert q(out) >= q(ref) - 0.1 * out["max_quality"]
+
+
+def test_full_mode_does_not_learn_costs_from_runs_at_the_limit():
+    cur = _current()
+    pc = FakePC(cur, 400, 300)                             # far faster than the limit whatever is set
+    mdl = M.Model(78, 100, 2560, 1440)
+    logs = []
+    out = optimize.run(mdl, cur, "nvidia", 60, 16376, _capped(pc, 120), full=True, log=logs.append, fps_cap=120)
+    assert not mdl.measured                                # every cost run sat at the limit: estimates kept
+    assert not out["disturbed"]                            # and that is not "another program was using the PC"
+    assert any("can't be measured; using the estimate" in l for l in logs)
+    assert not any("do not make sense" in l for l in logs)
+    slow = FakePC(cur, 30, 50)                             # a PC under the limit: costs are learned as before
+    mdl2 = M.Model(78, 100, 2560, 1440)
+    optimize.run(mdl2, cur, "nvidia", 60, 16376, _capped(slow, 120), full=True, log=lambda *_: None, fps_cap=120)
+    assert mdl2.measured

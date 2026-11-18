@@ -137,8 +137,10 @@ def summarize(result: dict) -> dict:
 
 def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_mb: float,
         measure, full: bool = False, log=print, measure_fast=None, measure_batch=None,
-        steps: list[int] | None = None, extra: dict | None = None, mode: str = DEFAULT_MODE) -> dict:
-    """current: the player's flat options. measure(changes|None) -> summarize()d result
+        steps: list[int] | None = None, extra: dict | None = None, mode: str = DEFAULT_MODE,
+        fps_cap: float | None = None) -> dict:
+    """fps_cap: the frame-rate limit the test runs under (bench.fps_cap), when there is one.
+    current: the player's flat options. measure(changes|None) -> summarize()d result
     (None = benchmark the player's settings untouched).
     steps: goals to fall back through (VR). extra: changes that are part of every
     candidate whatever the search picks (VR: pixel density 1.0, effects that break in a headset)."""
@@ -147,10 +149,16 @@ def run(mdl: M.Model, current: dict, vendor: str, target_fps: float, vram_total_
     before = measure(None)
     low_ratio = max(0.4, min(0.95, before["p1_low_fps"] / before["avg_fps"]))
     mdl.calibrate(current, cur_rung, before["avg_fps"], before.get("vram_peak_mb"))
+    if fps_cap and before["avg_fps"] >= fps_cap * AT_CAP:
+        # The true speed is somewhere above the limit. The search below still works: a candidate
+        # that measures under the limit re-anchors the model on a real number.
+        log(f"Your current settings reach the test's limit of {fps_cap:.0f} FPS, twice your goal, so this PC "
+            "has room for more picture quality.")
 
     disturbed = False
     if full:
-        disturbed = _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch)
+        disturbed = _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch,
+                                   fps_cap)
     display_target = target_fps
     if mode not in MODES:
         raise ValueError(f"unknown mode {mode!r}")
@@ -217,7 +225,11 @@ BATCH_SIZE = 16          # settings changes per DCS launch (no-restart path)
 DRIFT_LIMIT = 0.05       # baseline moved more than this -> something else was using the PC
 
 
-def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch=None) -> bool:
+AT_CAP = 0.97            # a measurement this close to the test's frame-rate limit says "at least", not "exactly"
+
+
+def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, measure_batch=None,
+                   fps_cap=None) -> bool:
     """Full mode: measure what each setting's lowest and highest level really cost on
     this PC, one at a time against the player's own settings. Settings marked
     "measure": false cost too little to be worth measuring and keep their estimate.
@@ -233,8 +245,16 @@ def _measure_costs(mdl, current, cur_rung, before, measure, measure_fast, log, m
     base_ms = 1000.0 / before["avg_fps"]
     disturbed = False
 
+    cap_ms = 1000.0 / (fps_cap * AT_CAP) if fps_cap else 0.0
+
     def commit(s, ms_at):
         nonlocal disturbed
+        # A run at the test's frame-rate limit hides what the setting costs (the PC was waiting,
+        # not working): keep the estimate for that setting. This is not a disturbed test.
+        if any(ms <= cap_ms for ms in ms_at.values()):
+            log(f"  {s['label']}: the PC reached the test's limit of {fps_cap:.0f} FPS here, so its cost "
+                "can't be measured; using the estimate")
+            return
         # sanity: turning a setting DOWN cannot make DCS clearly slower
         if any(ms_at[i] > ms_at[j] * 1.03 for i in ms_at for j in ms_at if i < j):
             log(f"  {s['label']}: measurements do not make sense (lower was slower); using the estimate")

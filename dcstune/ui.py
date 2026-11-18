@@ -344,12 +344,17 @@ class Engine:
         busy = self.info.get("bench_busy") is True and scenes.busy_ok(scene)
         if busy:
             log("With the busy airfield scene (your own choice).")
+        from .bench import fps_cap
+        cap = fps_cap(own_goal or goal)
+        log(f"The test runs with the frame rate limited to {cap} FPS (twice your goal), so the graphics card is "
+            "not driven harder than it needs to be.")
         with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0, scene=scene,
                    busy=busy) as b:
+            b.fps_cap = cap
             out = optimize.run(mdl, flat, vendor, goal,
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
                                measure_fast=b.measure_fast, measure_batch=b.measure_batch,
-                               steps=st and st["steps"], extra=extra, mode=mode)
+                               steps=st and st["steps"], extra=extra, mode=mode, fps_cap=cap)
             launches, other_vram = b.runs, b.other_vram_mb
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
