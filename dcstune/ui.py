@@ -122,10 +122,17 @@ class Engine:
         log("Heat check: the same scenes six times in a row with your current settings, about 15 minutes. "
             "Nothing is changed.")
         log("Scenes: " + scenes.label(scene) + (", with the busy airfield scene" if busy else "") + ".")
+        from . import rate
+        from .bench import fps_cap
+        goal = (st["target"] if in_headset else None) or rate.chosen_goal(self.info) or rate.display_goal(self.info)
+        cap = fps_cap(goal)
+        log(f"Frame rate limited to {cap} FPS during the check (twice your goal of {goal:.0f}), so the graphics "
+            "card is not driven harder than it needs to be.")
         with Bench(self.profile, exe, log=log, vr=in_headset, vram_total_mb=gpu.get("vram_mb") or 0, scene=scene,
                    busy=busy) as b:
+            b.fps_cap = cap
             raw = b.soak()
-        out = heat.summarize(raw["laps"], raw["samples"])
+        out = heat.summarize(raw["laps"], raw["samples"], cap)
         out["created"] = time.strftime("%Y-%m-%d %H:%M")
         out["scene_label"] = scenes.label(scene) + (", with the busy airfield scene" if busy else "")
         for line in out["lines"]:

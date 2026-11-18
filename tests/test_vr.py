@@ -599,6 +599,7 @@ def test_heat_check_flies_laps_with_the_players_settings_and_changes_nothing(tmp
     out = eng.heat_check(lines.append)
     made = _FakeBench.made[-1]
     assert made.soaked == 6 and made.busy and not made.vr           # on the monitor unless "in the headset" was chosen
+    assert made.fps_cap in (120, 144, 180, 240, 288, 300) and any("Frame rate limited to" in l for l in lines)
     assert out["verdict"] == "slows" and len(out["laps"]) == 6 and "busy airfield" in out["scene_label"]
     assert any("Heat check" in l for l in lines) and any("Verdict" in l for l in lines)
     assert (tmp_path / "Config" / "options.lua").read_bytes() == before

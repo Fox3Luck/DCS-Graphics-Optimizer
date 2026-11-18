@@ -22,7 +22,7 @@ def _between(samples, t0, t1, key):
     return _mean([s.get(key) for s in samples if t0 <= s["t"] <= t1 + 1])
 
 
-def summarize(laps: list[dict], samples: list[dict]) -> dict:
+def summarize(laps: list[dict], samples: list[dict], cap: int | None = None) -> dict:
     """laps: [{"avg_fps", "p1_low_fps", "t0", "t1"}] in flying order. samples: [{"t", "gpu_temp",
     "gpu_clock", "gpu_power", "cpu_speed"}], any value may be None or missing."""
     if len(laps) < 3:
@@ -49,6 +49,9 @@ def summarize(laps: list[dict], samples: list[dict]) -> dict:
            "gpu_temp_start": temps[0] if temps else None, "gpu_temp_peak": max(temps) if temps else None,
            "gpu_clock_drop_pct": fell("gpu_clock"), "cpu_speed_drop_pct": fell("cpu_speed")}
     out["verdict"] = "steady" if drop < STEADY_PCT else "slight" if drop < SLOWS_PCT else "slows"
+    # At the frame-rate limit the whole way: the PC had power to spare, and a small loss would not show.
+    out["cap"] = cap
+    out["at_cap"] = bool(cap) and min(r["avg_fps"] for r in rows) >= cap * 0.97
     out["lines"] = _lines(out)
     return out
 
@@ -64,9 +67,13 @@ def _lines(h: dict) -> list[str]:
     gpu_slowed = (h["gpu_clock_drop_pct"] or 0) >= CLOCK_DROP_PCT
     cpu_slowed = (h["cpu_speed_drop_pct"] or 0) >= CLOCK_DROP_PCT
     hot = h["gpu_temp_peak"] is not None and h["gpu_temp_peak"] >= HOT_GPU_C
-    if h["verdict"] == "steady":
+    if h["verdict"] == "steady" and h.get("at_cap"):
+        lines.append(f"Verdict: steady. This PC sat at the check's limit of {h['cap']} FPS the whole time, which is "
+                     "twice your goal, so it has power to spare even when warm.")
+    elif h["verdict"] == "steady":
         lines.append("Verdict: steady. This PC holds its frame rate as it warms up, so the test results stand "
                      "for long flights too.")
+    if h["verdict"] == "steady":
         if hot:
             lines.append(f"The graphics card does run hot ({h['gpu_temp_peak']:.0f} °C). It kept its speed here, "
                          "but there is little room left on a warm day.")

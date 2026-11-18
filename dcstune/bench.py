@@ -282,6 +282,22 @@ class GpuSampler:
             self._heat_thread.join(timeout=25)
 
 
+UNCAPPED_FPS = 300        # DCS's own highest frame-rate limit
+
+
+def fps_cap(goal_fps) -> int:
+    """The frame-rate limit a test runs under: twice the frame rate the player is aiming for, and at
+    least 120. A test used to run with no limit at all, which drives a fast graphics card far harder
+    than flying does (a player lost their picture in #32, and the test PC's driver reset once on
+    2026-11-18). Twice the goal keeps the room the measurement needs: a PC that reaches the limit has
+    double what it was asked for."""
+    try:
+        goal = float(goal_fps)
+    except (TypeError, ValueError):
+        return UNCAPPED_FPS
+    return int(min(UNCAPPED_FPS, max(120, round(goal * 2))))
+
+
 GRAPHICS_RESET = (
     "The graphics driver stopped and Windows restarted it during the test, so DCS could not go on. Your "
     "settings have been put back. This is not caused by a DCS setting: it happens when the graphics card or "
@@ -660,7 +676,7 @@ class Bench:
     def _launch(self, changes, directive_extra: dict, short: bool, timeout: int):
         # Trials never change resolution, monitor layout or VR; vsync and the frame
         # cap are lifted for every run (including the baseline) so numbers compare.
-        trial = {"graphics.sync": False, "graphics.maxFPS": 300}
+        trial = {"graphics.sync": False, "graphics.maxFPS": int(getattr(self, "fps_cap", 0) or UNCAPPED_FPS)}
         trial.update(changes or {})
         self.session.write_trial(trial)
         self.result.unlink(missing_ok=True)

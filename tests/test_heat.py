@@ -83,3 +83,17 @@ def test_a_graphics_driver_reset_is_recognized_in_the_dcs_log(tmp_path):
     b._launched_at = time.time() + 60                               # that log is from an earlier DCS start
     assert not b._graphics_reset()
     assert "graphics driver stopped" in bench.GRAPHICS_RESET and "settings have been put back" in bench.GRAPHICS_RESET
+
+
+def test_the_tests_frame_rate_limit_is_twice_the_goal():
+    from dcstune.bench import fps_cap
+    assert [fps_cap(g) for g in (30, 45, 60, 72, 90, 120, 144, 165)] == [120, 120, 120, 144, 180, 240, 288, 300]
+    assert fps_cap(None) == 300 and fps_cap("x") == 300            # no goal known: DCS's own top limit, as before
+
+
+def test_a_pc_that_sits_at_the_limit_is_told_so():
+    h = heat.summarize(_laps([120, 120, 119.5, 120]), [], cap=120)
+    assert h["at_cap"] and h["verdict"] == "steady"
+    assert "sat at the check's limit of 120 FPS" in " ".join(h["lines"])
+    below = heat.summarize(_laps([96, 96, 95, 96]), [], cap=120)
+    assert not below["at_cap"] and "holds its frame rate" in " ".join(below["lines"])
