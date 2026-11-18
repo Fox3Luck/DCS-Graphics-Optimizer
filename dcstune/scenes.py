@@ -42,6 +42,12 @@ def valid(pick) -> tuple[str, str] | None:
     return pick
 
 
+def busy_ok(pick) -> bool:
+    """Is there a busy-airfield version of this pick's test (issues #23, #35)? None = the default pair."""
+    pick = valid(pick) or DEFAULT
+    return pick[1] in ((index()["maps"].get(pick[0]) or {}).get("busy") or [])
+
+
 def label(pick) -> str:
     """How the window and the report name a pick: 'F-14B over Syria (Beirut)'."""
     pick = valid(pick) or DEFAULT
@@ -90,12 +96,16 @@ def installed(install_root, profile_path=None) -> dict:
     return {"maps": maps, "aircraft": planes}
 
 
-def write_mission(pick, dst: Path) -> tuple[str, str]:
+def write_mission(pick, dst: Path, busy: bool = False) -> tuple[str, str]:
     """Put the mission for this pick at dst and return the pick that was really used. Anything the
-    pack does not hold falls back to the default mission, so a test can always run."""
+    pack does not hold falls back to the default mission, so a test can always run. With busy, the
+    version with the busy airfield is written; ask busy_ok() first, there is no fallback for it."""
     pick = valid(pick)
-    if pick:
-        prefix = f"{pick[0]}/{pick[1]}/"
+    if busy and not busy_ok(pick):
+        raise ValueError("no busy version of this test")
+    if pick or busy:
+        pick = pick or DEFAULT
+        prefix = f"{pick[0]}/{pick[1]}{'+busy' if busy else ''}/"
         files = {}
         with tarfile.open(PACK, "r:xz") as tar:
             for item in tar:

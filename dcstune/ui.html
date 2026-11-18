@@ -102,6 +102,9 @@
       <select id="scene-map" title="The map the test flies over. Pick one you fly on; busy maps are heavier than Caucasus."
         style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:2px"></select>
       <span class="sub" id="scene-hint"></span></p>
+    <p class="hidden" id="busy-line" style="margin:4px 0 2px"><label title="Adds a fourth scene to every run: an airfield with columns of moving vehicles, aircraft passing overhead, helicopters and smoke. Nothing shoots, so every run plays the same. Closer to a full mission than the three standard scenes.">
+      <input type="checkbox" id="busy-box"> Add a busy airfield scene</label>
+      <span class="sub" id="busy-hint"></span></p>
   </fieldset>
   <div class="actions">
     <button class="primary" id="quick">Test and optimize (10 to 20 min)</button>
@@ -301,6 +304,9 @@ function showGoals(sc) {
     sp.value = s.aircraft;
     $("scene-hint").textContent = s.default ? "" : "Your own choice. Numbers from different maps or aircraft can't be compared.";
   }
+  $("busy-line").classList.toggle("hidden", !(s && s.busy_ok));
+  $("busy-box").checked = !!(s && s.busy);
+  $("busy-hint").textContent = s && s.busy ? "Heavier, like a full mission. Numbers with and without it can't be compared." : "";
   $("vrtest-line").classList.toggle("hidden", !sc.vr_choice);
   if (sc.vr_choice) $("vrtest-pick").value = sc.vr_tested ? "1" : "";
   const vg = $("vrgoal-pick"), showVg = !!(h && h.goal_choices);
@@ -330,6 +336,10 @@ const sendScene = async () => {
   try { note((await api("/api/scene", { map: $("scene-map").value, aircraft: $("scene-plane").value })).message); await refresh(); }
   catch (e) { note(e.message, true); }
 };
+$("busy-box").onchange = async () => {
+  try { note((await api("/api/busy", { on: $("busy-box").checked })).message); await refresh(); }
+  catch (e) { note(e.message, true); await refresh(); }
+};
 $("scene-plane").onchange = sendScene;
 $("scene-map").onchange = sendScene;
 $("vrtest-pick").onchange = async () => {
@@ -349,7 +359,7 @@ $("headset-pick").onchange = async () => {
   catch (e) { note(e.message, true); }
 };
 let RUNNING = false;
-function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick", "scene-plane", "scene-map", "vrtest-pick"].forEach(i => $(i).disabled = on);
+function busy(on) { RUNNING = on; ["quick", "full", "apply", "undo", "open-report", "profile-pick", "mode-box", "hz-pick", "vrgoal-pick", "goal-pick", "scene-plane", "scene-map", "vrtest-pick", "busy-box"].forEach(i => $(i).disabled = on);
   if (SETUP) ["quick", "full"].forEach(i => $(i).disabled = true); }
 async function poll() {
   const j = await api("/api/job");

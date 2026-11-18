@@ -42,6 +42,7 @@ class Engine:
                                goal=prefs.get_pref(self.profile, "vr_goal"))
         self.info["fps_goal"] = prefs.get_pref(self.profile, "fps_goal")
         self.info["bench_scene"] = prefs.get_pref(self.profile, "bench_scene")
+        self.info["bench_busy"] = prefs.get_pref(self.profile, "bench_busy") is True
         self.vr_in_headset = prefs.get_pref(self.profile, "vr_in_headset") is True
 
     def _vr_bench(self) -> bool:
@@ -104,6 +105,20 @@ class Engine:
             return sysinfo.pick_install(self.info).get("path")
         except Exception:
             return None
+
+    def set_busy(self, on) -> str:
+        """Add the busy-airfield scene to the test, or take it out (issues #23, #35)."""
+        from . import prefs, scenes
+        on = on is True
+        if on and not scenes.busy_ok(self.info.get("bench_scene")):
+            raise ValueError("There is no busy scene for this map and aircraft yet.")
+        prefs.set_pref(self.profile, "bench_busy", on)
+        self._use_prefs()
+        if on:
+            return ("The test now adds a fourth scene: a busy airfield with moving vehicles, aircraft and smoke. "
+                    "It is closer to a full mission, so expect lower numbers, and each run takes about half a "
+                    "minute longer. Results with and without it can't be compared.")
+        return "The busy airfield scene is off. The test flies the three standard scenes."
 
     def set_scene(self, map_key, aircraft) -> str:
         """The map and aircraft the test flies (#23); anything not offered goes back to the default."""
@@ -241,7 +256,8 @@ class Engine:
         if not any(m["key"] == pick[0] for m in have["maps"]):      # the map was removed or switched off since
             pick = scenes.DEFAULT
         combos = {k: m["aircraft"] for k, m in scenes.index()["maps"].items()}
-        return {"map": pick[0], "aircraft": pick[1], "label": scenes.label(pick),
+        return {"busy": self.info.get("bench_busy") is True and scenes.busy_ok(pick), "busy_ok": scenes.busy_ok(pick),
+                "map": pick[0], "aircraft": pick[1], "label": scenes.label(pick),
                 "default": pick == scenes.DEFAULT, "maps": have["maps"], "aircraft_list": have["aircraft"],
                 "combos": combos}
 
@@ -289,7 +305,11 @@ class Engine:
             scene = None
         if scene:
             log("Test scenes: " + scenes.label(scene) + " (your own choice).")
-        with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0, scene=scene) as b:
+        busy = self.info.get("bench_busy") is True and scenes.busy_ok(scene)
+        if busy:
+            log("With the busy airfield scene (your own choice).")
+        with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0, scene=scene,
+                   busy=busy) as b:
             out = optimize.run(mdl, flat, vendor, goal,
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
                                measure_fast=b.measure_fast, measure_batch=b.measure_batch,
@@ -308,7 +328,7 @@ class Engine:
                   "duration_min": max(1, round((time.time() - started) / 60)),
                   "hardware": rate.hardware_summary(self.info, flat),
                   "vr": bool(st), "vr_skipped": vr_skipped,
-                  "scene": list(scene) if scene else None, "scene_label": scenes.label(scene),
+                  "scene": list(scene) if scene else None, "scene_label": scenes.label(scene), "busy": busy,
                   "costs": optimize.measured_costs(mdl, base_ms),
                   "target_fps": target, "goal_chosen": own_goal, "target_reached": out["target_reached"],
                   "keep_current": out["keep_current"], "runs": launches,
@@ -560,7 +580,7 @@ class App:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; pick the headset after it finishes.")
             return {"message": self.engine.set_headset(body.get("name"))}
-        if method == "POST" and path in ("/api/headset-hz", "/api/goal", "/api/vr-goal", "/api/scene", "/api/vr-test"):
+        if method == "POST" and path in ("/api/headset-hz", "/api/goal", "/api/vr-goal", "/api/scene", "/api/vr-test", "/api/busy"):
             with self.lock:
                 if self.job["state"] == "running":
                     raise RuntimeError("A test is running; change the goal after it finishes.")
@@ -568,6 +588,8 @@ class App:
                 return {"message": self.engine.set_goal(body.get("fps"))}
             if path == "/api/vr-test":
                 return {"message": self.engine.set_vr_test(body.get("in_headset"))}
+            if path == "/api/busy":
+                return {"message": self.engine.set_busy(body.get("on"))}
             if path == "/api/scene":
                 return {"message": self.engine.set_scene(body.get("map"), body.get("aircraft"))}
             if path == "/api/vr-goal":

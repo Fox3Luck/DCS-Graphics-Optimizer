@@ -215,6 +215,8 @@ def test_goal_and_refresh_rate_buttons(served):
     assert b'id="vrgoal-pick"' in page
     assert b'id="scene-map"' in page and b'id="scene-plane"' in page
     assert b'id="vrtest-pick"' in page
+    assert b'id="busy-box"' in page
+    assert "is off" in json.loads(call("/api/busy", {"on": False})[1])["message"]
     assert "on the monitor" in json.loads(call("/api/vr-test", {"in_headset": False})[1])["message"]
     assert "standard scenes" in json.loads(call("/api/scene", {"map": "syria", "aircraft": "F-14B"})[1])["message"]
     assert "VR is switched off" in json.loads(call("/api/vr-goal", {"mode": "half"})[1])["message"]

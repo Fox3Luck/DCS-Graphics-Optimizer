@@ -1,6 +1,7 @@
 # DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
 # Created 2026-11-10. Builds the test mission (free content only, same every run).
 # 2026-11-17: can also build the same three scenes on another map with another aircraft (issue #23).
+# 2026-11-18: optional fourth scene, a busy airfield with moving vehicles, more aircraft and smoke (#23, #35).
 """Build a test mission with pydcs: AI-flown, no weapons, no enemies, fixed weather and time, so every
 run is the same.
 
@@ -13,12 +14,15 @@ Scenes (unit names are what the hook's camera follows):
   TUNE-CITY-1  low and slow over the city next to the map's airfield - dense buildings, water, trees
   TUNE-RAMP-1  parked on that airfield's crowded ramp - many aircraft models and shadows
   TUNE-HIGH-1  inside a broken cloud layer
+  TUNE-BUSY-1  (busy missions only) a helicopter low along the runway of a busy airfield: columns of
+               moving vehicles, aircraft passing overhead, helicopters, smoke. Nothing shoots: every
+               unit is on the same side and no aircraft carries weapons, so each run plays the same.
 """
 import sys
 from pathlib import Path
 
 import dcs
-from dcs import cloud_presets, helicopters, mapping, planes, task
+from dcs import action, cloud_presets, helicopters, mapping, planes, task, triggers, vehicles
 
 # One airfield per map, next to the biggest city the map has, and its height above sea level in meters
 # (cloud and flight heights are set from it; Kandahar sits at 1,010 m).
@@ -51,7 +55,84 @@ def aircraft_type(name: str):
     return kind
 
 
-def build(out: Path, map_key: str = "caucasus", aircraft: str = "Su-25T") -> Path:
+# The busy scene (issues #23 and #35), all of it stock content every DCS install has.
+BUSY_HALF = 900                     # meters each way along the runway from the middle of the airfield
+BUSY_VEHICLES = ("M_1_Abrams", "M_2_Bradley", "M_113", "LAV_25", "Hummer", "M_818")
+BUSY_COLUMNS = 8                    # columns of 6 vehicles = 48 moving vehicles
+BUSY_SMOKE = 6
+
+
+def add_busy(m, side, field, kind, heli: bool) -> None:
+    """Fill the airfield's main runway with activity and add the helicopter the camera follows."""
+    fp, hdg = field.position, field.runways[0].heading
+    along = lambda d, off=0: fp.point_from_heading(hdg, d).point_from_heading((hdg + 90) % 360, off)
+
+    # 1. vehicle columns spread evenly along the runway, alternating sides of the centerline, each
+    # shuttling 300 m up and down so there is movement wherever the camera is
+    for c in range(BUSY_COLUMNS):
+        d0 = -BUSY_HALF + (2 * BUSY_HALF) * (c + 0.5) / BUSY_COLUMNS
+        off = 14 if c % 2 else -14
+        types = [getattr(vehicles.Armor, n, None) or getattr(vehicles.Unarmed, n) for n in BUSY_VEHICLES]
+        g = m.vehicle_group_platoon(side, f"TUNE-COL-{c}", types, along(d0, off), heading=hdg)
+        for i, u in enumerate(g.units):
+            u.position = along(d0 - 22 * i, off)
+            u.heading = hdg
+        for lap in range(10):
+            g.add_waypoint(along(d0 + (300 if lap % 2 == 0 else 0), off), speed=30)
+
+    # 2. the player's aircraft type passing low along the runway, one after another, both directions
+    speed = 400 if not heli else 160
+    for i in range(6):
+        off = (-250, 250, -400, 400, -550, 550)[i]
+        a, b = along(-6000 - 2500 * i, off), along(6000 + 2500 * i, off)
+        if i % 2:
+            a, b = b, a
+        g = m.flight_group_inflight(side, f"TUNE-PASS-{i}", kind, position=a, altitude=200 + 40 * i,
+                                    speed=speed, maintask=task.Nothing, group_size=1)
+        g.units[0].pylons.clear()
+        for lap in range(8):
+            g.add_waypoint(b if lap % 2 == 0 else a, 200 + 40 * i, speed)
+        for pt in g.points:
+            pt.alt_type = "RADIO"
+        g.units[0].alt_type = "RADIO"
+
+    # 3. stock helicopters working up and down both sides of the runway
+    for i, name in enumerate(("CH-47D", "AH-64A", "CH-47D", "AH-64A")):
+        off = (-120, 120, -200, 200)[i]
+        a, b = along(-BUSY_HALF + 300 * i, off), along(BUSY_HALF - 300 * i, off)
+        g = m.flight_group_inflight(side, f"TUNE-HELO-{i}", helicopters.helicopter_map[name], position=a,
+                                    altitude=60 + 15 * i, speed=90, maintask=task.Nothing, group_size=1)
+        g.units[0].pylons.clear()
+        for lap in range(10):
+            g.add_waypoint(b if lap % 2 == 0 else a, 60 + 15 * i, 90)
+        for pt in g.points:
+            pt.alt_type = "RADIO"
+        g.units[0].alt_type = "RADIO"
+
+    # 4. the helicopter the camera follows: slow and low straight down the runway and back
+    a, b = along(-BUSY_HALF), along(BUSY_HALF)
+    g = m.flight_group_inflight(side, "TUNE-BUSY", helicopters.helicopter_map["UH-60A"], position=a,
+                                altitude=35, speed=70, maintask=task.Nothing, group_size=1)
+    g.units[0].name = "TUNE-BUSY-1"
+    g.units[0].pylons.clear()
+    for lap in range(10):
+        g.add_waypoint(b if lap % 2 == 0 else a, 35, 70)
+    for pt in g.points:
+        pt.alt_type = "RADIO"
+    g.units[0].alt_type = "RADIO"
+
+    # 5. smoke columns along both sides, lit when the mission starts (large smoke, medium density)
+    lines = []
+    for i in range(BUSY_SMOKE):
+        p = along(-BUSY_HALF + (2 * BUSY_HALF) * (i + 0.5) / BUSY_SMOKE, 160 if i % 2 else -160)
+        lines.append(f"do local x, z = {p.x:.1f}, {p.y:.1f}; trigger.action.effectSmokeBig("
+                     f"{{x = x, y = land.getHeight({{x = x, y = z}}), z = z}}, 3, 0.5) end")
+    rule = triggers.TriggerStart(comment="busy scene smoke")
+    rule.add_action(action.DoScript(m.string("\n".join(lines))))
+    m.triggerrules.triggers.append(rule)
+
+
+def build(out: Path, map_key: str = "caucasus", aircraft: str = "Su-25T", busy: bool = False) -> Path:
     import importlib
     module, cls, airfield, elev, city, heading = MAPS[map_key]
     kind = aircraft_type(aircraft)
@@ -149,6 +230,10 @@ def build(out: Path, map_key: str = "caucasus", aircraft: str = "Su-25T") -> Pat
     flight("TUNE-HIGH", mapping.Point(fp.x + 20000, fp.y + 30000, m.terrain),
            mapping.Point(fp.x + 90000, fp.y + 60000, m.terrain), high, high_speed)
 
+    # 4. busy airfield (only in the busy missions: its units cost processor time in every scene)
+    if busy:
+        add_busy(m, side, field, kind, heli)
+
     # One spectator-capable slot is not needed: the hook hosts and stays unslotted.
     m.save(str(out))
     return out
@@ -199,25 +284,28 @@ def pack(folder: Path) -> None:
     unpacks the one mission the player picked; nothing is built on the player's PC."""
     import io, json, tarfile, tempfile, zipfile
     tmp = Path(tempfile.mkdtemp()) / "one.miz"
-    made, skipped = {}, []
+    made, busy_made, skipped = {}, {}, []
     with tarfile.open(folder / "scenes.tar.xz", "w:xz", preset=9) as tar:
         for map_key in MAPS:
             for kind in AIRCRAFT:
-                try:
-                    build(tmp, map_key, kind)
-                except Exception as e:                       # for example: no ramp spot big enough on this map
-                    skipped.append(f"{map_key}/{kind}: {type(e).__name__}: {e}")
-                    continue
-                made.setdefault(map_key, []).append(kind)
-                with zipfile.ZipFile(tmp) as z:
-                    if sorted(z.namelist()) != sorted(MISSION_FILES):
-                        raise SystemExit(f"unexpected files in {map_key}/{kind}: {z.namelist()}")
-                    for name in MISSION_FILES:
-                        data = z.read(name)
-                        item = tarfile.TarInfo(f"{map_key}/{kind}/{name}")
-                        item.size = len(data)
-                        tar.addfile(item, io.BytesIO(data))
-    index = {"maps": {k: {"label": MAP_LABELS[k][0], "folder": MAP_LABELS[k][1], "aircraft": made[k]} for k in made},
+                # each pair twice: the three standard scenes, and the same with the busy airfield added
+                for busy in (False, True):
+                    try:
+                        build(tmp, map_key, kind, busy)
+                    except Exception as e:                   # for example: no ramp spot big enough on this map
+                        skipped.append(f"{map_key}/{kind}{'+busy' if busy else ''}: {type(e).__name__}: {e}")
+                        break
+                    (busy_made if busy else made).setdefault(map_key, []).append(kind)
+                    with zipfile.ZipFile(tmp) as z:
+                        if sorted(z.namelist()) != sorted(MISSION_FILES):
+                            raise SystemExit(f"unexpected files in {map_key}/{kind}: {z.namelist()}")
+                        for name in MISSION_FILES:
+                            data = z.read(name)
+                            item = tarfile.TarInfo(f"{map_key}/{kind}{'+busy' if busy else ''}/{name}")
+                            item.size = len(data)
+                            tar.addfile(item, io.BytesIO(data))
+    index = {"maps": {k: {"label": MAP_LABELS[k][0], "folder": MAP_LABELS[k][1], "aircraft": made[k],
+                          "busy": busy_made.get(k, [])} for k in made},
              "aircraft": {k: {"label": v[0], "folders": v[1], "helicopter": k in helicopters.helicopter_map}
                           for k, v in AIRCRAFT.items()},
              "files": list(MISSION_FILES)}

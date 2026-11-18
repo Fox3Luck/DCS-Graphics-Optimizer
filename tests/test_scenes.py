@@ -64,3 +64,37 @@ def test_numbers_from_another_scene_are_kept_apart():
     picked = rate._fingerprint(dict(INFO, bench_scene=["syria", "F-14B"]), flat)
     assert picked["scene"] == ["syria", "F-14B"] and picked != plain
     assert rate._fingerprint(dict(INFO, bench_scene=["nowhere", "F-14B"]), flat) == plain
+
+
+def test_busy_airfield_version_of_a_test(tmp_path):
+    # Issues #23 and #35: every pair in the pack also has a version with the busy airfield scene.
+    import re, zipfile
+    idx = scenes.index()
+    assert all(m["busy"] == m["aircraft"] for m in idx["maps"].values())
+    assert scenes.busy_ok(None) and scenes.busy_ok(("syria", "F-14B")) and scenes.busy_ok(("nowhere", "F-14B"))   # bad pick = default pair
+    assert scenes.write_mission(None, tmp_path / "d.miz", busy=True) == scenes.DEFAULT
+    plain = zipfile.ZipFile(scenes.MISSION_SRC).read("mission").decode()
+    for pick, name in ((None, "d.miz"), (("syria", "F-14B"), "s.miz")):
+        scenes.write_mission(pick, tmp_path / name, busy=True)
+        z = zipfile.ZipFile(tmp_path / name)
+        text = z.read("mission").decode()
+        for unit in ("TUNE-CITY-1", "TUNE-RAMP-1", "TUNE-HIGH-1", "TUNE-BUSY-1"):
+            assert f'"{unit}"' in text
+        assert len(re.findall(r'\["unitId"\]', text)) >= 60                      # 48 vehicles, 11 aircraft, the standard scenes
+        assert "effectSmokeBig" in z.read("l10n/DEFAULT/dictionary").decode()
+        assert '"UH-60A"' in text and '"M-1 Abrams"' in text
+        # nothing can shoot: one side only, and no aircraft carries anything
+        assert not re.search(r'\["pylons"\]\s*=\s*\{\s*\[', text)
+    assert "TUNE-BUSY-1" not in plain                                              # the standard test is untouched
+    scenes.write_mission(("syria", "F-14B"), tmp_path / "p.miz")
+    assert "TUNE-BUSY-1" not in zipfile.ZipFile(tmp_path / "p.miz").read("mission").decode()
+
+
+def test_busy_numbers_are_kept_apart():
+    flat = {"graphics.width": 2560, "graphics.height": 1440}
+    plain = rate._fingerprint(INFO, flat)
+    busy = rate._fingerprint(dict(INFO, bench_busy=True), flat)
+    assert busy.get("busy") is True and busy != plain
+    assert rate._fingerprint(dict(INFO, bench_busy="yes"), flat) == plain          # only a real True counts
+    both = rate._fingerprint(dict(INFO, bench_busy=True, bench_scene=["syria", "F-14B"]), flat)
+    assert both["busy"] is True and both["scene"] == ["syria", "F-14B"]

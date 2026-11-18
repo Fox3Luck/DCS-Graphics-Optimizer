@@ -24,6 +24,8 @@ def _fingerprint(info: dict, options: dict) -> dict:
     pick = scenes.valid(info.get("bench_scene"))
     if pick:    # numbers measured over another map with another aircraft are their own set (#23)
         fp["scene"] = list(pick)
+    if info.get("bench_busy") is True and scenes.busy_ok(pick):
+        fp["busy"] = True       # a fourth, much heavier scene: its own set of numbers too
     return fp
 
 

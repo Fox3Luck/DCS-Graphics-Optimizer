@@ -27,6 +27,9 @@ SCENES = [
     {"name": "airfield", "unit": "TUNE-RAMP-1", "back": 28, "up": 5, "side": 10},
     {"name": "clouds", "unit": "TUNE-HIGH-1", "back": 40, "up": 10},
 ]
+# Only when the player asked for it (issues #23, #35): a slow helicopter low along the runway of a
+# busy airfield. The camera sits well behind and above so the vehicles, aircraft and smoke ahead are in view.
+BUSY_SCENE = {"name": "busy", "unit": "TUNE-BUSY-1", "back": 60, "up": 22}
 BATCH_SETTLE_SEC = 10     # wait before timing in every measured no-restart trial
 QUICK_EXIT_SEC = 45       # DCS gone this fast without a result = it never really started
 EXIT_GRACE_SEC = 45       # result written: how long DCS gets to close itself before the tool closes it
@@ -319,8 +322,10 @@ def free_port() -> int:
 
 class Bench:
     def __init__(self, profile: dict, exe: Path, scene_sec: int = 25, settle_sec: int = 20,
-                 timeout: int = 600, log=print, vr: bool = False, vram_total_mb: float = 0, scene=None):
+                 timeout: int = 600, log=print, vr: bool = False, vram_total_mb: float = 0, scene=None,
+                 busy: bool = False):
         self.scene = scene                 # the player's map and aircraft (issue #23); None = the default test
+        self.busy = bool(busy)             # add the busy-airfield scene (issues #23, #35)
         self.profile_dir = Path(profile["path"])
         self.profile_name = profile["name"]
         self.options = Path(profile["options"])
@@ -365,7 +370,8 @@ class Bench:
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)
         self._install_hook()
         from . import scenes
-        self.scene_used = scenes.write_mission(self.scene, self.mission_dst)
+        self.busy = self.busy and scenes.busy_ok(self.scene)
+        self.scene_used = scenes.write_mission(self.scene, self.mission_dst, self.busy)
         return self
 
     def _install_hook(self):
@@ -560,7 +566,7 @@ class Bench:
             return json.dumps(dict({
                 "key": self.key, "not_after": int(time.time()) + DIRECTIVE_VALID_SEC,
                 "password": secrets.token_hex(16), "port": free_port(),
-                "mission": str(self.mission_dst), "scenes": SCENES,
+                "mission": str(self.mission_dst), "scenes": SCENES + ([BUSY_SCENE] if self.busy else []),
                 "scene_sec": SHORT_SCENE_SEC if short else self.scene_sec,
                 "scene_lead_sec": SHORT_LEAD_SEC if short else 4, "settle_sec": self.settle_sec,
                 "total_timeout": timeout - 30},

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from html import escape as e
 
-SCENE_LABELS = {"city": "City pass", "airfield": "Airfield ramp", "clouds": "Cloud layer"}
+SCENE_LABELS = {"city": "City pass", "airfield": "Airfield ramp", "clouds": "Cloud layer", "busy": "Busy airfield"}
 
 # Shared by the window and the saved page. A and B must not look the same.
 CSS = """
@@ -80,6 +80,8 @@ def _meta(rep: dict) -> str:
         bits.append(rep["kind"])
     if rep.get("scene"):                    # the player's own map and aircraft (#23)
         bits.append("flown with " + str(rep.get("scene_label")))
+    if rep.get("busy"):                     # the fourth scene (#23, #35)
+        bits.append("with the busy airfield scene")
     if rep.get("created"):
         bits.append(rep["created"])
     if rep.get("duration_min"):

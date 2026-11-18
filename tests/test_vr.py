@@ -151,8 +151,8 @@ class _FakeBench:
     made = []
     other_vram_mb = 0.0             # video memory other programs hold before DCS starts
 
-    def __init__(self, profile, exe, log=print, vr=False, vram_total_mb=0, scene=None):
-        self.vr, self.runs, self.keep_shots, self.scene = vr, 0, set(), scene
+    def __init__(self, profile, exe, log=print, vr=False, vram_total_mb=0, scene=None, busy=False):
+        self.vr, self.runs, self.keep_shots, self.scene, self.busy = vr, 0, set(), scene, busy
         self.options = profile["options"]
         _FakeBench.made.append(self)
 
@@ -557,3 +557,25 @@ def test_regular_build_lets_a_vr_player_choose_the_headset_test(tmp_path, monkey
     monkeypatch.setenv("DCSTUNE_VR_BENCH", "1")                              # a VR test build: no choice, always the headset
     sc = eng.scorecard()
     assert sc["vr_tested"] and not sc["vr_choice"]
+
+
+def test_window_keeps_the_busy_scene_choice_and_tests_with_it(tmp_path, monkeypatch):
+    # Issues #23, #35: the busy airfield scene is off until the player ticks it, then every run has it.
+    monkeypatch.delenv("DCSTUNE_VR_BENCH", raising=False)
+    eng = _engine(tmp_path, monkeypatch)
+    card = eng.scorecard()["scene"]
+    assert card["busy_ok"] and not card["busy"]
+    rep = eng.optimize(False, QUIET)
+    assert not rep["busy"] and not _FakeBench.made[-1].busy
+    assert "fourth scene" in eng.set_busy(True)
+    assert json.loads((tmp_path / "Config" / "dcstune-prefs.json").read_text())["bench_busy"] is True
+    assert eng.scorecard()["scene"]["busy"]
+    lines = []
+    rep = eng.optimize(False, lines.append)
+    assert rep["busy"] and _FakeBench.made[-1].busy
+    assert any("busy airfield" in l for l in lines)
+    from dcstune import report
+    assert "with the busy airfield scene" in report.fragment(rep)
+    for junk in (False, None, "1", 1):
+        assert "is off" in eng.set_busy(junk)
+        assert not eng.scorecard()["scene"]["busy"]
