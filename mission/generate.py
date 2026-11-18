@@ -57,9 +57,10 @@ def aircraft_type(name: str):
 
 # The busy scene (issues #23 and #35), all of it stock content every DCS install has.
 BUSY_HALF = 900                     # meters each way along the runway from the middle of the airfield
-BUSY_VEHICLES = ("M_1_Abrams", "M_2_Bradley", "M_113", "LAV_25", "Hummer", "M_818")
-BUSY_COLUMNS = 8                    # columns of 6 vehicles = 48 moving vehicles
-BUSY_SMOKE = 6
+BUSY_VEHICLES = ("M_1_Abrams", "M_2_Bradley", "M_113", "LAV_25", "Hummer", "M_818", "M1126_Stryker_ICV", "M_60")
+BUSY_COLUMNS = 18                   # columns of 8 vehicles = 144 moving vehicles (the first try had 48 and
+                                    # cost almost nothing: 94 FPS against 101 on the plain ramp, RTX 4080)
+BUSY_SMOKE = 12
 
 
 def add_busy(m, side, field, kind, heli: bool) -> None:
@@ -71,7 +72,7 @@ def add_busy(m, side, field, kind, heli: bool) -> None:
     # shuttling 300 m up and down so there is movement wherever the camera is
     for c in range(BUSY_COLUMNS):
         d0 = -BUSY_HALF + (2 * BUSY_HALF) * (c + 0.5) / BUSY_COLUMNS
-        off = 14 if c % 2 else -14
+        off = (-14, 14, -40, 40, -66, 66)[c % 6]         # on the runway and on the grass both sides
         types = [getattr(vehicles.Armor, n, None) or getattr(vehicles.Unarmed, n) for n in BUSY_VEHICLES]
         g = m.vehicle_group_platoon(side, f"TUNE-COL-{c}", types, along(d0, off), heading=hdg)
         for i, u in enumerate(g.units):
@@ -82,9 +83,9 @@ def add_busy(m, side, field, kind, heli: bool) -> None:
 
     # 2. the player's aircraft type passing low along the runway, one after another, both directions
     speed = 400 if not heli else 160
-    for i in range(6):
-        off = (-250, 250, -400, 400, -550, 550)[i]
-        a, b = along(-6000 - 2500 * i, off), along(6000 + 2500 * i, off)
+    for i in range(10):
+        off = (-250, 250, -400, 400, -550, 550, -700, 700, -850, 850)[i]
+        a, b = along(-5000 - 1500 * i, off), along(5000 + 1500 * i, off)
         if i % 2:
             a, b = b, a
         g = m.flight_group_inflight(side, f"TUNE-PASS-{i}", kind, position=a, altitude=200 + 40 * i,
@@ -97,9 +98,9 @@ def add_busy(m, side, field, kind, heli: bool) -> None:
         g.units[0].alt_type = "RADIO"
 
     # 3. stock helicopters working up and down both sides of the runway
-    for i, name in enumerate(("CH-47D", "AH-64A", "CH-47D", "AH-64A")):
-        off = (-120, 120, -200, 200)[i]
-        a, b = along(-BUSY_HALF + 300 * i, off), along(BUSY_HALF - 300 * i, off)
+    for i, name in enumerate(("CH-47D", "AH-64A", "CH-47D", "AH-64A", "UH-60A", "CH-47D", "AH-64A", "UH-60A")):
+        off = (-120, 120, -200, 200, -280, 280, -360, 360)[i]
+        a, b = along(-BUSY_HALF + 200 * i, off), along(BUSY_HALF - 200 * i, off)
         g = m.flight_group_inflight(side, f"TUNE-HELO-{i}", helicopters.helicopter_map[name], position=a,
                                     altitude=60 + 15 * i, speed=90, maintask=task.Nothing, group_size=1)
         g.units[0].pylons.clear()
@@ -125,8 +126,9 @@ def add_busy(m, side, field, kind, heli: bool) -> None:
     lines = []
     for i in range(BUSY_SMOKE):
         p = along(-BUSY_HALF + (2 * BUSY_HALF) * (i + 0.5) / BUSY_SMOKE, 160 if i % 2 else -160)
+        kind_of = (7, 3, 6, 2)[i % 4]            # large smoke, large fire with smoke, medium smoke, medium fire
         lines.append(f"do local x, z = {p.x:.1f}, {p.y:.1f}; trigger.action.effectSmokeBig("
-                     f"{{x = x, y = land.getHeight({{x = x, y = z}}), z = z}}, 3, 0.5) end")
+                     f"{{x = x, y = land.getHeight({{x = x, y = z}}), z = z}}, {kind_of}, 0.6) end")
     rule = triggers.TriggerStart(comment="busy scene smoke")
     rule.add_action(action.DoScript(m.string("\n".join(lines))))
     m.triggerrules.triggers.append(rule)

@@ -102,7 +102,7 @@
       <select id="scene-map" title="The map the test flies over. Pick one you fly on; busy maps are heavier than Caucasus."
         style="font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:2px 6px;margin-left:2px"></select>
       <span class="sub" id="scene-hint"></span></p>
-    <p class="hidden" id="busy-line" style="margin:4px 0 2px"><label title="Adds a fourth scene to every run: an airfield with columns of moving vehicles, aircraft passing overhead, helicopters and smoke. Nothing shoots, so every run plays the same. Closer to a full mission than the three standard scenes.">
+    <p class="hidden" id="busy-line" style="margin:4px 0 2px"><label title="Adds a fourth scene to every run: an airfield with about 150 moving vehicles, aircraft passing overhead, helicopters and fires. Nothing shoots, so every run plays the same. It shows your frame rate with more on screen. It is not expected to change the recommendations: the graphics card usually still sets the frame rate, and a full multiplayer server is far heavier than any repeatable test.">
       <input type="checkbox" id="busy-box"> Add a busy airfield scene</label>
       <span class="sub" id="busy-hint"></span></p>
   </fieldset>
@@ -306,7 +306,7 @@ function showGoals(sc) {
   }
   $("busy-line").classList.toggle("hidden", !(s && s.busy_ok));
   $("busy-box").checked = !!(s && s.busy);
-  $("busy-hint").textContent = s && s.busy ? "Heavier, like a full mission. Numbers with and without it can't be compared." : "";
+  $("busy-hint").textContent = s && s.busy ? "Shows your frame rate with more on screen. It is not expected to change the recommendations." : "";
   $("vrtest-line").classList.toggle("hidden", !sc.vr_choice);
   if (sc.vr_choice) $("vrtest-pick").value = sc.vr_tested ? "1" : "";
   const vg = $("vrgoal-pick"), showVg = !!(h && h.goal_choices);

@@ -71,6 +71,20 @@ to test if the card is already busy.
 In the thorough test, most settings are measured inside one long DCS session that
 restarts only the mission, about a minute per setting.
 
+**Your own map and aircraft.** Under the profile name, *Test with* lets you fly the same three
+scenes over another map with another aircraft you own, for example an F-14B over Syria. The free
+Su-25T over Caucasus stays the default, and it is the one to use when you compare numbers with
+someone else.
+
+**The busy airfield scene (optional).** Tick *Add a busy airfield scene* and every run gets a
+fourth scene: a helicopter low along a runway with about 150 moving vehicles, aircraft passing
+overhead, more helicopters and fires. Nothing shoots, so every run plays the same. It shows your
+frame rate with more on screen. Don't expect it to change what the tool recommends: on our test
+PC (RTX 4080, 9800X3D) the graphics card still set the frame rate there, the same as in the other
+scenes, and it ran no slower than the cloud scene. A full multiplayer server is far heavier, with
+hundreds to thousands of units and scripts, and no repeatable test can copy that. To leave room
+for multiplayer, set a higher frame-rate goal.
+
 During the test, vertical sync and the frame-rate cap are off so the numbers can be measured. That can
 work your graphics card harder than your usual settings do, much like a graphics benchmark. On a PC that is
 overclocked, undervolted or has a power supply near its limit, that is when a driver reset or a crash would

@@ -567,7 +567,8 @@ def test_window_keeps_the_busy_scene_choice_and_tests_with_it(tmp_path, monkeypa
     assert card["busy_ok"] and not card["busy"]
     rep = eng.optimize(False, QUIET)
     assert not rep["busy"] and not _FakeBench.made[-1].busy
-    assert "fourth scene" in eng.set_busy(True)
+    said = eng.set_busy(True)
+    assert "fourth scene" in said and "Don't expect it to change what the tool recommends" in said
     assert json.loads((tmp_path / "Config" / "dcstune-prefs.json").read_text())["bench_busy"] is True
     assert eng.scorecard()["scene"]["busy"]
     lines = []

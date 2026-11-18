@@ -115,9 +115,12 @@ class Engine:
         prefs.set_pref(self.profile, "bench_busy", on)
         self._use_prefs()
         if on:
-            return ("The test now adds a fourth scene: a busy airfield with moving vehicles, aircraft and smoke. "
-                    "It is closer to a full mission, so expect lower numbers, and each run takes about half a "
-                    "minute longer. Results with and without it can't be compared.")
+            return ("The test now adds a fourth scene: a busy airfield with about 150 moving vehicles, aircraft, "
+                    "helicopters and fires. Each run takes about half a minute longer. Don't expect it to change "
+                    "what the tool recommends: on our test PC the graphics card still set the frame rate there, the "
+                    "same as in the other scenes. A full multiplayer server is far heavier, with hundreds to "
+                    "thousands of units and scripts, which a repeatable test can't copy. Use this scene to see your "
+                    "frame rate with more on screen, and the frame-rate goal to leave room for multiplayer.")
         return "The busy airfield scene is off. The test flies the three standard scenes."
 
     def set_scene(self, map_key, aircraft) -> str:

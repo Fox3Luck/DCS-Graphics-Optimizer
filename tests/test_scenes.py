@@ -80,7 +80,7 @@ def test_busy_airfield_version_of_a_test(tmp_path):
         text = z.read("mission").decode()
         for unit in ("TUNE-CITY-1", "TUNE-RAMP-1", "TUNE-HIGH-1", "TUNE-BUSY-1"):
             assert f'"{unit}"' in text
-        assert len(re.findall(r'\["unitId"\]', text)) >= 60                      # 48 vehicles, 11 aircraft, the standard scenes
+        assert len(re.findall(r'\["unitId"\]', text)) >= 170                     # 144 vehicles, 19 aircraft, the standard scenes
         assert "effectSmokeBig" in z.read("l10n/DEFAULT/dictionary").decode()
         assert '"UH-60A"' in text and '"M-1 Abrams"' in text
         # nothing can shoot: one side only, and no aircraft carries anything
