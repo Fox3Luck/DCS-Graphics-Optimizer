@@ -70,6 +70,11 @@ to test if the card is already busy.
 In the thorough test, most settings are measured inside one long DCS session that
 restarts only the mission, about a minute per setting.
 
+During the test, vertical sync and the frame-rate cap are off so the numbers can be measured. That can
+work your graphics card harder than your usual settings do, much like a graphics benchmark. On a PC that is
+overclocked, undervolted or has a power supply near its limit, that is when a driver reset or a crash would
+show up (#32). Your own settings are put back after every run, also after a crash.
+
 The goal is chosen automatically: hold your monitor's refresh rate in the worst
 moments (the "1% low"), up to 120 FPS. If that would cost more than half of the
 possible image quality on your PC, it aims for 90, then 72, then 60 FPS instead.
