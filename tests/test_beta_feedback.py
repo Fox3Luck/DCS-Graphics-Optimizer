@@ -504,5 +504,6 @@ def test_triple_monitor_report_says_what_was_measured(tmp_path):
     plain = report.page({"hardware": [], "machine": {}})
     assert "Su-25T over the Caucasus map" in plain and "busy airfield" not in plain
     # a real leftover problem still gets the prefix
-    mistake = rate.rate_settings(info, _flat(**{"graphics.width": 2560, "graphics.height": 2880}), rate.rate_machine(dict(info, display={})))
+    one = dict(info, display={"width": 1920, "height": 1080, "count": 1})
+    mistake = rate.rate_settings(one, _flat(**{"graphics.width": 2560, "graphics.height": 2880}), rate.rate_machine(one))
     assert any(f.get("untouched") and "thrown away" in f["text"] for f in mistake["findings"])
