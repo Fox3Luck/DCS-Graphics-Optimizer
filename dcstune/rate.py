@@ -112,6 +112,10 @@ def hardware_summary(info: dict, options: dict | None = None) -> list[dict]:
              + (f" ({info['cores']} cores)" if info.get("cores") else "")),
             ("Memory", f"{info.get('ram_gb')} GB" if info.get("ram_gb") else "unknown"),
             ("Display", f"{gpu['width']} x {gpu['height']} at {gpu.get('refresh') or '?'} Hz" if gpu.get("width") else "unknown")]
+    o = options or {}
+    w, h = o.get("graphics.width"), o.get("graphics.height")
+    if gpu.get("width") and w and h and (w > gpu["width"] or h > gpu["height"]):
+        rows.append(("DCS picture", f"{w} x {h} (across more than one screen)"))     # #50
     st = V.state(info, options or {})
     if st:
         rows.append(("VR headset", V.describe(st)))
@@ -234,7 +238,7 @@ def rate_settings(info: dict, options: dict, machine: dict, measured: dict | Non
     for sev, penalty, text, *tag in _rules(info, options, machine, gpu, ratio, st):
         score -= penalty
         findings.append((sev, text))
-        if tag:
+        if tag and tag[0] == "untouched":      # "setup": a plain fact about the PC, not a leftover problem (#50)
             untouched.add(text)
 
     score = max(0, min(100, score))
@@ -258,10 +262,12 @@ def _rules(info, o, machine, gpu, ratio, st=None):
         if (setup and setup != "1camera") or screens:
             # A picture bigger than the main screen on purpose: exported MFDs or several monitors
             # (beta issue #7). It is not a mistake, and the tool never changes it.
-            yield "info", 0, (f"DCS draws a {g('width')}x{g('height')} picture across more than one screen"
-                              + (f" (monitor setup \"{setup}\")" if setup and setup != "1camera" else "")
-                              + ". That is counted in the frame-rate estimate; your resolution and monitor setup "
-                              "are kept exactly as they are."), "untouched"
+            # Worded as information, not as a warning (#50: a triple-monitor player read the old text
+            # as "something is wrong").
+            yield "info", 0, (f"Your DCS picture is {g('width')} x {g('height')}, spread across more than one screen"
+                              + (f" (DCS monitor setup \"{setup}\")" if setup and setup != "1camera" else "")
+                              + ". The test measures at that full size, and your resolution and monitor setup "
+                              "are kept exactly as they are."), "setup"
         else:
             yield "warn", 6, (f"DCS is set to {g('width')}x{g('height')} but the desktop is {dw}x{dh}. "
                               "The extra pixels are rendered and then thrown away or pushed off-screen."), "untouched"

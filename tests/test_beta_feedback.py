@@ -480,3 +480,29 @@ def test_dcs_set_to_run_as_administrator_gives_a_clear_message(tmp_path, monkeyp
     with b:
         with pytest.raises(FileNotFoundError):          # any other start failure is not disguised
             b._launch(None, {"tag": "y"}, True, 100)
+
+
+def test_triple_monitor_report_says_what_was_measured(tmp_path):
+    # Issue #50: 5760x1080 across three 1080p screens. The note read like a warning ("This tool does
+    # not change this, so it is still true"), the hardware table only showed 1920 x 1080, and the
+    # footer said Caucasus although the test flew another map with the busy scene.
+    from dcstune import report
+    info = dict(INFO, gpu=dict(INFO["gpu"], width=1920, height=1080, refresh=60),
+                display={"width": 1920, "height": 1080, "count": 3})
+    flat = _flat(**{"graphics.width": 5760, "graphics.height": 1080, "graphics.multiMonitorSetup": "deviceworks"})
+    fit = rate.rate_settings(info, flat, rate.rate_machine(info))
+    note = [f for f in fit["findings"] if "5760 x 1080" in f["text"]]
+    assert note and not note[0].get("untouched") and "measures at that full size" in note[0]["text"]
+    rows = dict((r["label"], r["value"]) for r in rate.hardware_summary(info, flat))
+    assert rows["Display"].startswith("1920 x 1080") and rows["DCS picture"] == "5760 x 1080 (across more than one screen)"
+    assert "DCS picture" not in dict((r["label"], r["value"]) for r in rate.hardware_summary(info, _flat(**{"graphics.width": 1920, "graphics.height": 1080})))
+    html = report.page({"fit": fit, "scene": ["germany", "F-14BU"], "scene_label": "F-14B(U) over Germany Cold War (Berlin)",
+                        "busy": True, "hardware": [], "machine": {}, "before": fit})
+    assert "still true: Your DCS picture" not in html
+    assert "flown with F-14B(U) over Germany Cold War (Berlin)" in html and "a busy airfield" in html
+    assert "on the Caucasus map" not in html
+    plain = report.page({"hardware": [], "machine": {}})
+    assert "Su-25T over the Caucasus map" in plain and "busy airfield" not in plain
+    # a real leftover problem still gets the prefix
+    mistake = rate.rate_settings(info, _flat(**{"graphics.width": 2560, "graphics.height": 2880}), rate.rate_machine(dict(info, display={})))
+    assert any(f.get("untouched") and "thrown away" in f["text"] for f in mistake["findings"])
