@@ -730,7 +730,7 @@ def main():
     threading.Thread(target=app.check_for_update, daemon=True).start()
     try:
         import webview  # pywebview
-        webview.create_window("DCS Graphics Optimizer", url, width=980, height=860,
+        webview.create_window(f"DCS Graphics Optimizer {__version__}", url, width=980, height=860,
                               maximized=bool(os.environ.get("DCSTUNE_MAXIMIZED")))
         webview.start()
     except ImportError:

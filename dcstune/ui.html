@@ -38,7 +38,7 @@
 </head>
 <body>
 <main>
-  <h1>DCS Graphics Optimizer</h1>
+  <h1>DCS Graphics Optimizer <span class="sub" id="version-top" style="font-size:14px;font-weight:400"></span></h1>
   <p class="sub" style="margin-top:-6px" id="subtitle">For flying on a monitor (2D). VR settings are not changed.</p>
   <p class="sub"><span id="profile">Reading your PC and DCS settings...</span>
     <select id="profile-pick" class="hidden" title="Which DCS settings folder to rate and optimize"
@@ -444,6 +444,9 @@ async function checkVersion(tries) {
   try {
     const v = await api("/api/version");
     $("version").textContent = "Version " + v.version;
+    // also next to the name at the top: players couldn't find it at the bottom of the window (#51)
+    $("version-top").textContent = v.version.replace(/^0\.1\.0-/, "").replace("beta.", "beta ");
+    document.title = "DCS Graphics Optimizer " + v.version;
     if (v.update) {
       $("update-text").textContent = "A newer version is available: " + v.update.version + ". You have " + v.version + ". The newest one has the latest fixes.";
       $("update").classList.remove("hidden");
