@@ -720,7 +720,7 @@ def make_server(app: App, port: int = 0) -> ThreadingHTTPServer:
 
 
 def main():
-    from . import winproc
+    from . import winproc, __version__
     if winproc.restart_through_explorer():     # opened from a browser that passes on PreferSystem32
         return
     app = App()
