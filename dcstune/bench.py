@@ -187,7 +187,7 @@ def dcs_running() -> bool:
 PIMAX_HOME_EXE = "PimaxHome-Win64-Shipping.exe"
 PIMAX_HOME_RUNNING = (
     "Pimax Home is running. Close it before testing in the headset: it draws its own 3D world on the "
-    "graphics card and holds several GB of video memory, so DCS runs short and the results come out far "
+    "graphics card and holds several GB of video memory, so DCS can run short and the results can come out "
     "too low. In Pimax Play, switch Pimax Home off in the settings. If it keeps running, open Task Manager, "
     "go to the Details tab, select PimaxHome-Win64-Shipping.exe and click End task. Keep Pimax Play itself "
     "running (and pi_server.exe, the headset's runtime): the test needs them. Then try again.")

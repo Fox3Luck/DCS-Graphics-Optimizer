@@ -86,7 +86,7 @@ hundreds to thousands of units and scripts, and no repeatable test can copy that
 for multiplayer, set a higher frame-rate goal.
 
 **Pimax headsets: close Pimax Home first.** Before testing in the headset, close Pimax Home, Pimax's
-3D home screen: it holds several GB of video memory and DCS then measures far too low. Switch it off
+3D home screen: it holds several GB of video memory and takes part of the graphics card, so DCS can measure too low. Switch it off
 in Pimax Play's settings, or end PimaxHome-Win64-Shipping.exe in Task Manager (Details tab). Keep Pimax
 Play itself running; the test needs it. The tool checks for Pimax Home and tells you if it is still
 running. For any headset, close programs that hold video memory (browsers, Discord, overlays) too.
