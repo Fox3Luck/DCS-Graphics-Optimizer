@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -337,6 +338,48 @@ def vr_started(dcs_log: str) -> bool:
     return VR_STARTED in dcs_log and not any(bad in dcs_log for bad in VR_FAILED)
 
 
+# The headset software's own processes (home screens, compositors, streamers). In VR their load is
+# expected before DCS starts and is left out of the "another program is using the card" check: Pimax
+# Home on a Crystal Light at 90 Hz alone kept an RTX 4080 87% busy on the test PC (2026-11-20).
+HEADSET_PROCESS = re.compile(
+    r"^(PimaxHome.*|PimaxClient|pi_server|pi_overlay|pi_vst|pvrhome.*|DevicesSetting|"
+    r"vrserver|vrcompositor|vrmonitor|vrdashboard|vrwebhelper|steamtours|"
+    r"MixedRealityPortal|MixedRealityPortal\.Brokered|SpatialAudioLicenseSrv|"
+    r"OVRServer_x64|OVRRedir|OculusClient|OculusDash|"
+    r"VirtualDesktop\..*|PicoConnect.*|Streaming Assistant|"
+    r"VarjoHome|VarjoCompositor|BigscreenBeyond.*)$", re.I)
+
+
+def parse_process_loads(text: str) -> list[tuple[str, float]]:
+    """Lines "name;load" from vr_process_loads' PowerShell into (name, load %) pairs."""
+    out = []
+    for line in (text or "").splitlines():
+        name, _, load = line.strip().rpartition(";")
+        try:
+            out.append((name, float(load.replace(",", "."))))
+        except ValueError:
+            pass
+    return out
+
+
+def other_load(loads: list[tuple[str, float]]) -> float:
+    """The busiest program that is not the headset software, in %."""
+    return max((u for n, u in loads if not HEADSET_PROCESS.match(n or "")), default=0.0)
+
+
+def vr_process_loads() -> list[tuple[str, float]]:
+    """Graphics card 3D load per program right now, from Windows' own counters (the WMI class,
+    whose names are never translated, #21)."""
+    out = subprocess.run(["powershell", "-NoProfile", "-Command",
+                          "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | "
+                          "? Name -like '*engtype_3D' | Group-Object { ($_.Name -split '_')[1] } | % { "
+                          "$p = Get-Process -Id ([int]$_.Name) -ErrorAction SilentlyContinue; "
+                          "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0};{1:F1}', "
+                          "$(if ($p) { $p.ProcessName } else { '?' }), ($_.Group | Measure-Object UtilizationPercentage -Sum).Sum) }"],
+                         capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=30).stdout
+    return parse_process_loads(out)
+
+
 def gpu_idle_check(samples: int = 4) -> tuple[float, float]:
     """(average GPU load %, video memory in use MB) right now, before DCS starts."""
     sampler = GpuSampler()
@@ -417,6 +460,18 @@ class Bench:
         if dcs_running():
             raise BenchError("DCS is running. Close it first; DCS Graphics Optimizer never touches a running game.")
         load, self.other_vram_mb = gpu_idle_check()
+        if self.vr and load > BUSY_GPU_PERCENT:
+            # Most of that is usually the headset software's home screen: judge only the other programs.
+            try:
+                per = [vr_process_loads() for _ in range(3)]
+                if any(per):
+                    head = max((u for p in per for n, u in p if HEADSET_PROCESS.match(n or "")), default=0.0)
+                    others = sum(other_load(p) for p in per) / len(per)
+                    self.log(f"The graphics card is {load:.0f}% busy before DCS starts; the headset software's own "
+                             f"screen accounts for about {head:.0f}% and other programs for {others:.0f}%.")
+                    load = others
+            except Exception:
+                pass
         limit = busy_limit(self.vr)
         if load > limit and not self.allow_busy:
             raise BenchError(f"Another program is using your graphics card ({load:.0f}% busy before DCS has even "
