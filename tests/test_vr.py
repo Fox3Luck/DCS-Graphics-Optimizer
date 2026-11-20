@@ -637,3 +637,25 @@ def test_headset_softwares_own_screen_is_not_another_program(monkeypatch):
     monkeypatch.setattr(bench, "vr_process_loads", lambda: [("PimaxHome-Win64-Shipping", 40.0), ("blender", 90.0)])
     with pytest.raises(bench.BenchError, match="Another program"):
         b.__enter__()
+
+
+def test_a_headset_test_stops_while_pimax_home_is_running(monkeypatch):
+    # Joe, 2026-11-20: Pimax Home must not run during a headset test; tell Pimax players how to close it.
+    from dcstune import bench
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "pimax_home_running", lambda: True)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (5.0, 1000.0))
+    b = bench.Bench.__new__(bench.Bench)
+    b.vr, b.allow_busy, b.vram_total_mb, b.log = True, False, 16000, (lambda m: None)
+    with pytest.raises(bench.BenchError) as e:
+        b.__enter__()
+    msg = str(e.value)
+    assert "Pimax Home is running" in msg and "Details tab" in msg and "PimaxHome-Win64-Shipping.exe" in msg
+    assert "Keep Pimax Play itself" in msg and "pi_server.exe" in msg
+    b.vr = False                                     # a monitor test does not care about it here
+    class Stop(Exception): pass
+    monkeypatch.setattr(bench, "other_vram_high", lambda *a, **k: (_ for _ in ()).throw(Stop()))
+    with pytest.raises(Stop):
+        b.__enter__()
+    monkeypatch.undo()
+    assert bench.pimax_home_running() is False       # no tasklist here: never blocks the automated tests

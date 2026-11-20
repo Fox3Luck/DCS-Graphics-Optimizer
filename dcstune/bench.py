@@ -184,6 +184,26 @@ def dcs_running() -> bool:
     return "DCS.exe" in (out or "")
 
 
+PIMAX_HOME_EXE = "PimaxHome-Win64-Shipping.exe"
+PIMAX_HOME_RUNNING = (
+    "Pimax Home is running. Close it before testing in the headset: it draws its own 3D world on the "
+    "graphics card and holds several GB of video memory, so DCS runs short and the results come out far "
+    "too low. In Pimax Play, switch Pimax Home off in the settings. If it keeps running, open Task Manager, "
+    "go to the Details tab, select PimaxHome-Win64-Shipping.exe and click End task. Keep Pimax Play itself "
+    "running (and pi_server.exe, the headset's runtime): the test needs them. Then try again.")
+
+
+def pimax_home_running() -> bool:
+    """Is Pimax's 3D home screen running? (Joe, 2026-11-20, after the first Crystal Light tests: it
+    must not run during a headset test.)"""
+    try:
+        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {PIMAX_HOME_EXE}", "/NH"],
+                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
+    except Exception:              # not Windows (the automated tests), or tasklist failed: never block on it
+        return False
+    return PIMAX_HOME_EXE.lower() in (out or "").lower()
+
+
 class GpuSampler:
     """Peak GPU memory during a run. nvidia-smi when present, otherwise the
     vendor-neutral Windows 'GPU Adapter Memory' counter."""
@@ -500,6 +520,8 @@ class Bench:
     def __enter__(self):
         if dcs_running():
             raise BenchError("DCS is running. Close it first; DCS Graphics Optimizer never touches a running game.")
+        if self.vr and pimax_home_running():
+            raise BenchError(PIMAX_HOME_RUNNING)
         load, self.other_vram_mb = gpu_idle_check()
         if self.vr and load > BUSY_GPU_PERCENT:
             # Most of that is usually the headset software's home screen: judge only the other programs.
