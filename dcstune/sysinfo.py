@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from . import winproc
+
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # windowed app: never flash a console
 
 _PS = r"""
@@ -159,7 +161,7 @@ def collect() -> dict:
         # signed scripts refuses any script file, and a policy set by an administrator wins over
         # "-ExecutionPolicy Bypass". Commands are not covered by that policy. The path goes through
         # the environment so a quote in the user name cannot break the command.
-        proc = subprocess.run(
+        proc = winproc.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", _PS_RUN],
             capture_output=True, timeout=90, creationflags=NO_WINDOW,
             env=dict(os.environ, DCSTUNE_SYSINFO_PS=str(script)))

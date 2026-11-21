@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -184,6 +185,7 @@ class TrialSession:
         self.path = Path(options_path)
         self.journal = self.path.with_name(JOURNAL_NAME)
         self.saved = self.path.with_name("options.lua.dcstune-original")
+        self._end_lock = threading.Lock()
 
     def begin(self) -> None:
         if self.journal.exists():
@@ -217,7 +219,10 @@ class TrialSession:
         opts.save(self.path)
 
     def end(self) -> None:
-        recover(self.path)
+        """Put the original back. Safe to call more than once and from more than one thread (the test's
+        own end, a DCS crash, the window closing, program exit): after the first call it does nothing."""
+        with self._end_lock:
+            recover(self.path)
 
     def __enter__(self):
         self.begin()
@@ -271,6 +276,6 @@ def recover(options_path, keep_player_edits: bool = False) -> str | bool:
             outcome = "kept"
         else:
             atomic_write(path, data)
-        saved.unlink()
-    journal.unlink()
+        saved.unlink(missing_ok=True)
+    journal.unlink(missing_ok=True)
     return outcome

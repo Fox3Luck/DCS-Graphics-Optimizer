@@ -214,7 +214,9 @@ class Engine:
         if not page.is_file():
             raise RuntimeError("There is no saved report yet. Run a test first.")
         if hasattr(os, "startfile"):
-            os.startfile(page)          # the player's own browser
+            from . import winproc
+            with winproc.clean_dll_search():     # the browser must not inherit our DLL folder (#58)
+                os.startfile(page)          # the player's own browser
         else:
             webbrowser.open(page.as_uri())
         return f"Opened {page}"
@@ -721,6 +723,7 @@ def make_server(app: App, port: int = 0) -> ThreadingHTTPServer:
 
 def main():
     from . import winproc
+    from .bench import stop_open_tests
     if winproc.restart_through_explorer():     # opened from a browser that passes on PreferSystem32
         return
     app = App()
@@ -730,8 +733,12 @@ def main():
     threading.Thread(target=app.check_for_update, daemon=True).start()
     try:
         import webview  # pywebview
-        webview.create_window("DCS Graphics Optimizer", url, width=980, height=860,
-                              maximized=bool(os.environ.get("DCSTUNE_MAXIMIZED")))
+        window = webview.create_window("DCS Graphics Optimizer", url, width=980, height=860,
+                                       maximized=bool(os.environ.get("DCSTUNE_MAXIMIZED")))
+        # Closing the window mid-test: end the test's DCS and put the player's settings back now. The
+        # test runs on a background thread that never reaches its own clean-up once the window is gone
+        # (issue #58). The same runs again after the window loop and at exit; only the first call acts.
+        window.events.closed += stop_open_tests
         webview.start()
     except ImportError:
         webbrowser.open(url)
@@ -741,6 +748,7 @@ def main():
                 time.sleep(3600)
         except KeyboardInterrupt:
             pass
+    stop_open_tests()
     server.shutdown()
 
 

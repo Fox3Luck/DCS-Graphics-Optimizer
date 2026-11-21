@@ -4,6 +4,7 @@
 collect frame times and GPU memory, and always put the player's files back."""
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import secrets
@@ -13,6 +14,7 @@ import threading
 import time
 from pathlib import Path, PureWindowsPath
 
+from . import winproc
 from .optionslua import TrialSession
 from .sysinfo import NO_WINDOW
 
@@ -57,6 +59,45 @@ class DcsWontStart(BenchError):
     fatal = True
 
 
+class DcsCrashed(BenchError):
+    """DCS crashed (it wrote a crash report into its log). The player's settings are put back at
+    once and the test stops: more runs would only crash again (issue #58)."""
+    fatal = True
+
+
+CRASH_MARK = b"Minidump created"      # DCS writes this into dcs.log when it crashes
+
+
+def crash_message(during_startup: bool) -> str:
+    when = "during startup" if during_startup else "during the test"
+    return (f"DCS crashed {when}, so the test was stopped. Your settings have been put back. A copy of DCS's "
+            "log is in Config\\dcstune-last-failure.log; if DCS starts normally on its own, please send us that "
+            "log (GitHub issue or the Discord channel).")
+
+
+# Tests that are running now. If the window is closed or the program ends mid-test, stop_open_tests()
+# ends DCS and puts the player's options.lua back: the test runs on a background thread, which never
+# gets to its own clean-up when the program ends (issue #58).
+_open_benches: set = set()
+_open_lock = threading.Lock()
+
+
+def stop_open_tests(*_) -> int:
+    """End every test still running: close the DCS it started and put the player's files back.
+    Safe to call any number of times. Returns how many tests were stopped."""
+    with _open_lock:
+        benches = list(_open_benches)
+    for b in benches:
+        try:
+            b.abort()
+        except Exception:
+            pass
+    return len(benches)
+
+
+atexit.register(stop_open_tests)
+
+
 def frame_stats(frame_ms: list[float]) -> dict:
     if len(frame_ms) < 30:
         raise BenchError(f"only {len(frame_ms)} frames recorded")
@@ -92,7 +133,7 @@ def parse_result(raw: dict) -> dict:
 
 def _taskkill_dcs() -> None:
     try:
-        subprocess.run(["taskkill", "/IM", "DCS.exe", "/F"], capture_output=True, creationflags=NO_WINDOW)
+        winproc.run(["taskkill", "/IM", "DCS.exe", "/F"], capture_output=True, creationflags=NO_WINDOW)
     except FileNotFoundError:
         pass
 
@@ -124,8 +165,8 @@ def steam_launch_env(base=None) -> dict:
 
 def steam_running() -> bool:
     try:
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH"],
-                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
+        out = winproc.run(["tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH"],
+                          capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
     except FileNotFoundError:      # not Windows (the automated tests)
         return True
     return "steam.exe" in (out or "").lower()
@@ -133,8 +174,8 @@ def steam_running() -> bool:
 
 def dcs_running() -> bool:
     try:
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq DCS.exe", "/NH"],
-                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
+        out = winproc.run(["tasklist", "/FI", "IMAGENAME eq DCS.exe", "/NH"],
+                          capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
     except FileNotFoundError:      # not Windows (the automated tests)
         return False
     # errors="replace": on a non-English Windows tasklist's text can hold characters the
@@ -165,8 +206,8 @@ class GpuSampler:
 
     def _sample(self, nvidia: bool = True):
         if self._nvidia and nvidia:
-            out = subprocess.run([self._nvidia, "--query-gpu=memory.used,utilization.gpu",
-                                  "--format=csv,noheader,nounits"], capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=10).stdout
+            out = winproc.run([self._nvidia, "--query-gpu=memory.used,utilization.gpu",
+                               "--format=csv,noheader,nounits"], capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=10).stdout
             rows = [r.split(",") for r in out.strip().splitlines() if "," in r]
             if rows:
                 best = max(rows, key=lambda r: float(r[0]))
@@ -176,20 +217,20 @@ class GpuSampler:
         # knows the English counter names, which Windows translates in other languages (#21),
         # so when it finds nothing the same counters are read through their WMI classes,
         # whose names are never translated.
-        out = subprocess.run(["powershell", "-NoProfile", "-Command",
-                              "$c = (Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage','\\GPU Engine(*engtype_3D)\\Utilization Percentage' "
-                              "-ErrorAction SilentlyContinue).CounterSamples; "
-                              "$m = ($c | ? Path -like '*dedicated usage' | Measure-Object CookedValue -Maximum).Maximum / 1MB; "
-                              "$u = ($c | ? Path -like '*utilization percentage' | Group-Object { ($_.InstanceName -split '_')[1] } | "
-                              "% { ($_.Group | Measure-Object CookedValue -Sum).Sum } | Measure-Object -Maximum).Maximum; "
-                              "if (-not $m) { "
-                              "$m = (Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory -ErrorAction SilentlyContinue | "
-                              "Measure-Object DedicatedUsage -Maximum).Maximum / 1MB; "
-                              "$u = (Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | "
-                              "? Name -like '*engtype_3D' | Group-Object { ($_.Name -split '_')[1] } | "
-                              "% { ($_.Group | Measure-Object UtilizationPercentage -Sum).Sum } | Measure-Object -Maximum).Maximum }; "
-                              "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F0};{1:F1}', $m, $u)"],
-                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=20).stdout.strip()
+        out = winproc.run(["powershell", "-NoProfile", "-Command",
+                           "$c = (Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage','\\GPU Engine(*engtype_3D)\\Utilization Percentage' "
+                           "-ErrorAction SilentlyContinue).CounterSamples; "
+                           "$m = ($c | ? Path -like '*dedicated usage' | Measure-Object CookedValue -Maximum).Maximum / 1MB; "
+                           "$u = ($c | ? Path -like '*utilization percentage' | Group-Object { ($_.InstanceName -split '_')[1] } | "
+                           "% { ($_.Group | Measure-Object CookedValue -Sum).Sum } | Measure-Object -Maximum).Maximum; "
+                           "if (-not $m) { "
+                           "$m = (Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory -ErrorAction SilentlyContinue | "
+                           "Measure-Object DedicatedUsage -Maximum).Maximum / 1MB; "
+                           "$u = (Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | "
+                           "? Name -like '*engtype_3D' | Group-Object { ($_.Name -split '_')[1] } | "
+                           "% { ($_.Group | Measure-Object UtilizationPercentage -Sum).Sum } | Measure-Object -Maximum).Maximum }; "
+                           "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F0};{1:F1}', $m, $u)"],
+                          capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=20).stdout.strip()
         # Invariant culture and ";": a German or French Windows writes decimals with a comma.
         mem, _, util = out.partition(";")
         try:
@@ -200,9 +241,9 @@ class GpuSampler:
     def _heat_sample(self) -> dict:
         row = {"t": time.time(), "gpu_temp": None, "gpu_clock": None, "gpu_power": None, "cpu_speed": None}
         if self._nvidia:
-            out = subprocess.run([self._nvidia, "--query-gpu=temperature.gpu,clocks.gr,power.draw",
-                                  "--format=csv,noheader,nounits"], capture_output=True, text=True, errors="replace",
-                                 creationflags=NO_WINDOW, timeout=10).stdout
+            out = winproc.run([self._nvidia, "--query-gpu=temperature.gpu,clocks.gr,power.draw",
+                               "--format=csv,noheader,nounits"], capture_output=True, text=True, errors="replace",
+                              creationflags=NO_WINDOW, timeout=10).stdout
             rows = [[c.strip() for c in r.split(",")] for r in out.strip().splitlines() if r.count(",") == 2]
             for key, i in (("gpu_temp", 0), ("gpu_clock", 1), ("gpu_power", 2)):
                 vals = []
@@ -216,11 +257,11 @@ class GpuSampler:
         # Processor speed as a percentage of its rated speed (above 100 with turbo; it falls when
         # Windows or the firmware slows the processor to cool it). Read through the WMI class,
         # whose names are never translated (#21).
-        out = subprocess.run(["powershell", "-NoProfile", "-Command",
-                              "$p = (Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter \"Name='_Total'\" "
-                              "-ErrorAction SilentlyContinue).PercentProcessorPerformance; "
-                              "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F0}', $p)"],
-                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=20).stdout.strip()
+        out = winproc.run(["powershell", "-NoProfile", "-Command",
+                           "$p = (Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter \"Name='_Total'\" "
+                           "-ErrorAction SilentlyContinue).PercentProcessorPerformance; "
+                           "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:F0}', $p)"],
+                          capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=20).stdout.strip()
         try:
             row["cpu_speed"] = float(out) or None
         except ValueError:
@@ -433,6 +474,9 @@ class Bench:
                      "before DCS starts. The test continues, but the video memory figures will include them and "
                      "the recommendation may be more cautious than needed. Close them and test again for the best result.")
         self.session.begin()
+        self._cleaned = self._stopped = False
+        with _open_lock:
+            _open_benches.add(self)
         self.hook_dst.parent.mkdir(parents=True, exist_ok=True)
         self.mission_dst.parent.mkdir(parents=True, exist_ok=True)
         self._install_hook()
@@ -458,7 +502,38 @@ class Bench:
         self.cleanup()
         return False
 
+    def _state_lock(self) -> threading.Lock:
+        lock = self.__dict__.get("_lock")
+        if lock is None:
+            lock = self.__dict__.setdefault("_lock", threading.Lock())
+        return lock
+
+    def abort(self):
+        """The program is closing mid-test: close the DCS this test started (so it cannot save the trial
+        settings when it exits), then put everything back. A DCS that Steam started instead is left alone."""
+        with self._state_lock():
+            proc, self._stopped = getattr(self, "_proc", None), True
+        if proc is not None and proc.poll() is None:
+            self.log("The optimizer is closing during a test: closing the DCS it started.")
+            try:
+                proc.kill()
+                proc.wait(timeout=30)
+            except Exception:
+                pass
+        self.cleanup()
+
     def cleanup(self):
+        """Put the player's files back. Runs at the end of every test, and again if the program closes
+        mid-test; only the first call does anything."""
+        with self._state_lock():
+            if getattr(self, "_cleaned", False):
+                return
+            self._cleaned = self._stopped = True
+            with _open_lock:
+                _open_benches.discard(self)
+            self._cleanup()
+
+    def _cleanup(self):
         remove_leftovers(self.profile_dir)
         # A test makes three screenshots per DCS launch; leave only the ones asked for
         # (before / recommended) in the player's ScreenShots folder.
@@ -605,19 +680,54 @@ class Bench:
             time.sleep(2)
         return True
 
+    def _log_tail(self, size: int = 200_000) -> bytes | None:
+        """The end of dcs.log, or None when there is none yet from the DCS this test started."""
+        try:
+            log = self.profile_dir / "Logs" / "dcs.log"
+            if log.stat().st_mtime < getattr(self, "_launched_at", 0):
+                return None                     # still the log of an earlier DCS start
+            with open(log, "rb") as f:
+                f.seek(max(0, log.stat().st_size - size))
+                return f.read()
+        except OSError:
+            return None
+
+    def _crashed(self) -> bool:
+        """Did the DCS this test started crash? DCS then writes a crash report and may sit behind a
+        crash box that nobody is there to click (issue #58)."""
+        return CRASH_MARK in (self._log_tail() or b"")
+
+    def _check_runtime(self) -> None:
+        """Warn once if DCS's module list shows the Visual C++ runtime from our _MEI folder (issue #58)."""
+        if getattr(self, "_runtime_warned", False):
+            return
+        tail = self._log_tail(2_000_000)
+        if tail and winproc.bundled_runtime_lines(tail.decode("utf-8", errors="ignore")):
+            self._runtime_warned = True
+            self.log(winproc.BUNDLED_RUNTIME_WARNING)
+
+    def _stop_after_crash(self, proc) -> None:
+        """DCS crashed: close it, put the player's settings back now, and stop the test."""
+        tail = self._log_tail(2_000_000) or b""
+        try:
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=30)
+        except Exception:
+            pass
+        self.directive.unlink(missing_ok=True)
+        self._keep_failure_log()
+        self._check_runtime()
+        self.session.end()                      # at once, not when the test winds down
+        raise DcsCrashed(crash_message(during_startup=b"DCSTUNE" not in tail))
+
     def _graphics_reset(self) -> bool:
         """Did Windows reset the graphics driver under DCS? DCS then writes 'DX device removed' and
         stops with a crash box that nobody is there to click, so the test used to wait ten minutes
         and blame a slow start (seen on the test PC on 2026-11-18: an RTX 4080 driver reset in the
         cloud scene over Nevada)."""
-        try:
-            log = self.profile_dir / "Logs" / "dcs.log"
-            if log.stat().st_mtime < getattr(self, "_launched_at", 0):
-                return False                    # still the log of an earlier DCS start
-            with open(log, "rb") as f:
-                f.seek(max(0, log.stat().st_size - 200_000))
-                tail = f.read()
-        except OSError:
+        tail = self._log_tail()
+        if tail is None:
             return False
         return b"DX device removed" in tail or b"DXGI_ERROR_DEVICE_REMOVED" in tail or b"DXGI_ERROR_DEVICE_HUNG" in tail
 
@@ -634,6 +744,8 @@ class Bench:
                 pass
             if not self.result.exists() and time.time() - looked > 10:
                 looked = time.time()
+                if self._crashed():
+                    self._stop_after_crash(proc)
                 if self._graphics_reset():
                     proc.kill()
                     proc.wait(timeout=30)
@@ -678,6 +790,8 @@ class Bench:
         # cap are lifted for every run (including the baseline) so numbers compare.
         trial = {"graphics.sync": False, "graphics.maxFPS": int(getattr(self, "fps_cap", 0) or UNCAPPED_FPS)}
         trial.update(changes or {})
+        if getattr(self, "_stopped", False):        # the program is closing (stop_open_tests)
+            raise BenchError("The test was stopped.")
         self.session.write_trial(trial)
         self.result.unlink(missing_ok=True)
 
@@ -697,7 +811,6 @@ class Bench:
                    if os.environ.get("DCSTUNE_SUBJECT_SOURCE") in ("server", "direct") else {}),
                 **directive_extra))
         self.directive.write_text(directive())
-        from . import winproc
         if winproc.prefer_system32_on():
             self.directive.unlink(missing_ok=True)
             raise BenchError(winproc.ADVICE)
@@ -725,7 +838,11 @@ class Bench:
                     quick = not self._follow_handoff(launched + timeout, wait=0)
                 else:
                     try:
-                        proc = subprocess.Popen(args, cwd=str(self.exe.parent), **popen_extra)
+                        with self._state_lock():     # never start DCS after the program began closing
+                            if getattr(self, "_stopped", False):
+                                self.directive.unlink(missing_ok=True)
+                                raise BenchError("The test was stopped.")
+                            proc = self._proc = winproc.popen(args, cwd=str(self.exe.parent), **popen_extra)
                     except OSError as e:
                         self.directive.unlink(missing_ok=True)
                         if getattr(e, "winerror", None) == 740:
@@ -738,6 +855,8 @@ class Bench:
                         self._keep_failure_log()
                         raise BenchError("DCS did not finish the benchmark in time and was closed. "
                                          "Check that DCS starts normally and is logged in.")
+                    if not self.result.exists() and self._crashed():
+                        self._stop_after_crash(None)    # it crashed and closed: no restart, no retry
                     quick = not self.result.exists() and time.time() - launched <= QUICK_EXIT_SEC
                 if quick:
                     wait = HANDOFF_WAIT_SEC
@@ -758,6 +877,7 @@ class Bench:
                     "(log-in, update, or a message to click), close it, then try again. If you start DCS "
                     "through Steam, start it once from Steam first.")
         time.sleep(3)      # let DCS finish releasing its files before anything else starts
+        self._check_runtime()
         if not self.result.exists():
             self.directive.unlink(missing_ok=True)
             self._keep_failure_log()
