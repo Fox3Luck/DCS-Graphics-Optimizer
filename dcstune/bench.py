@@ -411,7 +411,7 @@ def other_load(loads: list[tuple[str, float]]) -> float:
 def vr_process_loads() -> list[tuple[str, float]]:
     """Graphics card 3D load per program right now, from Windows' own counters (the WMI class,
     whose names are never translated, #21)."""
-    out = subprocess.run(["powershell", "-NoProfile", "-Command",
+    out = winproc.run(["powershell", "-NoProfile", "-Command",
                           "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | "
                           "? Name -like '*engtype_3D' | Group-Object { ($_.Name -split '_')[1] } | % { "
                           "$p = Get-Process -Id ([int]$_.Name) -ErrorAction SilentlyContinue; "
