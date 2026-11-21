@@ -313,6 +313,9 @@ class Engine:
             flat, st = dict(flat, **{"VR.enable": False}), None
         machine = rate.rate_machine(self.info)
         vendor = sysinfo.upscaling_vendor(self.info, flat)
+        opti = sysinfo.optiscaler(sysinfo.pick_install(self.info))
+        if opti:
+            log("OptiScaler is installed in your DCS folder. The test runs with it, so the numbers include it.")
         if vendor != sysinfo.gpu_vendor(self.info):
             log("DLSS is selected on a card that is not NVIDIA (through OptiScaler, for example), so DLSS choices are kept on offer.")
         mdl = M.Model(machine["gpu_score"], machine["cpu_score"],
@@ -379,6 +382,10 @@ class Engine:
                   "before_result": _slim(out["before"])}
         if other_vram_high(other_vram, gpu.get("vram_mb") or 0, vr=bool(st)):
             report["vram_other_mb"] = round(other_vram)       # shown as a note on the report
+        if opti:
+            report["optiscaler"] = True
+            report["optiscaler_dlss"] = vendor != sysinfo.gpu_vendor(self.info)
+            report["optiscaler_nvidia"] = sysinfo.gpu_vendor(self.info) == "nvidia"
         rec = out["recommended"]
         if rec:
             after = dict(flat)

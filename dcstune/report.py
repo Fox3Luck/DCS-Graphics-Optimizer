@@ -169,6 +169,18 @@ def fragment(rep: dict, img=lambda name: name, pick: bool = False) -> str:
     if rep.get("disturbed"):
         h.append('<p class="note err">Another program was using the PC during part of this test, so some '
                  'measurements were discarded. For the most accurate result, close other programs and run it again.</p>')
+    if rep.get("optiscaler"):
+        if rep.get("optiscaler_dlss"):
+            h.append('<p class="note">OptiScaler is installed in your DCS folder. DLSS and DLAA below mean '
+                     'DCS&rsquo;s DLSS setting, which OptiScaler turns into FSR or XeSS on this card; the frame '
+                     'rates were measured with it running.</p>')
+        elif rep.get("optiscaler_nvidia"):
+            h.append('<p class="note">OptiScaler is installed in your DCS folder, and the frame rates were '
+                     'measured with it running.</p>')
+        else:
+            h.append('<p class="note">OptiScaler is installed in your DCS folder, and the frame rates were '
+                     'measured with it running. The tool chooses between the upscalers DCS itself offers on '
+                     'this card; select DLSS or DLAA in DCS first if you want the test to use the OptiScaler path.</p>')
     if rep.get("vram_other_mb"):
         h.append(f'<p class="note err">Other programs were using {rep["vram_other_mb"] / 1024:.1f} GB of video memory '
                  'before DCS started. The video memory figures below include them, and the recommendation may be '

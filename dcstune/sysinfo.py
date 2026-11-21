@@ -225,6 +225,20 @@ def upscaling_vendor(info: dict, options: dict | None = None) -> str:
     return vendor
 
 
+def optiscaler(install: dict | None) -> bool:
+    """Is OptiScaler installed next to DCS.exe (#56)? It turns DCS's DLSS/DLAA choice into FSR 4 or XeSS
+    on AMD and Intel cards. Its settings file OptiScaler.ini (or its own DLL) sits in the folder with
+    DCS.exe; the proxy DLL it loads through has a generic Windows name, so the ini is the reliable sign."""
+    if not install or not install.get("path"):
+        return False
+    root = Path(install["path"])
+    for sub in ("bin-mt", "bin"):
+        folder = root / sub
+        if any((folder / n).exists() for n in ("OptiScaler.ini", "OptiScaler.dll", "OptiScaler.asi")):
+            return True
+    return False
+
+
 class SetupNeeded(RuntimeError):
     """DCS or its Saved Games folder could not be found; the player can point to it."""
 

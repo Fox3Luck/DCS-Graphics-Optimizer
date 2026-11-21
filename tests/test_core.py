@@ -803,3 +803,28 @@ def test_full_mode_does_not_learn_costs_from_runs_at_the_limit():
     mdl2 = M.Model(78, 100, 2560, 1440)
     optimize.run(mdl2, cur, "nvidia", 60, 16376, _capped(slow, 120), full=True, log=lambda *_: None, fps_cap=120)
     assert mdl2.measured
+
+
+def test_optiscaler_found_next_to_dcs_exe(tmp_path):
+    """#56: OptiScaler's settings file next to DCS.exe (bin-mt or bin) is detected; nothing else is."""
+    from dcstune import sysinfo
+    (tmp_path / "bin-mt").mkdir()
+    (tmp_path / "bin").mkdir()
+    inst = {"path": str(tmp_path)}
+    assert not sysinfo.optiscaler(inst)
+    assert not sysinfo.optiscaler(None) and not sysinfo.optiscaler({})
+    (tmp_path / "bin" / "dxgi.dll").write_bytes(b"x")          # a generic proxy name alone is not proof
+    assert not sysinfo.optiscaler(inst)
+    (tmp_path / "bin-mt" / "OptiScaler.ini").write_text("[Upscalers]\n")
+    assert sysinfo.optiscaler(inst)
+
+
+def test_report_explains_optiscaler():
+    from dcstune import report
+    base = {"before": None}
+    for flags, words in (({"optiscaler_dlss": True}, "turns into FSR or XeSS"),
+                         ({"optiscaler_nvidia": True}, "measured with it running."),
+                         ({}, "select DLSS or DLAA in DCS first")):
+        html = report.fragment(dict(base, optiscaler=True, **flags))
+        assert "OptiScaler is installed" in html and words in html
+    assert "OptiScaler" not in report.fragment(base)
