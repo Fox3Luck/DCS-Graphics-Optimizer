@@ -1,6 +1,8 @@
 # DCS Graphics Optimizer - Fox3 Managed Solutions Inc.
 # Created 2026-11-11. Tests for VR headset detection, goals and advice.
 import json
+
+import pytest
 from pathlib import Path
 
 from dcstune import model as M
@@ -604,3 +606,34 @@ def test_heat_check_flies_laps_with_the_players_settings_and_changes_nothing(tmp
     assert any("Heat check" in l for l in lines) and any("Verdict" in l for l in lines)
     assert (tmp_path / "Config" / "options.lua").read_bytes() == before
     json.dumps(out)
+
+
+def test_headset_softwares_own_screen_is_not_another_program(monkeypatch):
+    # 2026-11-20, Pimax Crystal Light worn on the test PC: Pimax Home kept the RTX 4080 87% busy before
+    # DCS started and the headset test refused to run ("Another program is using your graphics card").
+    from dcstune import bench
+    loads = bench.parse_process_loads("PimaxHome-Win64-Shipping;81.0\npi_server;6.5\nexplorer;0.4\nchrome;3,0\nbad line\n")
+    assert loads[0] == ("PimaxHome-Win64-Shipping", 81.0) and ("chrome", 3.0) in loads
+    assert bench.other_load(loads) == 3.0
+    for name in ("vrcompositor", "MixedRealityPortal", "OVRServer_x64", "VirtualDesktop.Streamer", "pi_overlay", "VarjoCompositor"):
+        assert bench.HEADSET_PROCESS.match(name), name
+    for name in ("DCS", "ComfyUI", "python", "obs64", "chrome", "blender"):
+        assert not bench.HEADSET_PROCESS.match(name), name
+    assert bench.other_load([("blender", 92.0), ("PimaxHome-Win64-Shipping", 40.0)]) == 92.0   # a real render still stops it
+
+    class _S:
+        def __init__(self, *a, **k): pass
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (87.0, 1500.0))
+    monkeypatch.setattr(bench, "vr_process_loads", lambda: [("PimaxHome-Win64-Shipping", 82.0), ("pi_server", 4.0), ("dwm", 2.0)])
+    b = bench.Bench.__new__(bench.Bench)
+    b.vr, b.allow_busy, b.vram_total_mb, b.log = True, False, 16000, (lambda m: logged.append(m))
+    logged = []
+    class Stop(Exception): pass
+    monkeypatch.setattr(bench, "other_vram_high", lambda *a, **k: (_ for _ in ()).throw(Stop()))
+    with pytest.raises(Stop):                       # got past the busy check
+        b.__enter__()
+    assert any("headset software's own screen accounts for about 82%" in m for m in logged)
+    monkeypatch.setattr(bench, "vr_process_loads", lambda: [("PimaxHome-Win64-Shipping", 40.0), ("blender", 90.0)])
+    with pytest.raises(bench.BenchError, match="Another program"):
+        b.__enter__()

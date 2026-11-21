@@ -256,6 +256,15 @@ def fragment(rep: dict, img=lambda name: name, pick: bool = False) -> str:
     return "".join(h)
 
 
+def _footer(rep: dict) -> str:
+    """Where the numbers come from: the scenes really flown (#50: it used to say Caucasus every time)."""
+    where = (e(str(rep.get("scene_label"))) if rep.get("scene") and rep.get("scene_label")
+             else "the free Su-25T over the Caucasus map")
+    busy = " and a busy airfield" if rep.get("busy") else ""
+    return (f"Frame rates were measured on this PC in fixed scenes flown with {where} (a city pass, an airfield "
+            f"ramp, a cloud layer{busy}).")
+
+
 def page(rep: dict) -> str:
     """Self-contained report page; screenshots are files in the same folder."""
     hw = "".join(f"<tr><td class='dim'>{e(str(r['label']))}</td><td>{e(str(r['value']))}</td></tr>"
@@ -275,8 +284,7 @@ footer {{ color:var(--dim); font-size:13px; margin-top:16px; }}
 </style></head><body><main>
 <h1>DCS Graphics Optimizer &ndash; test report</h1>
 <div class="card">{fragment(rep)}<div class="rep">{pc}</div></div>
-<footer>Frame rates were measured on this PC in three fixed scenes on the Caucasus map (a city pass, an airfield
-ramp and a cloud layer). Other maps, missions and multiplayer servers will run differently.
+<footer>{_footer(rep)} Other maps, missions and multiplayer servers will run differently.
 Made by DCS Graphics Optimizer; nothing in this report was sent anywhere.</footer>
 </main></body></html>
 """
