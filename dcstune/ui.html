@@ -411,14 +411,25 @@ $("faillog-copy").onclick = async () => {
 document.querySelectorAll("[data-link]").forEach(b => b.onclick = async () => {
   try { note((await api("/api/open-link", { which: b.dataset.link })).message); } catch (e) { note(e.message, true); }
 });
+// Pimax Home holds several GB of video memory: offer to close it for the test (Joe, 2026-11-24).
+async function pimaxOk() {
+  try {
+    const p = await api("/api/pimax-home");
+    if (!p.running) return {};
+    if (!confirm(p.message)) { note("The test did not start. Close Pimax Home, or press the button again and choose OK.", true); return null; }
+    return { close_pimax: true };
+  } catch (e) { return {}; }
+}
 async function start(full) {
-  try { await api("/api/optimize", { full, mode: chosenMode() }); busy(true); $("msg").replaceChildren();
+  const px = await pimaxOk(); if (px === null) return;
+  try { await api("/api/optimize", { full, mode: chosenMode(), ...px }); busy(true); $("msg").replaceChildren();
         $("result").classList.add("hidden"); $("faillog").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
   catch (e) { note(e.message, true); }
 }
 $("quick").onclick = () => start(false);
 $("heat").onclick = async () => {
-  try { await api("/api/heat", {}); busy(true); $("msg").replaceChildren(); $("heat-result").classList.add("hidden");
+  const px = await pimaxOk(); if (px === null) return;
+  try { await api("/api/heat", { ...px }); busy(true); $("msg").replaceChildren(); $("heat-result").classList.add("hidden");
         $("faillog").classList.add("hidden"); $("progress").classList.remove("hidden"); poll(); }
   catch (e) { note(e.message, true); }
 };

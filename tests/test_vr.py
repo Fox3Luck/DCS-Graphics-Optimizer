@@ -658,3 +658,44 @@ def test_a_headset_test_stops_while_pimax_home_is_running(monkeypatch):
     assert "Pimax Home (Pimax's 3D lobby) is running" in str(e.value)
     monkeypatch.undo()
     assert bench.pimax_home_running() is False       # no tasklist here: never blocks the automated tests
+
+
+def test_pimax_home_is_closed_for_the_test_when_the_player_agrees(monkeypatch):
+    # Joe, 2026-11-24: ask first, then close Pimax Home (only it) before the test and before each DCS start.
+    from dcstune import bench
+    state = {"running": True, "kills": []}
+    monkeypatch.setattr(bench, "dcs_running", lambda: False)
+    monkeypatch.setattr(bench, "pimax_home_running", lambda: state["running"])
+    def fake_run(args, **kw):
+        state["kills"].append(list(args))
+        state["running"] = False
+        class R: stdout = ""
+        return R()
+    monkeypatch.setattr(bench.winproc, "run", fake_run)
+    assert bench.close_pimax_home() is True
+    assert state["kills"] == [["taskkill", "/IM", "PimaxHome-Win64-Shipping.exe"]]      # asks it to close first
+    assert all("pi_server" not in " ".join(a) and "PimaxClient" not in " ".join(a) for a in state["kills"])
+
+    class Stop(Exception): pass
+    monkeypatch.setattr(bench, "gpu_idle_check", lambda: (_ for _ in ()).throw(Stop()))
+    logs = []
+    b = bench.Bench.__new__(bench.Bench)
+    b.vr, b.allow_busy, b.vram_total_mb, b.log = False, False, 16000, logs.append
+    b.close_pimax, b.pimax_closed = True, False
+    state["running"] = True
+    with pytest.raises(Stop):                  # got past the Pimax check to the busy check
+        b.__enter__()
+    assert b.pimax_closed and any("Closed Pimax Home" in l for l in logs)
+
+    b.close_pimax, b.pimax_closed = False, False      # the player said no: the test stops with the how-to
+    state["running"] = True
+    with pytest.raises(bench.BenchError) as e:
+        b.__enter__()
+    assert "Pimax Home (Pimax's 3D lobby) is running" in str(e.value) and not b.pimax_closed
+
+
+def test_window_asks_before_closing_pimax_home():
+    from dcstune import report, ui
+    page = (ui.Path(ui.__file__).parent / "ui.html").read_bytes()
+    assert b'api("/api/pimax-home")' in page and b"close_pimax: true" in page and b"confirm(p.message)" in page
+    assert "Pimax Home" in report.fragment({"pimax_home_closed": True})

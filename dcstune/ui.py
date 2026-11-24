@@ -129,7 +129,7 @@ class Engine:
         log(f"Frame rate limited to {cap} FPS during the check (twice your goal of {goal:.0f}), so the graphics "
             "card is not driven harder than it needs to be.")
         with Bench(self.profile, exe, log=log, vr=in_headset, vram_total_mb=gpu.get("vram_mb") or 0, scene=scene,
-                   busy=busy) as b:
+                   busy=busy, **({"close_pimax": True} if getattr(self, "close_pimax", False) else {})) as b:
             b.fps_cap = cap
             raw = b.soak()
         out = heat.summarize(raw["laps"], raw["samples"], cap)
@@ -354,7 +354,7 @@ class Engine:
         log(f"The test runs with the frame rate limited to {cap} FPS (twice your goal), so the graphics card is "
             "not driven harder than it needs to be.")
         with Bench(self.profile, exe, log=log, vr=bool(st), vram_total_mb=gpu.get("vram_mb") or 0, scene=scene,
-                   busy=busy) as b:
+                   busy=busy, **({"close_pimax": True} if getattr(self, "close_pimax", False) else {})) as b:
             b.fps_cap = cap
             out = optimize.run(mdl, flat, vendor, goal,
                                gpu.get("vram_mb") or 0, b.measure, full=full, log=log,
@@ -362,6 +362,7 @@ class Engine:
                                steps=st and st["steps"], extra=extra, mode=mode, fps_cap=cap)
             launches, other_vram = b.runs, b.other_vram_mb
             headset_vram = getattr(b, "headset_vram_mb", 0.0)
+            pimax_closed = getattr(b, "pimax_closed", False)
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
         target = out["target_fps"]
@@ -387,6 +388,8 @@ class Engine:
             report["vram_other_mb"] = round(other_vram)       # shown as a note on the report
         if headset_vram:
             report["vram_headset_mb"] = round(headset_vram)
+        if pimax_closed:
+            report["pimax_home_closed"] = True
         if opti:
             report["optiscaler"] = True
             report["optiscaler_dlss"] = vendor != sysinfo.gpu_vendor(self.info)
@@ -623,6 +626,9 @@ class App:
                 sc["report_html"] = R.fragment(sc["report"], lambda name: f"/report-file/{name}?t={self.token}",
                                                 pick=True)
             return sc
+        if method == "GET" and path == "/api/pimax-home":
+            from .bench import PIMAX_HOME_ASK, pimax_home_running
+            return {"running": pimax_home_running(), "message": PIMAX_HOME_ASK}
         if method == "GET" and path == "/api/job":
             return self.job
         if method == "POST" and path == "/api/open-link":
@@ -632,9 +638,11 @@ class App:
             setup = self.setup_needed()
             if setup:
                 raise RuntimeError(setup["message"])
+            self.engine.close_pimax = body.get("close_pimax") is True
             self.start_optimize(bool(body.get("full")), str(body.get("mode") or "balanced"))
             return {"ok": True}
         if method == "POST" and path == "/api/heat":
+            self.engine.close_pimax = body.get("close_pimax") is True
             self.start_heat()
             return {"ok": True}
         if method == "POST" and path == "/api/apply":

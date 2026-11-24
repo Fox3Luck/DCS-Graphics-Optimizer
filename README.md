@@ -85,11 +85,12 @@ scenes, and it ran no slower than the cloud scene. A full multiplayer server is 
 hundreds to thousands of units and scripts, and no repeatable test can copy that. To leave room
 for multiplayer, set a higher frame-rate goal.
 
-**Pimax headsets: close Pimax Home first.** Before testing in the headset, close Pimax Home, Pimax's
-3D home screen: it holds several GB of video memory and takes part of the graphics card, so DCS can measure too low. Switch it off
-in Pimax Play's settings, or end PimaxHome-Win64-Shipping.exe in Task Manager (Details tab). Keep Pimax
-Play itself running; the test needs it. The tool checks for Pimax Home and tells you if it is still
-running. For any headset, close programs that hold video memory (browsers, Discord, overlays) too.
+**Pimax headsets: Pimax Home must not run during a test.** Pimax Home, Pimax's 3D lobby, holds several GB
+of video memory and takes part of the graphics card, so DCS measures too low. When you press a test button
+while it runs, the tool asks whether to close it for the test; say OK and it closes Pimax Home (and again if
+Pimax Play restarts it between runs). Pimax Play and the headset keep running; the test needs them. To stop
+Pimax Home starting at all, switch it off in Pimax Play's settings. For any headset, close programs that hold
+video memory (browsers, Discord, overlays) too.
 
 **The heat check (optional).** The *Heat check* button flies the same scenes six times in a row
 with your current settings, about 15 minutes, and tells you whether the frame rate falls as the

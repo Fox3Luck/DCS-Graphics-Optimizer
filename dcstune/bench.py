@@ -194,6 +194,30 @@ PIMAX_HOME_RUNNING = (
     "running (and pi_server.exe, the headset's runtime): the test needs them. Then try again.")
 
 
+PIMAX_HOME_ASK = (
+    "Pimax Home (Pimax's 3D lobby) is running. It holds several GB of video memory, so the test would "
+    "measure too low. Close it for the test? Pimax Play and the headset keep running, and Pimax Play "
+    "starts Pimax Home again later.")
+PIMAX_HOME_CLOSED = ("Closed Pimax Home (Pimax's 3D lobby) for the test, as you asked. Pimax Play and the headset "
+                     "keep running.")
+
+
+def close_pimax_home() -> bool:
+    """Close Pimax's 3D lobby (only it: never Pimax Play or pi_server, which the headset needs). Asks it to
+    close first, then ends it. True when it is no longer running."""
+    for force in (False, True):
+        try:
+            winproc.run(["taskkill", "/IM", PIMAX_HOME_EXE] + (["/F"] if force else []),
+                        capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW)
+        except Exception:
+            return False
+        for _ in range(10):
+            if not pimax_home_running():
+                return True
+            time.sleep(0.5)
+    return not pimax_home_running()
+
+
 def pimax_home_running() -> bool:
     """Is Pimax's 3D home screen running? (Joe, 2026-11-20, after the first Crystal Light tests: it
     must not run during a test. A player on 2026-11-24 found it holding 9.7 GB of video memory.)"""
@@ -527,7 +551,9 @@ def free_port() -> int:
 class Bench:
     def __init__(self, profile: dict, exe: Path, scene_sec: int = 25, settle_sec: int = 20,
                  timeout: int = 600, log=print, vr: bool = False, vram_total_mb: float = 0, scene=None,
-                 busy: bool = False):
+                 busy: bool = False, close_pimax: bool = False):
+        self.close_pimax = bool(close_pimax)   # the player agreed to close Pimax Home for the test
+        self.pimax_closed = False
         self.scene = scene                 # the player's map and aircraft (issue #23); None = the default test
         self.busy = bool(busy)             # add the busy-airfield scene (issues #23, #35)
         self.profile_dir = Path(profile["path"])
@@ -554,7 +580,10 @@ class Bench:
         if dcs_running():
             raise BenchError("DCS is running. Close it first; DCS Graphics Optimizer never touches a running game.")
         if pimax_home_running():           # on the monitor too: it holds the card's memory either way
-            raise BenchError(PIMAX_HOME_RUNNING)
+            if not (getattr(self, "close_pimax", False) and close_pimax_home()):
+                raise BenchError(PIMAX_HOME_RUNNING)
+            self.pimax_closed = True
+            self.log(PIMAX_HOME_CLOSED)
         load, self.other_vram_mb = gpu_idle_check()
         if self.vr and load > BUSY_GPU_PERCENT:
             # Most of that is usually the headset software's home screen: judge only the other programs.
@@ -961,6 +990,10 @@ class Bench:
                             if getattr(self, "_stopped", False):
                                 self.directive.unlink(missing_ok=True)
                                 raise BenchError("The test was stopped.")
+                            # Pimax Play starts Pimax Home again after every VR program: close it again.
+                            if getattr(self, "close_pimax", False) and pimax_home_running() and close_pimax_home():
+                                self.pimax_closed = True
+                                self.log("Pimax Home had started again; closed it before starting DCS.")
                             proc = self._proc = winproc.popen(args, cwd=str(self.exe.parent), **popen_extra)
                     except OSError as e:
                         self.directive.unlink(missing_ok=True)
