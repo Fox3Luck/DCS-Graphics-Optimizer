@@ -222,7 +222,9 @@ def pimax_home_running() -> bool:
     """Is Pimax's 3D home screen running? (Joe, 2026-11-20, after the first Crystal Light tests: it
     must not run during a test. A player on 2026-11-24 found it holding 9.7 GB of video memory.)"""
     try:
-        out = winproc.run(["tasklist", "/FI", f"IMAGENAME eq {PIMAX_HOME_EXE}", "/NH"],
+        # CSV output: the normal table cuts names at 25 characters ("PimaxHome-Win64-Shipping."), which
+        # never matched the full name (found on the test PC, 2026-11-24).
+        out = winproc.run(["tasklist", "/FI", f"IMAGENAME eq {PIMAX_HOME_EXE}", "/FO", "CSV", "/NH"],
                           capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
     except Exception:              # not Windows (the automated tests), or tasklist failed: never block on it
         return False

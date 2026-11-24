@@ -699,3 +699,18 @@ def test_window_asks_before_closing_pimax_home():
     page = (ui.Path(ui.__file__).parent / "ui.html").read_bytes()
     assert b'api("/api/pimax-home")' in page and b"close_pimax: true" in page and b"confirm(p.message)" in page
     assert "Pimax Home" in report.fragment({"pimax_home_closed": True})
+
+
+def test_pimax_home_check_reads_the_full_program_name(monkeypatch):
+    # tasklist's table cuts names at 25 characters; the check must ask for CSV, where the name is whole.
+    from dcstune import bench
+    seen = {}
+    def fake_run(args, **kw):
+        seen["args"] = list(args)
+        class R:
+            stdout = ('"PimaxHome-Win64-Shipping.exe","8228","Console","1","5,340 K"\n'
+                      if "CSV" in args else "PimaxHome-Win64-Shipping.     8228 Console    1      5,340 K\n")
+        return R()
+    monkeypatch.setattr(bench.winproc, "run", fake_run)
+    assert bench.pimax_home_running() is True
+    assert "/FO" in seen["args"] and "CSV" in seen["args"]
