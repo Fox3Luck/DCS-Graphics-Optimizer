@@ -169,6 +169,10 @@ def fragment(rep: dict, img=lambda name: name, pick: bool = False) -> str:
     if rep.get("disturbed"):
         h.append('<p class="note err">Another program was using the PC during part of this test, so some '
                  'measurements were discarded. For the most accurate result, close other programs and run it again.</p>')
+    if rep.get("vram_headset_mb"):
+        h.append(f'<p class="note err">Your headset software was holding {rep["vram_headset_mb"] / 1024:.1f} GB of video memory '
+                 'before DCS started (usually its home screen). DCS ran short of memory, so these numbers are too low. '
+                 'Switch the home screen off in the headset software and test again.</p>')
     if rep.get("optiscaler"):
         if rep.get("optiscaler_dlss"):
             h.append('<p class="note">OptiScaler is installed in your DCS folder. DLSS and DLAA below mean '

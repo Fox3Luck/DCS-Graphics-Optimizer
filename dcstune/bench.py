@@ -186,7 +186,7 @@ def dcs_running() -> bool:
 
 PIMAX_HOME_EXE = "PimaxHome-Win64-Shipping.exe"
 PIMAX_HOME_RUNNING = (
-    "Pimax Home (Pimax's 3D lobby) is running. Close it before testing in the headset: it draws its own 3D world on the "
+    "Pimax Home (Pimax's 3D lobby) is running. Close it before testing: it draws its own 3D world on the "
     "graphics card and holds several GB of video memory, so DCS can run short and the results can come out "
     "too low. In Pimax Play, switch Pimax Home off in the settings, so it doesn't start again by itself "
     "after every VR program. If it is still running now, open Task Manager, "
@@ -196,10 +196,10 @@ PIMAX_HOME_RUNNING = (
 
 def pimax_home_running() -> bool:
     """Is Pimax's 3D home screen running? (Joe, 2026-11-20, after the first Crystal Light tests: it
-    must not run during a headset test.)"""
+    must not run during a test. A player on 2026-11-24 found it holding 9.7 GB of video memory.)"""
     try:
-        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {PIMAX_HOME_EXE}", "/NH"],
-                             capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
+        out = winproc.run(["tasklist", "/FI", f"IMAGENAME eq {PIMAX_HOME_EXE}", "/NH"],
+                          capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW).stdout
     except Exception:              # not Windows (the automated tests), or tasklist failed: never block on it
         return False
     return PIMAX_HOME_EXE.lower() in (out or "").lower()
@@ -442,6 +442,38 @@ def vr_process_loads() -> list[tuple[str, float]]:
     return parse_process_loads(out)
 
 
+def vr_process_vram() -> list[tuple[str, float]]:
+    """Video memory (MB) each program holds right now, from Windows' own counters (WMI, #21)."""
+    out = winproc.run(["powershell", "-NoProfile", "-Command",
+                          "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUProcessMemory -ErrorAction SilentlyContinue | "
+                          "Group-Object { ($_.Name -split '_')[1] } | % { "
+                          "$p = Get-Process -Id ([int]$_.Name) -ErrorAction SilentlyContinue; "
+                          "[string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0};{1:F0}', "
+                          "$(if ($p) { $p.ProcessName } else { '?' }), ($_.Group | Measure-Object DedicatedUsage -Sum).Sum / 1MB) }"],
+                         capture_output=True, text=True, errors="replace", creationflags=NO_WINDOW, timeout=30).stdout
+    return parse_process_loads(out)
+
+
+HEADSET_VRAM_SHARE = 0.35    # the headset software holding more than this share of the card's memory is worth saying
+
+
+def headset_vram_note(per: list[tuple[str, float]], total_mb: float) -> tuple[float, str] | None:
+    """(MB, plain warning) when the headset software itself holds a large part of the video memory."""
+    if not total_mb:
+        return None
+    # Windows' per-program counter can report more than the card has (seen on the test PC: 107 GB for
+    # a chat program on a 16 GB card); such readings are noise and are left out.
+    per = [(n, mb) for n, mb in per if 0 <= mb <= total_mb]
+    held = sum(mb for n, mb in per if HEADSET_PROCESS.match(n or ""))
+    if held < total_mb * HEADSET_VRAM_SHARE or held > total_mb:
+        return None
+    names = sorted({n for n, mb in per if HEADSET_PROCESS.match(n or "") and mb > 200})
+    home = "Pimax Home" if any(n.lower().startswith("pimaxhome") for n in names) else "its home screen"
+    return held, (f"Your headset software is holding {held / 1024:.1f} GB of the card's {total_mb / 1024:.0f} GB of video "
+                  f"memory before DCS starts ({home}). DCS then runs short of video memory and the test measures too low. "
+                  f"Switch off {home} in the headset software and test again for a fair result.")
+
+
 def gpu_idle_check(samples: int = 4) -> tuple[float, float]:
     """(average GPU load %, video memory in use MB) right now, before DCS starts."""
     sampler = GpuSampler()
@@ -521,7 +553,7 @@ class Bench:
     def __enter__(self):
         if dcs_running():
             raise BenchError("DCS is running. Close it first; DCS Graphics Optimizer never touches a running game.")
-        if self.vr and pimax_home_running():
+        if pimax_home_running():           # on the monitor too: it holds the card's memory either way
             raise BenchError(PIMAX_HOME_RUNNING)
         load, self.other_vram_mb = gpu_idle_check()
         if self.vr and load > BUSY_GPU_PERCENT:
@@ -536,6 +568,15 @@ class Bench:
                     load = others
             except Exception:
                 pass
+        self.headset_vram_mb = 0.0
+        if self.vr and self.other_vram_mb:
+            try:
+                note = headset_vram_note(vr_process_vram(), self.vram_total_mb)
+            except Exception:
+                note = None
+            if note:
+                self.headset_vram_mb = note[0]
+                self.log("WARNING: " + note[1])
         limit = busy_limit(self.vr)
         if load > limit and not self.allow_busy:
             raise BenchError(f"Another program is using your graphics card ({load:.0f}% busy before DCS has even "

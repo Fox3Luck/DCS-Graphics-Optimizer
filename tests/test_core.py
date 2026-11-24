@@ -828,3 +828,15 @@ def test_report_explains_optiscaler():
         html = report.fragment(dict(base, optiscaler=True, **flags))
         assert "OptiScaler is installed" in html and words in html
     assert "OptiScaler" not in report.fragment(base)
+def test_headset_software_holding_video_memory_is_named():
+    from dcstune import bench
+    per = [("PimaxHome-Win64-Shipping", 11800.0), ("pi_server", 400.0), ("chrome", 600.0)]
+    mb, text = bench.headset_vram_note(per, 16376)
+    assert round(mb) == 12200 and "Pimax Home" in text and "11.9 GB" in text and "16 GB" in text
+    assert bench.headset_vram_note([("PimaxHome-Win64-Shipping", 900.0)], 16376) is None
+    assert bench.headset_vram_note(per, 0) is None
+    assert bench.headset_vram_note([("PimaxHome-Win64-Shipping", 107224.0), ("pi_server", 400.0)], 16376) is None   # impossible reading ignored
+    from dcstune import report
+    assert "headset software was holding 11.9 GB" in report.fragment({"vram_headset_mb": 12200})
+
+

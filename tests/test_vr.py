@@ -652,10 +652,9 @@ def test_a_headset_test_stops_while_pimax_home_is_running(monkeypatch):
     msg = str(e.value)
     assert "Pimax Home (Pimax's 3D lobby) is running" in msg and "Keep Pimax Play itself running" in msg and "Details tab" in msg and "PimaxHome-Win64-Shipping.exe" in msg
     assert "Keep Pimax Play itself" in msg and "pi_server.exe" in msg
-    b.vr = False                                     # a monitor test does not care about it here
-    class Stop(Exception): pass
-    monkeypatch.setattr(bench, "other_vram_high", lambda *a, **k: (_ for _ in ()).throw(Stop()))
-    with pytest.raises(Stop):
+    b.vr = False                                     # a monitor test stops too (2026-11-24: 9.7 GB held)
+    with pytest.raises(bench.BenchError) as e:
         b.__enter__()
+    assert "Pimax Home (Pimax's 3D lobby) is running" in str(e.value)
     monkeypatch.undo()
     assert bench.pimax_home_running() is False       # no tasklist here: never blocks the automated tests

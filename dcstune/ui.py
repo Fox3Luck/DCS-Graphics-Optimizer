@@ -361,6 +361,7 @@ class Engine:
                                measure_fast=b.measure_fast, measure_batch=b.measure_batch,
                                steps=st and st["steps"], extra=extra, mode=mode, fps_cap=cap)
             launches, other_vram = b.runs, b.other_vram_mb
+            headset_vram = getattr(b, "headset_vram_mb", 0.0)
             for res in (out["before"], (out["recommended"] or {}).get("result") or {}):
                 b.keep_shots.update(s["shot"] for s in (res.get("raw") or {}).get("scenes", []) if s.get("shot"))
         target = out["target_fps"]
@@ -384,6 +385,8 @@ class Engine:
                   "before_result": _slim(out["before"])}
         if other_vram_high(other_vram, gpu.get("vram_mb") or 0, vr=bool(st)):
             report["vram_other_mb"] = round(other_vram)       # shown as a note on the report
+        if headset_vram:
+            report["vram_headset_mb"] = round(headset_vram)
         if opti:
             report["optiscaler"] = True
             report["optiscaler_dlss"] = vendor != sysinfo.gpu_vendor(self.info)
