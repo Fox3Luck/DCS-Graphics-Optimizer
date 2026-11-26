@@ -840,3 +840,30 @@ def test_headset_software_holding_video_memory_is_named():
     assert "headset software was holding 11.9 GB" in report.fragment({"vram_headset_mb": 12200})
 
 
+
+
+def test_settings_search_runs_only_when_the_usual_places_found_nothing():
+    """Saved Games moved to a drive that is gone (Discord, 2026-11-26): the scan script looks for
+    ...\\DCS*\\Config\\options.lua through Windows Search, then a limited walk of each drive, and marks
+    what it found; a profile found that way still has to pass the same checks."""
+    from dcstune import sysinfo
+    ps = sysinfo._PS
+    i = ps.index("if ($profiles.Count -eq 0)")
+    assert ps.index("$profiles = @(); $pseen = @{}") < i < ps.index("$xr = 'SOFTWARE")
+    block = ps[i:ps.index("$xr = 'SOFTWARE")]
+    assert "SystemIndex" in block and "options.lua" in block and "found='search'" in block
+    assert "AddSeconds(40)" in block and "-ge 5" in block and "ReparsePoint" in block
+    assert "Program Files" in block and "Windows" in block            # system folders are skipped
+    import re
+    pat = r'\\(DCS[^\\]*)\\Config\\options\.lua$'
+    assert re.search(pat, r"E:\Games\Saved Games\DCS\Config\options.lua")
+    assert re.search(pat, r"D:\Users\me\Saved Games\DCS.openbeta\Config\options.lua")
+    assert not re.search(pat, r"D:\Mods\something\Config\options.lua")
+
+
+def test_not_found_message_says_how_to_create_the_settings():
+    from dcstune import sysinfo
+    import pytest as _p
+    with _p.raises(sysinfo.SetupNeeded) as e:
+        sysinfo.pick_profile({"profiles": []})
+    assert "searching your drives" in str(e.value) and "press OK" in str(e.value) and "Browse" in str(e.value)

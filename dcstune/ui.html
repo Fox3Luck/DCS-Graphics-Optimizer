@@ -255,7 +255,8 @@ async function refresh() {
   const sc = await api("/api/scorecard");
   showSetup(sc);
   if (sc.setup && sc.setup.what === "profile") { $("profile").textContent = "DCS settings not found yet"; busy(false); return; }
-  $("profile").textContent = "DCS profile: " + sc.profile + (sc.profile_path ? " (" + sc.profile_path + ")" : "");
+  $("profile").textContent = "DCS profile: " + sc.profile + (sc.profile_path ? " (" + sc.profile_path + ")" : "")
+    + (sc.profile_found === "search" ? ". Found by searching your drives, because Windows' Saved Games folder did not have it." : "");
   showProfiles(sc);
   const o = $("overall"); o.replaceChildren(el("div", "letter " + sc.overall.grade, sc.overall.grade),
     el("div", "score", sc.overall.score + " / 100 \u2014 40% PC, 60% how well your settings use it"));

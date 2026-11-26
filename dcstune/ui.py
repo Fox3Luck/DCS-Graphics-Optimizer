@@ -280,6 +280,8 @@ class Engine:
                          "auto": rate.target_fps((self.info.get("gpu") or {}).get("refresh"))},
                 "hardware": rate.hardware_summary(self.info, flat), "overall": rate.overall(machine, fit),
                 "profile_path": self.profile["path"],
+                # Not in Saved Games where Windows says it is: found by searching the drives.
+                "profile_found": "search" if self.profile.get("found") == "search" else "",
                 "profiles": [{"name": p.get("name"), "path": p.get("path")} for p in self.info["profiles"]],
                 "machine": machine,
                 "settings": fit,

@@ -99,6 +99,44 @@ foreach ($sg in $sgs) {
     }
   }
 }
+# Nothing in the usual places (a Saved Games folder moved to a drive that is gone, for example): look for
+# the settings file itself. Windows Search knows every indexed options.lua in about a second; if that
+# finds nothing, walk each fixed drive a few folders deep, skipping system folders, for up to 40 s.
+if ($profiles.Count -eq 0) {
+  $hits = @()
+  try {
+    $con = New-Object -ComObject ADODB.Connection
+    $con.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
+    $rs = $con.Execute("SELECT System.ItemPathDisplay FROM SystemIndex WHERE System.FileName = 'options.lua'")
+    while (-not $rs.EOF) { $hits += [string]$rs.Fields.Item('System.ItemPathDisplay').Value; $rs.MoveNext() }
+    $con.Close()
+  } catch {}
+  if ($hits.Count -eq 0) {
+    $skip = '^(Windows|Program Files.*|ProgramData|\$Recycle\.Bin|System Volume Information|Recovery|AppData|PerfLogs|node_modules|\$WinREAgent|Windows\.old)$'
+    $until = (Get-Date).AddSeconds(40)
+    $queue = New-Object System.Collections.Queue
+    foreach ($d in $drives) { $queue.Enqueue(@($d, 0)) }
+    while ($queue.Count -gt 0 -and (Get-Date) -lt $until) {
+      $item = $queue.Dequeue(); $dir = $item[0]; $depth = $item[1]
+      $o = Join-Path $dir 'Config\options.lua'
+      if ((Split-Path $dir -Leaf) -like 'DCS*' -and (Test-Path $o)) { $hits += $o; continue }
+      if ($depth -ge 5) { continue }
+      Get-ChildItem -LiteralPath $dir -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notmatch $skip -and -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) } |
+        ForEach-Object { $queue.Enqueue(@($_.FullName, $depth + 1)) }
+    }
+  }
+  foreach ($h in $hits) {
+    if ($h -notmatch '\\(DCS[^\\]*)\\Config\\options\.lua$') { continue }
+    $dir = Split-Path (Split-Path $h -Parent) -Parent
+    $key = $dir.ToLower()
+    if ((Test-Path $h) -and -not $pseen[$key]) {
+      $pseen[$key] = 1
+      $profiles += @{ name=(Split-Path $dir -Leaf); path=$dir; options=$h; found='search';
+                      modified=(Get-Item $h).LastWriteTime.ToString('s') }
+    }
+  }
+}
 $xr = 'SOFTWARE\Khronos\OpenXR\1'
 $layers = @()
 foreach ($hive in 'HKLM:','HKCU:') {
@@ -343,9 +381,11 @@ def apply_choices(info: dict, choices: dict | None = None) -> dict:
 def pick_profile(info: dict, name: str | None = None) -> dict:
     profiles = info["profiles"]
     if not profiles:
-        raise SetupNeeded("profile", "Your DCS settings folder was not found (Saved Games\\DCS with "
-                                     "Config\\options.lua). If you have started DCS on this PC before, "
-                                     "use Browse to show where your Saved Games\\DCS folder is.")
+        raise SetupNeeded("profile", "Your DCS settings were not found: no Saved Games\\DCS folder with "
+                                     "Config\\options.lua, also after searching your drives. DCS writes that file "
+                                     "the first time you change a setting: start DCS, open Options, press OK and "
+                                     "close DCS, then open this tool again. If your settings are somewhere "
+                                     "unusual, use Browse to show where your DCS settings folder is.")
     if name:
         for p in profiles:
             if p["name"].lower() == name.lower():
