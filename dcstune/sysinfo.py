@@ -101,7 +101,7 @@ foreach ($sg in $sgs) {
 }
 # Nothing in the usual places (a Saved Games folder moved to a drive that is gone, for example): look for
 # the settings file itself. Windows Search knows every indexed options.lua in about a second; if that
-# finds nothing, walk each fixed drive a few folders deep, skipping system folders, for up to 40 s.
+# finds nothing, walk each fixed drive a few folders deep, skipping system folders, for up to 25 s.
 if ($profiles.Count -eq 0) {
   $hits = @()
   try {
@@ -113,7 +113,7 @@ if ($profiles.Count -eq 0) {
   } catch {}
   if ($hits.Count -eq 0) {
     $skip = '^(Windows|Program Files.*|ProgramData|\$Recycle\.Bin|System Volume Information|Recovery|AppData|PerfLogs|node_modules|\$WinREAgent|Windows\.old)$'
-    $until = (Get-Date).AddSeconds(40)
+    $until = (Get-Date).AddSeconds(25)
     $queue = New-Object System.Collections.Queue
     foreach ($d in $drives) { $queue.Enqueue(@($d, 0)) }
     while ($queue.Count -gt 0 -and (Get-Date) -lt $until) {
@@ -201,7 +201,7 @@ def collect() -> dict:
         # the environment so a quote in the user name cannot break the command.
         proc = winproc.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", _PS_RUN],
-            capture_output=True, timeout=90, creationflags=NO_WINDOW,
+            capture_output=True, timeout=150, creationflags=NO_WINDOW,  # the settings search can add 25 s
             env=dict(os.environ, DCSTUNE_SYSINFO_PS=str(script)))
     # UTF-8 both ways: folder names with accents (C:\Users\José) must survive, and a byte the
     # default code page cannot decode must never break the start (beta issue #8).

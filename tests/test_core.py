@@ -852,7 +852,7 @@ def test_settings_search_runs_only_when_the_usual_places_found_nothing():
     assert ps.index("$profiles = @(); $pseen = @{}") < i < ps.index("$xr = 'SOFTWARE")
     block = ps[i:ps.index("$xr = 'SOFTWARE")]
     assert "SystemIndex" in block and "options.lua" in block and "found='search'" in block
-    assert "AddSeconds(40)" in block and "-ge 5" in block and "ReparsePoint" in block
+    assert "AddSeconds(25)" in block and "-ge 5" in block and "ReparsePoint" in block
     assert "Program Files" in block and "Windows" in block            # system folders are skipped
     import re
     pat = r'\\(DCS[^\\]*)\\Config\\options\.lua$'
